@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import DesignPreview from '../components/DesignPreview'
+import { Brand } from '../components/ApLogo'
 import StatusPill from '../components/StatusPill'
 import TechDiagram from '../components/TechDiagram'
 import LedDiagram from '../components/LedDiagram'
@@ -59,7 +60,7 @@ function Login({ onLogin }) {
   return (
     <div className="admin-login">
       <form className="login-card" onSubmit={submit}>
-        <div className="brand"><span className="brand-mark" /> LetreroLab</div>
+        <Brand sub="admin" />
         <h1>Admin</h1>
         <input className="input" type="password" placeholder="Contraseña" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
         {error && <p className="error">{error}</p>}
@@ -124,7 +125,7 @@ function Dashboard({ onLogout }) {
   return (
     <div className="admin">
       <aside className="admin-side">
-        <div className="brand"><span className="brand-mark" /> LetreroLab</div>
+        <Brand sub="admin" />
         <nav>
           {SECTIONS.map((s) => (
             <button key={s.id} className={section === s.id ? 'active' : ''} onClick={() => setSection(s.id)}>

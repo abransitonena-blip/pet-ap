@@ -1,4 +1,4 @@
-// API de LetreroLab. La usan server/index.js (Node local / VPS) y api/index.js (Vercel).
+// API de AP letreros. La usan server/index.js (Node local / VPS) y api/index.js (Vercel).
 import express from 'express'
 import cors from 'cors'
 import crypto from 'node:crypto'

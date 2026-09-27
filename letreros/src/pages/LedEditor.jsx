@@ -3,7 +3,7 @@ import SiteHeader from '../components/SiteHeader'
 import LedPreview from '../components/LedPreview'
 import FontSelect from '../components/FontSelect'
 import {
-  ANIMATIONS, BOARDS, BOARD_MATERIALS, DOT_STYLES, LED_COLORS, LED_SIZES, MAX_DOTS, POWER,
+  ANIMATIONS, BOARDS, BOARD_MATERIALS, SCENES, DOT_STYLES, LED_COLORS, LED_SIZES, MAX_DOTS, POWER,
   boardMaterialById, defaultLedDesign, ledColorById, newLedLine, normalizeLedDesign, planPower
 } from '../lib/ledSign'
 import { computeLedDots } from '../lib/ledText'
@@ -11,6 +11,15 @@ import { money, quote } from '../lib/pricing'
 import { api } from '../lib/api'
 
 const DRAFT_KEY = 'letreros_led_draft'
+const SCENE_KEY = 'ap_scene'
+
+function loadScene() {
+  try {
+    return localStorage.getItem(SCENE_KEY) || 'negro'
+  } catch {
+    return 'negro'
+  }
+}
 
 // Plantillas de inicio (sin puntos: se calculan al cargar)
 const LED_TEMPLATES = [
@@ -63,6 +72,7 @@ export default function LedEditor() {
   const [design, setDesign] = useState(loadDraft)
   const [quantity, setQuantity] = useState(1)
   const [night, setNight] = useState(true)
+  const [scene, setSceneState] = useState(loadScene)
   const [ordering, setOrdering] = useState(false)
   const busy = useLedDots(design, setDesign)
 
@@ -72,6 +82,12 @@ export default function LedEditor() {
     } catch {}
   }, [design])
 
+  const setScene = (id) => {
+    setSceneState(id)
+    try {
+      localStorage.setItem(SCENE_KEY, id)
+    } catch {}
+  }
   const update = (patch) => setDesign((d) => ({ ...d, ...patch }))
   const setLine = (i, patch) => setDesign((d) => ({ ...d, lines: d.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) }))
   const plan = useMemo(() => planPower(design), [design])
@@ -84,8 +100,13 @@ export default function LedEditor() {
 
       <div className="studio">
         <section className="studio-stage">
-          <div className={`wall ${night ? 'night' : ''}`}>
+          <div className={`wall ${night ? 'night' : ''}`} data-scene={scene} style={{ '--scene': SCENES.find((x) => x.id === scene)?.hex }}>
             <div className="wall-tools">
+              <div className="scenes" title="Fondo de la pared">
+                {SCENES.map((x) => (
+                  <button key={x.id} className={scene === x.id ? 'active' : ''} style={{ background: x.hex }} onClick={() => setScene(x.id)} title={x.name} />
+                ))}
+              </div>
               <div className="switch">
                 <button className={!night ? 'active' : ''} onClick={() => setNight(false)}>☀ Apagado</button>
                 <button className={night ? 'active' : ''} onClick={() => setNight(true)}>☾ Encendido</button>

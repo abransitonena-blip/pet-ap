@@ -1,8 +1,10 @@
+import { Brand } from './ApLogo'
+
 export default function SiteHeader({ active }) {
   return (
     <header className="site-header">
-      <a href="#/" className="brand">
-        <span className="brand-mark" /> LetreroLab
+      <a href="#/" className="brand-link">
+        <Brand />
       </a>
       <nav>
         <a href="#/" className={active === 'led' ? 'active' : ''}>Letrero LED</a>

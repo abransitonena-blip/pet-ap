@@ -197,7 +197,7 @@ export function gcode(order, { power = 1000, markPower = 300, feed = 600, passes
   const Y = (y) => g.h - y
   const pts = ledPointsMm(d)
   const out = [
-    `; LetreroLab ${order.folio} · ${d.widthCm}x${d.heightCm} cm · GRBL 1.1 (Arduino)`,
+    `; AP letreros ${order.folio} · ${d.widthCm}x${d.heightCm} cm · GRBL 1.1 (Arduino)`,
     `; Origen X0 Y0 = esquina inferior izquierda del letrero. Unidades mm.`,
     `; AJUSTA potencia (S) y velocidad (F) a tu laser y material antes de usar.`,
     `; Area de trabajo necesaria: ${f(g.w)} x ${f(g.h)} mm`,

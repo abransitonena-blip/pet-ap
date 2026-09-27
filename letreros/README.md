@@ -1,4 +1,4 @@
-# 🪧 LetreroLab – Diseña e imprime letreros
+# AP · Letreros LED
 
 Web para que tus clientes diseñen su letrero en línea, vean el precio al instante y hagan su pedido,
 más un **panel de administración** para controlar los pedidos, la cola de impresión y los letreros ya impresos.

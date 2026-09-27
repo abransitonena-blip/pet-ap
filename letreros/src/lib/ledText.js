@@ -5,6 +5,7 @@
 //  - relleno:  rejilla hexagonal dentro de la letra
 //  - matriz:   fuente clásica de 5 × 7 puntos
 // El orden de los puntos sigue el recorrido de la letra: es el orden de cableado en serie.
+import { fontsCssReady } from './fonts'
 
 // ---------- Fuente 5 × 7 ----------
 const M = {
@@ -28,7 +29,7 @@ const M = {
   '❤': [0, 10, 31, 31, 14, 4, 0], '*': [0, 4, 21, 14, 21, 4, 0]
 }
 
-function matrixGlyph(ch) {
+export function matrixGlyph(ch) {
   const up = ch === 'ñ' ? 'Ñ' : ch.toUpperCase()
   if (M[up]) return M[up]
   const plain = up.normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -200,6 +201,7 @@ let ctx = null
 
 async function fontLine(line, style, pitchMm, ledMm) {
   const weight = line.bold ? 800 : 400
+  await fontsCssReady()
   if (document.fonts) await document.fonts.load(`${weight} 100px "${line.font}"`, line.text).catch(() => {})
   ctx = ctx || document.createElement('canvas').getContext('2d', { willReadFrequently: true })
   const key = `${weight}|${line.font}`

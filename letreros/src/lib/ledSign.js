@@ -25,12 +25,28 @@ export const DOT_STYLES = [
   { id: 'matriz', name: 'Matriz 5×7', note: 'Clásico letrero de puntos' }
 ]
 
+// Fondos de placa minimalistas
 export const BOARDS = [
-  { id: 'negro', name: 'Negro', hex: '#0c0c0e' },
-  { id: 'humo', name: 'Humo', hex: '#2b2d33' },
-  { id: 'blanco', name: 'Blanco', hex: '#f1f1ee' },
+  { id: 'negro', name: 'Negro', hex: '#0b0b0c' },
+  { id: 'humo', name: 'Grafito', hex: '#2b2d33' },
+  { id: 'azulnoche', name: 'Noche', hex: '#18202f' },
+  { id: 'rosa', name: 'Rosa', hex: '#f4a9c6' },
+  { id: 'rosapalo', name: 'Rosa palo', hex: '#f3dbe2' },
+  { id: 'blanco', name: 'Blanco', hex: '#f4f3ef' },
+  { id: 'arena', name: 'Arena', hex: '#e4d8c6' },
+  { id: 'gris', name: 'Gris', hex: '#9a9ca3' },
+  { id: 'salvia', name: 'Salvia', hex: '#a9b69f' },
   { id: 'transparente', name: 'Cristal', hex: '#cfdde2' },
   { id: 'madera', name: 'Madera', hex: '#7a5134' }
+]
+
+// Pared de la vista previa (solo visual)
+export const SCENES = [
+  { id: 'negro', name: 'Negro', hex: '#0d0d0f' },
+  { id: 'rosa', name: 'Rosa', hex: '#f2b8cd' },
+  { id: 'blanco', name: 'Blanco', hex: '#efeeea' },
+  { id: 'concreto', name: 'Concreto', hex: '#a9a6a0' },
+  { id: 'arena', name: 'Arena', hex: '#dccfbb' }
 ]
 
 export const BOARD_MATERIALS = [
