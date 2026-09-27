@@ -438,8 +438,20 @@ export function Business({ settings, onSaved }) {
         <label className="field"><span>Anticipo %</span><input className="input" type="number" min="0" max="100" value={b.depositPct} onChange={set('depositPct')} /></label>
         <label className="field"><span>Vigencia del presupuesto (días)</span><input className="input" type="number" min="1" value={b.validityDays} onChange={set('validityDays')} /></label>
         <label className="field"><span>Entrega estimada (días hábiles)</span><input className="input" type="number" min="1" value={b.deliveryDays} onChange={set('deliveryDays')} /></label>
+        <label className="field"><span>Garantía (meses)</span><input className="input" type="number" min="0" max="120" value={b.warrantyMonths} onChange={set('warrantyMonths')} /></label>
+        <label className="field"><span>Meses sin intereses con tarjeta (0 = no)</span><input className="input" type="number" min="0" max="24" value={b.installments} onChange={set('installments')} /></label>
+        <label className="field"><span>Costo de envío</span><input className="input" type="number" min="0" value={b.shippingCost} onChange={set('shippingCost')} /></label>
+        <label className="field"><span>Envío gratis desde (0 = nunca)</span><input className="input" type="number" min="0" value={b.freeShippingFrom} onChange={set('freeShippingFrom')} /></label>
         <label className="field wide"><span>Datos para pago (banco, CLABE, titular)</span><textarea className="input" rows="2" value={b.bank} onChange={set('bank')} /></label>
         <label className="field wide"><span>Términos y condiciones</span><textarea className="input" rows="4" value={b.terms} onChange={set('terms')} /></label>
+      </section>
+      <section className="card form-grid">
+        <label className="field wide">
+          <span>Enlace para reseñas de Google (Perfil de Empresa → “Pedir reseñas”)</span>
+          <input className="input" value={b.googleReviewUrl} onChange={set('googleReviewUrl')} placeholder="https://g.page/r/…/review" />
+        </label>
+        <label className="field"><span>Instagram</span><input className="input" value={b.instagram} onChange={set('instagram')} placeholder="ap.letreros" /></label>
+        <label className="field"><span>Facebook</span><input className="input" value={b.facebook} onChange={set('facebook')} placeholder="https://facebook.com/…" /></label>
       </section>
     </div>
   )

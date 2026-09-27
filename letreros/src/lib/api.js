@@ -42,5 +42,9 @@ export const api = {
   sendReview: (folio, body) => request(`/quote/${encodeURIComponent(folio)}/review`, { method: 'POST', body }),
   addPhoto: (id, image) => request(`/admin/orders/${id}/photos`, { method: 'POST', body: { image }, auth: true }),
   deletePhoto: (id, pid) => request(`/admin/orders/${id}/photos/${pid}`, { method: 'DELETE', auth: true }),
+  leads: () => request('/admin/leads', { auth: true }),
+  addLead: (l) => request('/admin/leads', { method: 'POST', body: l, auth: true }),
+  updateLead: (id, l) => request(`/admin/leads/${id}`, { method: 'PATCH', body: l, auth: true }),
+  deleteLead: (id) => request(`/admin/leads/${id}`, { method: 'DELETE', auth: true }),
   deleteOrder: (id) => request(`/admin/orders/${id}`, { method: 'DELETE', auth: true })
 }

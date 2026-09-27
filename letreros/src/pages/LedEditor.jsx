@@ -8,6 +8,8 @@ import { DotIcon, MountIcon, ShapeIcon } from '../components/LedIcons'
 import { LED_MODELS } from '../lib/ledModels'
 import { readSharedDesign, shareUrl } from '../lib/share'
 import FontSelect from '../components/FontSelect'
+import TrustBar from '../components/TrustBar'
+import SiteFooter from '../components/SiteFooter'
 import { FinishSwatch } from '../components/Finish'
 import { wallStyle } from '../lib/walls'
 import {
@@ -254,6 +256,8 @@ export default function LedEditor() {
             </div>
           </div>
 
+          <TrustBar business={business} total={q.total} />
+
           <div className="styles-row">
             <span className="label">Ideas</span>
             <div className="styles-scroll">
@@ -478,7 +482,10 @@ export default function LedEditor() {
               </div>
               <div className="grow price">
                 <strong>{money(q.total)}</strong>
-                <span className="muted small">{quantity > 1 ? `${money(q.unitPrice)} c/u` : (business.ivaIncluded ? 'IVA incluido' : `más IVA ${business.ivaRate} %`)}</span>
+                <span className="muted small">
+                  {quantity > 1 ? `${money(q.unitPrice)} c/u` : (business.ivaIncluded ? 'IVA incluido' : `más IVA ${business.ivaRate} %`)}
+                  {business.installments > 0 && ` · o ${business.installments} × ${money(Math.ceil(q.total / business.installments))}`}
+                </span>
               </div>
               <button className="btn primary" onClick={() => setOrdering(true)} disabled={busy || !design.dots.length || tooMany}>Pedir mi letrero</button>
             </div>
@@ -488,6 +495,7 @@ export default function LedEditor() {
 
       <ReviewsSection />
       <MadeByAp onPick={(d) => { setDesign(normalizeLedDesign(d)); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
+      <SiteFooter business={business} />
 
       {ordering && (
         <OrderModal

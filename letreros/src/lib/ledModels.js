@@ -1,5 +1,5 @@
 // Modelos de inicio por giro de negocio (sin puntos: se calculan al cargar)
-import { newLedLine } from './ledSign'
+import { newLedLine } from './ledSign.js'
 
 const L = newLedLine
 export const LED_MODELS = [

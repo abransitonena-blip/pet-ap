@@ -34,7 +34,23 @@ function referencePrice(ref, settings) {
   return computeTotals(q, {}, settings.business).total
 }
 
-export default function Market({ settings }) {
+// Acciones que el sistema puede comprobar solo
+function autoDone(settings, orders, refs) {
+  const b = settings?.business || {}
+  const auto = {
+    'precio-chico': refs[0] && refs[0].price >= 690 && refs[0].price <= 990,
+    resenas: orders.some((o) => o.review),
+    fotos: orders.some((o) => o.photos?.length),
+    google: Boolean(b.googleReviewUrl),
+    entrega: b.deliveryDays > 0 && b.deliveryDays <= 7,
+    garantia: b.warrantyMonths >= 12,
+    pagos: b.installments > 0,
+    envio: b.shippingCost > 0 && b.freeShippingFrom > 0 && b.freeShippingFrom <= 1999
+  }
+  return Object.keys(auto).filter((k) => auto[k])
+}
+
+export default function Market({ settings, orders = [] }) {
   const [done, setDone] = useState(readDone)
   const toggle = (id) => {
     const next = done.includes(id) ? done.filter((x) => x !== id) : [...done, id]
@@ -46,6 +62,8 @@ export default function Market({ settings }) {
     }
   }
   const refs = useMemo(() => (settings ? REFERENCE_SIGNS.map((r) => ({ ...r, price: referencePrice(r, settings) })) : []), [settings])
+  const autos = autoDone(settings, orders, refs)
+  const isDone = (id) => autos.includes(id) || done.includes(id)
 
   return (
     <div className="market">
@@ -122,13 +140,13 @@ export default function Market({ settings }) {
       </div>
 
       <section className="card">
-        <h2>Plan de acción <span className="muted small">{done.length}/{ACTIONS.length} hechas</span></h2>
+        <h2>Plan de acción <span className="muted small">{ACTIONS.filter((a) => isDone(a.id)).length}/{ACTIONS.length} hechas</span></h2>
         <ul className="actions-list">
           {ACTIONS.map((a) => (
-            <li key={a.id} className={done.includes(a.id) ? 'done' : ''}>
+            <li key={a.id} className={isDone(a.id) ? 'done' : ''}>
               <label>
-                <input type="checkbox" checked={done.includes(a.id)} onChange={() => toggle(a.id)} />
-                <span><strong>{a.title}</strong><em>{a.detail}</em></span>
+                <input type="checkbox" checked={isDone(a.id)} disabled={autos.includes(a.id)} onChange={() => toggle(a.id)} />
+                <span><strong>{a.title}</strong><em>{a.detail}{autos.includes(a.id) && ' · ✓ detectado automáticamente'}</em></span>
               </label>
             </li>
           ))}

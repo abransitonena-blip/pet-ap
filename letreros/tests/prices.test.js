@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DEFAULT_PRICES, computeTotals, mergeBusiness, mergePrices, normalizeAdjust, normalizePayment, paymentSummary, volumeDiscount } from '../src/lib/prices.js'
+import { DEFAULT_PRICES, computeTotals, mergeBusiness, mergePrices, normalizeAdjust, normalizePayment, paymentSummary, shippingFor, volumeDiscount } from '../src/lib/prices.js'
 import { quote } from '../src/lib/pricing.js'
 import { defaultDesign } from '../src/lib/design.js'
 import { defaultLedDesign, normalizeLedDesign } from '../src/lib/ledSign.js'
@@ -68,4 +68,14 @@ test('pagos: validación y estado de cobro', () => {
   assert.equal(paymentSummary(totals, [{ amount: 500 }]).state, 'anticipo')
   const done = paymentSummary(totals, [{ amount: 500 }, { amount: 600 }])
   assert.deepEqual([done.state, done.balance], ['pagado', 0])
+})
+
+test('negocio: enlaces seguros y envío gratis desde el monto', () => {
+  const b = mergeBusiness({ googleReviewUrl: 'javascript:alert(1)', facebook: 'https://facebook.com/ap', instagram: '@ap.letreros!' })
+  assert.equal(b.googleReviewUrl, '')
+  assert.equal(b.facebook, 'https://facebook.com/ap')
+  assert.equal(b.instagram, 'ap.letreros')
+  assert.equal(shippingFor('envio', 1000, b), b.shippingCost)
+  assert.equal(shippingFor('envio', b.freeShippingFrom, b), 0)
+  assert.equal(shippingFor('recoger', 100, b), 0)
 })

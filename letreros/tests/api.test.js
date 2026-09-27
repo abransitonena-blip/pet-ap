@@ -145,6 +145,23 @@ test('opiniones verificadas y fotos reales', async () => {
   assert.equal((await fetch(`${base}/photos/${pid}`)).status, 404)
 })
 
+test('prospectos: permisos y embudo; envío cobrado en el pedido', async () => {
+  const owner = await login('admin', 'clave-prueba')
+  assert.equal((await call('GET', '/admin/leads')).status, 401)
+  assert.equal((await call('POST', '/admin/leads', { giro: 'cafe' }, owner)).status, 400)
+  const made = await call('POST', '/admin/leads', { name: 'Café Luna', giro: 'cafe', phone: '5512345678', status: 'raro' }, owner)
+  assert.equal(made.status, 201)
+  assert.equal(made.body.status, 'por_visitar')
+  const upd = await call('PATCH', `/admin/leads/${made.body.id}`, { status: 'visitado' }, owner)
+  assert.ok(upd.body.visitedAt, 'marca la fecha de visita')
+  assert.equal(upd.body.name, 'Café Luna', 'no borra campos que no se mandan')
+  assert.equal((await call('DELETE', `/admin/leads/${made.body.id}`, null, owner)).status, 204)
+
+  const { folio } = (await call('POST', '/orders', ledOrder)).body
+  const order = (await call('GET', '/admin/orders', null, owner)).body.find((o) => o.folio === folio)
+  assert.equal(order.adjust.items[0]?.label, 'Envío a domicilio', 'pedido chico con envío paga envío')
+})
+
 test('límite de intentos de acceso', async () => {
   let last
   for (let i = 0; i < 12; i++) last = await call('POST', '/admin/login', { username: 'nadie', password: 'x' })

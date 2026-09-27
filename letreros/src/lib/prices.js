@@ -47,10 +47,17 @@ export const DEFAULT_BUSINESS = {
   depositPct: 50,
   validityDays: 15,
   deliveryDays: 7,
+  warrantyMonths: 12,
+  shippingCost: 180,
+  freeShippingFrom: 1999,
+  installments: 0, // meses sin intereses con tarjeta (0 = no se ofrecen)
+  googleReviewUrl: '',
+  instagram: '',
+  facebook: '',
   bank: '',
   terms:
     'Precios en pesos mexicanos. Para iniciar la producción se requiere el anticipo; el resto se paga contra entrega.\n' +
-    'Garantía de 6 meses en LED y fuente de poder. Los colores en pantalla pueden variar ligeramente del producto final.'
+    'Garantía en LED y fuente de poder según el plazo indicado. Los colores en pantalla pueden variar ligeramente del producto final.'
 }
 
 // ---------- Permisos (delegar funciones) ----------
@@ -119,16 +126,37 @@ export function mergeBusiness(input) {
     depositPct: num(b.depositPct, d.depositPct, 100),
     validityDays: Math.round(num(b.validityDays, d.validityDays, 365)),
     deliveryDays: Math.round(num(b.deliveryDays, d.deliveryDays, 365)),
+    warrantyMonths: Math.round(num(b.warrantyMonths, d.warrantyMonths, 120)),
+    shippingCost: Math.round(num(b.shippingCost, d.shippingCost, 10000)),
+    freeShippingFrom: Math.round(num(b.freeShippingFrom, d.freeShippingFrom, 1e6)),
+    installments: Math.round(num(b.installments, d.installments, 24)),
+    googleReviewUrl: safeUrl(b.googleReviewUrl),
+    instagram: text(b.instagram, 60, '').replace(/^@/, '').replace(/[^\w.]/g, ''),
+    facebook: safeUrl(b.facebook),
     bank: text(b.bank, 300, d.bank),
     terms: text(b.terms, 2000, d.terms)
   }
 }
 
+// Solo enlaces https (evita javascript: y similares)
+const safeUrl = (v) => {
+  const s = text(v, 300, '')
+  return /^https:\/\/[^\s"'<>]+$/.test(s) ? s : ''
+}
+
 // Datos del negocio que se pueden mostrar al público
 export const publicBusiness = (b) => {
   const { name, whatsapp, email, address, city, ivaRate, ivaIncluded, depositPct, validityDays, deliveryDays } = b
-  return { name, whatsapp, email, address, city, ivaRate, ivaIncluded, depositPct, validityDays, deliveryDays }
+  const { warrantyMonths, shippingCost, freeShippingFrom, installments, googleReviewUrl, instagram, facebook } = b
+  return {
+    name, whatsapp, email, address, city, ivaRate, ivaIncluded, depositPct, validityDays, deliveryDays,
+    warrantyMonths, shippingCost, freeShippingFrom, installments, googleReviewUrl, instagram, facebook
+  }
 }
+
+// Envío: gratis desde cierto monto; si no, costo fijo
+export const shippingFor = (delivery, total, business) =>
+  delivery === 'envio' && business.shippingCost > 0 && !(business.freeShippingFrom > 0 && total >= business.freeShippingFrom) ? business.shippingCost : 0
 
 // Descuento por volumen según la tabla de precios
 export function volumeDiscount(qty, prices = DEFAULT_PRICES) {

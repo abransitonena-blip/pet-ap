@@ -7,9 +7,10 @@ import { MATERIALS, EXTRAS, quote } from '../src/lib/pricing.js'
 import { STATUS_IDS, PRINTED_STATUSES } from '../src/lib/status.js'
 import { normalizeLedDesign } from '../src/lib/ledSign.js'
 import {
-  PERM_IDS, computeTotals, mergeBusiness, mergePrices, normalizeAdjust, normalizePayment, paymentSummary, publicBusiness
+  PERM_IDS, computeTotals, mergeBusiness, mergePrices, normalizeAdjust, normalizePayment, paymentSummary, publicBusiness, shippingFor
 } from '../src/lib/prices.js'
 import { normalizeCustomer } from '../src/lib/customer.js'
+import { GIRO_IDS, LEAD_STATE_IDS } from '../src/lib/prospects.js'
 import { store } from './store.js'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
@@ -36,6 +37,7 @@ async function loadDb() {
   const db = await store.load()
   db.orders = db.orders || []
   db.users = db.users || []
+  db.leads = db.leads || []
   db.settings = {
     prices: mergePrices(db.settings?.prices),
     business: mergeBusiness(db.settings?.business)
@@ -197,7 +199,9 @@ api.post('/orders', orderLimit, h(async (req, res) => {
     const q = quote({ ...clean, quantity }, db.settings.prices)
     const now = new Date().toISOString()
     db.seq = (db.seq || 0) + 1
-    const adjust = normalizeAdjust()
+    // Envío a domicilio: gratis desde el monto configurado
+    const ship = shippingFor(checked.customer.delivery, computeTotals(q, normalizeAdjust(), db.settings.business).total, db.settings.business)
+    const adjust = normalizeAdjust(ship ? { items: [{ label: 'Envío a domicilio', amount: ship }] } : undefined)
     const o = {
       id: crypto.randomUUID(),
       folio: `LT-${String(db.seq).padStart(4, '0')}`,
@@ -621,6 +625,59 @@ api.put('/admin/settings/business', requireUser, need('ajustes'), h(async (req, 
     return db.settings
   })
   res.json(settings)
+}))
+
+// Prospectos (visitas a negocios)
+function cleanLead(b, prev = {}) {
+  const pick = (k, max) => (b[k] !== undefined ? String(b[k] || '').trim().slice(0, max) : prev[k] || '')
+  return {
+    name: pick('name', 60),
+    contact: pick('contact', 60),
+    phone: pick('phone', 20).replace(/[^\d+ ]/g, ''),
+    zone: pick('zone', 60),
+    note: pick('note', 400),
+    giro: GIRO_IDS.includes(b.giro) ? b.giro : prev.giro || 'otro',
+    status: LEAD_STATE_IDS.includes(b.status) ? b.status : prev.status || 'por_visitar'
+  }
+}
+
+api.get('/admin/leads', requireUser, need('ventas'), (req, res) => res.json(req.db.leads))
+
+api.post('/admin/leads', requireUser, need('ventas'), h(async (req, res) => {
+  const data = cleanLead(req.body || {})
+  if (!data.name) return res.status(400).json({ error: 'Escribe el nombre del negocio' })
+  const lead = await mutate((db) => {
+    if (db.leads.length >= 2000) return { save: false, full: true }
+    const now = new Date().toISOString()
+    const l = { id: crypto.randomUUID(), ...data, createdAt: now, updatedAt: now, by: req.user.name, visitedAt: data.status !== 'por_visitar' ? now : null }
+    db.leads.unshift(l)
+    return l
+  })
+  if (lead.full) return res.status(400).json({ error: 'Límite de prospectos alcanzado' })
+  res.status(201).json(lead)
+}))
+
+api.patch('/admin/leads/:id', requireUser, need('ventas'), h(async (req, res) => {
+  const lead = await mutate((db) => {
+    const l = db.leads.find((x) => x.id === req.params.id)
+    if (!l) return { save: false, missing: true }
+    const wasPending = l.status === 'por_visitar'
+    Object.assign(l, cleanLead(req.body || {}, l), { updatedAt: new Date().toISOString() })
+    if (wasPending && l.status !== 'por_visitar' && !l.visitedAt) l.visitedAt = l.updatedAt
+    return l
+  })
+  if (lead.missing) return res.status(404).json({ error: 'Prospecto no encontrado' })
+  res.json(lead)
+}))
+
+api.delete('/admin/leads/:id', requireUser, need('ventas'), h(async (req, res) => {
+  const result = await mutate((db) => {
+    const before = db.leads.length
+    db.leads = db.leads.filter((l) => l.id !== req.params.id)
+    return db.leads.length === before ? { save: false, missing: true } : {}
+  })
+  if (result.missing) return res.status(404).json({ error: 'Prospecto no encontrado' })
+  res.status(204).end()
 }))
 
 // Equipo: usuarios con permisos

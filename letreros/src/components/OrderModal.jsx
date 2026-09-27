@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { money } from '../lib/pricing'
 import { usePublicSettings } from '../lib/settings'
 import { DELIVERY_OPTIONS } from '../lib/customer'
+import { shippingFor } from '../lib/prices'
 
 const SAVED_KEY = 'ap_customer'
 
@@ -38,6 +39,9 @@ export default function OrderModal({ design, quantity, total, preview, summary =
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const ship = shippingFor(form.delivery, total, business)
+  const shipNote = (id) =>
+    id !== 'envio' ? null : shippingFor('envio', total, business) ? `+${money(business.shippingCost)}` : business.shippingCost ? 'Gratis' : null
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const phoneOk = !form.phone || digits(form.phone).length >= 10
@@ -103,7 +107,8 @@ export default function OrderModal({ design, quantity, total, preview, summary =
             <div>
               {summary.map((s, i) => <span key={i} className={i ? 'muted' : ''}>{s}</span>)}
               <span className="muted">{quantity} pieza{quantity > 1 ? 's' : ''}</span>
-              <strong className="modal-total">{money(total)}</strong>
+              <strong className="modal-total">{money(total + ship)}</strong>
+              {ship > 0 && <span className="muted small">incluye envío {money(ship)}{business.freeShippingFrom > 0 && ` · gratis desde ${money(business.freeShippingFrom)}`}</span>}
             </div>
           </div>
 
@@ -123,7 +128,7 @@ export default function OrderModal({ design, quantity, total, preview, summary =
               {DELIVERY_OPTIONS.map((o) => (
                 <button type="button" key={o.id} className={form.delivery === o.id ? 'active' : ''} onClick={() => setForm((f) => ({ ...f, delivery: o.id }))}>
                   <strong>{o.name}</strong>
-                  <span>{o.note}</span>
+                  <span>{o.note}{shipNote(o.id) && <b className={shipNote(o.id) === 'Gratis' ? 'free' : ''}> · {shipNote(o.id)}</b>}</span>
                 </button>
               ))}
             </div>

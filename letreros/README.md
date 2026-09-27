@@ -48,6 +48,18 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 - El taller sube fotos reales de cada trabajo en el pedido (hasta 12, se reducen a 1600 px); se guardan en Vercel Blob privado o en `data/fotos`
 - La página pública muestra el promedio de estrellas, las opiniones con foto y la galería con fotos reales
 
+**Confianza y venta**
+- Barra de garantías en la página: garantía (meses), entrega en días, envío gratis desde cierto monto, anticipo o meses sin intereses
+- Envío: se cobra solo si el pedido no llega al monto de envío gratis (el servidor lo agrega al presupuesto como *Envío a domicilio*)
+- Tras una opinión de 4–5 ★, el cliente ve el botón para dejar reseña también en Google (enlace configurable)
+- Pie de página con WhatsApp, Instagram, Facebook y seguimiento; SEO: descripción, vista previa para WhatsApp/Facebook (`public/og.jpg`) y datos estructurados
+- *Ficha MercadoLibre* en cada pedido LED: copia título (≤ 60 caracteres) y descripción con medidas, garantía y liga al editor
+
+**Prospectos (panel → Estrategia)**
+- Registra los negocios que visitas (giro, contacto, zona, nota) y sigue el embudo: por visitar → visitado → muestra enviada → cotizado → cliente
+- Cada prospecto tiene una **muestra con su nombre** sobre el modelo de su giro; se manda por WhatsApp con un toque
+- Meta semanal de 20 visitas y tasa de conversión
+
 **Mercado (panel → Estrategia)**
 - Análisis con fuentes: tamaño del mercado (INEGI), competencia y precios (Radox, programables, neón flex), tu precio actual en vivo contra el mercado y plan de acción. Documento: `docs/analisis-mercado.md`
 
@@ -120,7 +132,7 @@ letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, dato
 
 ```bash
 cd letreros
-npm test        # 24 pruebas: opiniones y fotos, combinaciones de color, marco, acabados, precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
+npm test        # 26 pruebas: prospectos, envío, enlaces seguros, opiniones y fotos, combinaciones de color, marco, acabados, precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
 npm run check   # pruebas + build
 ```
 

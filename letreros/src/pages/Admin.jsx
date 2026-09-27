@@ -4,6 +4,9 @@ import { Brand } from '../components/ApLogo'
 import { deliveryName } from '../lib/customer'
 import { Business, Clients, Prices, QuoteEditor, QuotePill, Quotes, Team, quoteLink } from './AdminSections'
 import Market from './Market'
+import Prospects from './Prospects'
+import { marketListing } from '../lib/listing'
+import { shareUrl } from '../lib/share'
 import { Stars } from '../components/Reviews'
 import { fileToJpeg, photoUrl } from '../lib/image'
 import StatusPill from '../components/StatusPill'
@@ -126,6 +129,7 @@ const SECTIONS = [
   { id: 'archivos', label: 'Archivos', perms: ['produccion'] },
   { id: 'clientes', label: 'Clientes', perms: ['pedidos'] },
   { id: 'mercado', label: 'Mercado', perms: ['ventas', 'precios'], group: 'Estrategia' },
+  { id: 'prospectos', label: 'Prospectos', perms: ['ventas'] },
   { id: 'precios', label: 'Precios', perms: ['precios'], group: 'Configuración' },
   { id: 'equipo', label: 'Equipo', perms: ['equipo'] },
   { id: 'ajustes', label: 'Negocio', perms: ['ajustes'] }
@@ -346,7 +350,8 @@ function Dashboard({ onLogout }) {
             {active.id === 'impresos' && <PrintedGallery orders={orders} onOpen={open} />}
             {active.id === 'archivos' && <Files orders={orders} onOpen={open} />}
             {active.id === 'opiniones' && <ReviewsAdmin orders={orders} onOpen={open} onUpdate={updateOrder} />}
-            {active.id === 'mercado' && <Market settings={settings} />}
+            {active.id === 'mercado' && <Market settings={settings} orders={orders} />}
+            {active.id === 'prospectos' && <Prospects business={settings?.business} />}
             {active.id === 'clientes' && <Clients orders={orders} onOpen={open} showMoney={can('ventas')} />}
             {active.id === 'precios' && <Prices settings={settings} onSaved={setSettings} />}
             {active.id === 'equipo' && <Team me={me} />}
@@ -758,6 +763,22 @@ function Payments({ order, onAdd, onDelete, canEdit }) {
   )
 }
 
+// Copia título y descripción para publicar este diseño en MercadoLibre / Marketplace
+function ListingButton({ order, business }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    const { title, description } = marketListing(order.design, order.totals?.total || order.quote.total, business, shareUrl(order.design))
+    try {
+      await navigator.clipboard.writeText(`${title}\n\n${description}`)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      prompt('Copia la ficha:', `${title}\n\n${description}`)
+    }
+  }
+  return <button className="btn ghost" onClick={copy} title="Título y descripción listos para MercadoLibre">{copied ? '¡Ficha copiada!' : 'Ficha MercadoLibre'}</button>
+}
+
 // Fotos reales del letrero terminado + opinión del cliente
 function FinishedWork({ order, onUpdate, onAddPhotos, onDeletePhoto, can }) {
   const [busy, setBusy] = useState(false)
@@ -936,6 +957,7 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDel
                   Avisar por WhatsApp
                 </a>
               )}
+              {d.kind === 'led' && can('ventas') && business && <ListingButton order={order} business={business} />}
             </div>
 
             <section>

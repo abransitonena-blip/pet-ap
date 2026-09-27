@@ -61,6 +61,11 @@ export function ReviewForm({ doc, token, onSaved }) {
         <p className="muted small">
           <Stars value={mine.stars} size={15} /> {mine.status === 'publicada' ? 'Ya aparece en nuestra página.' : 'La publicaremos en cuanto la revisemos.'}
         </p>
+        {mine.stars >= 4 && doc.business.googleReviewUrl && (
+          <a className="btn primary sm google-btn" href={doc.business.googleReviewUrl} target="_blank" rel="noreferrer">
+            ¿Nos ayudas también con una reseña en Google?
+          </a>
+        )}
         <button className="link-btn" onClick={() => setEditing(true)}>Editar mi opinión</button>
       </section>
     )
