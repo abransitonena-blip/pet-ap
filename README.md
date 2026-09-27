@@ -10,6 +10,9 @@ App minimalista de paseo de perros especializada en Cuautitlán Izcalli. Una exp
 - ⭐ **Sistema de Calificaciones** - Elige al mejor paseador
 - 🌍 **Optimizado para Cuautitlán** - Rutas y paseadores locales
 
+> 🪧 **Nuevo:** este repo también incluye **LetreroLab**, una web para diseñar letreros con panel admin
+> de pedidos e impresiones. Ver [`letreros/README.md`](letreros/README.md).
+
 ## 🚀 Inicio Rápido
 
 ### Requisitos
