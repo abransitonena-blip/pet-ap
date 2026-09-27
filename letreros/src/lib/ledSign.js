@@ -241,8 +241,9 @@ const I_12V = 0.015
 export const capCurrent = (uF, volts) => (240 * uF * (180 - volts)) / 1000
 
 function chooseCap(volts) {
-  // El capacitor que deja la corriente más cerca de 10 mA sin pasar de 12.5 mA
-  const options = CAPS.map((c) => ({ ...c, mA: capCurrent(c.uF, volts) })).filter((c) => c.mA <= 12.5)
+  // El capacitor que deja la corriente más cerca de 10 mA sin pasar de 11.5 mA
+  // (coincide con la tabla de la placa B: ≤30 V → 224J, 40–60 V → 334J, 60–100 V → 474J)
+  const options = CAPS.map((c) => ({ ...c, mA: capCurrent(c.uF, volts) })).filter((c) => c.mA <= 11.5)
   const pick = (options.length ? options : [CAPS[0]].map((c) => ({ ...c, mA: capCurrent(c.uF, volts) }))).reduce((a, b) =>
     Math.abs(b.mA - 10) < Math.abs(a.mA - 10) ? b : a
   )

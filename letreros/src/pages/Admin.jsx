@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import DesignPreview from '../components/DesignPreview'
 import { Brand } from '../components/ApLogo'
+import { deliveryName } from '../lib/customer'
 import { Business, Clients, Prices, QuoteEditor, QuotePill, Quotes, Team } from './AdminSections'
 import StatusPill from '../components/StatusPill'
 import TechDiagram from '../components/TechDiagram'
@@ -680,6 +681,12 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDel
                 </p>
               )}
               {order.customer.email && <p><a href={`mailto:${order.customer.email}`}>{order.customer.email}</a></p>}
+              {(order.customer.delivery || order.customer.date) && (
+                <p className="small">
+                  Entrega: <b>{deliveryName(order.customer.delivery)}</b>
+                  {order.customer.date && <> · para el <b>{new Date(order.customer.date + 'T12:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}</b></>}
+                </p>
+              )}
               {order.customer.notes && <p className="note">{order.customer.notes}</p>}
             </section>
 

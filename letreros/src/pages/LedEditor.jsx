@@ -2,14 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import SiteHeader from '../components/SiteHeader'
 import LedPreview, { previewBox } from '../components/LedPreview'
 import IconPicker, { IconGlyph } from '../components/IconPicker'
+import OrderModal from '../components/OrderModal'
+import { DotIcon, MountIcon, ShapeIcon } from '../components/LedIcons'
+import { LED_MODELS } from '../lib/ledModels'
+import { readSharedDesign, shareUrl } from '../lib/share'
 import FontSelect from '../components/FontSelect'
 import {
   ANIMATIONS, BOARDS, BOARD_MATERIALS, MOUNTS, SCENES, SHAPES, DOT_STYLES, LED_COLORS, LED_SIZES, MAX_DOTS, POWER,
-  boardMaterialById, defaultLedDesign, ledColorById, newLedLine, normalizeLedDesign, planPower
+  boardById, boardMaterialById, defaultLedDesign, ledColorById, newLedLine, normalizeLedDesign, planPower
 } from '../lib/ledSign'
 import { computeLedDots } from '../lib/ledText'
 import { money, quote } from '../lib/pricing'
-import { api } from '../lib/api'
 import { usePublicSettings } from '../lib/settings'
 
 const DRAFT_KEY = 'letreros_led_draft'
@@ -24,23 +27,19 @@ function loadScene() {
   }
 }
 
-// Modelos de inicio (sin puntos: se calculan al cargar)
-const L = newLedLine
-const LED_TEMPLATES = [
-  { name: 'Abierto', d: { style: 'contorno', pitchMm: 12, shape: 'pill', board: 'blanco', lines: [L({ text: 'ABIERTO', font: 'Anton', heightMm: 120, color: 'rojo', icon: 'estrella' })] } },
-  { name: 'Taquería', d: { style: 'contorno', pitchMm: 12, board: 'arena', lines: [L({ text: 'TACOS', font: 'Alfa Slab One', heightMm: 130, color: 'ambar', icon: 'taco' }), L({ text: 'al pastor', font: 'Kaushan Script', heightMm: 70, color: 'verde' })] } },
-  { name: 'Café', d: { style: 'trazo', pitchMm: 10, shape: 'arch', board: 'rosapalo', lines: [L({ text: 'Café', font: 'Pacifico', heightMm: 130, color: 'calido', icon: 'cafe', iconPos: 'right' })] } },
-  { name: 'Pet shop', d: { style: 'trazo', pitchMm: 10, shape: 'circle', board: 'rosa', lines: [L({ text: '', icon: 'perro', heightMm: 150, color: 'blanco' }), L({ text: 'PET SHOP', font: 'Fredoka', heightMm: 60, color: 'blanco', bold: true })] } },
-  { name: 'Baños', d: { style: 'trazo', pitchMm: 9, shape: 'round', board: 'blanco', lines: [L({ text: 'BAÑOS', font: 'Poppins', heightMm: 80, color: 'azul', bold: true, icon: 'wc' })] } },
-  { name: 'Salida', d: { style: 'relleno', pitchMm: 10, shape: 'rect', board: 'salvia', lines: [L({ text: 'SALIDA', font: 'Archivo Black', heightMm: 90, color: 'verde', icon: 'derecha', iconPos: 'right' })] } },
-  { name: 'Open', d: { style: 'trazo', pitchMm: 10, board: 'transparente', mount: 'colgante', lines: [L({ text: 'Open', font: 'Pacifico', heightMm: 140, color: 'rosa', icon: 'corazon', iconPos: 'right' })] } },
-  { name: 'Pizza', d: { style: 'contorno', pitchMm: 12, shape: 'hex', board: 'arena', lines: [L({ text: 'PIZZA', font: 'Titan One', heightMm: 110, color: 'rojo', icon: 'pizza' })] } },
-  { name: 'Barber', d: { style: 'relleno', pitchMm: 11, board: 'gris', animation: 'parpadeo', lines: [L({ text: 'BARBER', font: 'Bebas Neue', heightMm: 150, color: 'azul', icon: 'tijeras' })] } },
-  { name: 'Matriz', d: { style: 'matriz', animation: 'secuencial', board: 'blanco', lines: [L({ text: 'CAFE', heightMm: 120, color: 'ambar' })] } },
-  { name: 'Mesa', d: { style: 'trazo', pitchMm: 9, board: 'transparente', mount: 'base', lines: [L({ text: 'Bienvenidos', font: 'Great Vibes', heightMm: 100, color: 'calido', icon: 'brillos' })] } }
+// Tamaños por ancho final: el cliente piensa en el letrero completo, no en milímetros de letra
+const DARK_BOARDS = ['negro', 'humo', 'azulnoche', 'madera', 'gris']
+
+const SIZES = [
+  { id: 's', name: 'Chico', widthCm: 40 },
+  { id: 'm', name: 'Mediano', widthCm: 60 },
+  { id: 'l', name: 'Grande', widthCm: 90 },
+  { id: 'xl', name: 'Extra', widthCm: 120 }
 ]
 
 function loadDraft() {
+  const shared = readSharedDesign()
+  if (shared) return normalizeLedDesign(shared)
   try {
     const raw = localStorage.getItem(DRAFT_KEY)
     if (raw) return normalizeLedDesign(JSON.parse(raw))
@@ -77,7 +76,52 @@ export default function LedEditor() {
   const [scene, setSceneState] = useState(loadScene)
   const [ordering, setOrdering] = useState(false)
   const [picker, setPicker] = useState(-1)
+  const [copied, setCopied] = useState(false)
   const busy = useLedDots(design, setDesign)
+
+  // Ajuste a un tamaño: escala las letras y corrige hasta quedar a ±6 % del ancho elegido
+  const target = useRef(null)
+  const scaleLines = (factor) =>
+    setDesign((d) => ({
+      ...d,
+      lines: d.lines.map((l) => ({ ...l, heightMm: Math.min(1000, Math.max(30, Math.round((l.heightMm * factor) / 5) * 5)) }))
+    }))
+  const pickSize = (widthCm) => {
+    target.current = { widthCm, tries: 0 }
+    scaleLines(widthCm / design.widthCm)
+  }
+  useEffect(() => {
+    const t = target.current
+    if (!t || busy) return
+    const ratio = t.widthCm / design.widthCm
+    if (Math.abs(ratio - 1) < 0.06 || t.tries >= 3) {
+      target.current = null
+      return
+    }
+    t.tries++
+    scaleLines(ratio)
+  }, [design.widthCm, busy])
+  const activeSize = SIZES.find((x) => Math.abs(design.widthCm - x.widthCm) / x.widthCm < 0.12)
+
+  // Abrir un enlace compartido con la página ya cargada
+  useEffect(() => {
+    const onHash = () => {
+      const shared = readSharedDesign()
+      if (shared) setDesign(normalizeLedDesign(shared))
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  const share = async () => {
+    const url = shareUrl(design)
+    try {
+      if (navigator.share) await navigator.share({ title: 'Mi letrero AP', url })
+      else await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {}
+  }
 
   useEffect(() => {
     try {
@@ -132,21 +176,28 @@ export default function LedEditor() {
           </div>
 
           <div className="led-stats">
-            <div><strong>{design.dots.length}</strong><span>LED</span></div>
             <div><strong>{design.widthCm}×{design.heightCm}</strong><span>cm</span></div>
-            <div><strong>{plan.strings.length}</strong><span>cadenas</span></div>
-            <div><strong>{plan.watts}</strong><span>W</span></div>
-            <div><strong>{design.power === '127v' ? `${plan.boardsB || plan.boardsA} placa${(plan.boardsB || plan.boardsA) > 1 ? 's' : ''}` : `${plan.supplyA} A`}</strong><span>{design.power === '127v' ? (plan.boardsA ? 'A secuencial' : 'B fuente') : 'eliminador'}</span></div>
+            <div><strong>{design.dots.length}</strong><span>LED</span></div>
+            <div><strong>{plan.watts} W</strong><span>consumo</span></div>
+            <div><strong>{business.deliveryDays} días</strong><span>entrega</span></div>
+            <div className="stat-action">
+              <button className="btn ghost sm" onClick={share}>{copied ? '¡Enlace copiado!' : 'Compartir diseño'}</button>
+            </div>
           </div>
 
           <div className="styles-row">
-            <span className="label">Modelos</span>
+            <span className="label">Ideas</span>
             <div className="styles-scroll">
-              {LED_TEMPLATES.map((t) => {
+              {LED_MODELS.map((t) => {
                 const first = t.d.lines.find((l) => l.text) || t.d.lines[0]
                 const color = ledColorById(t.d.lines[0].color).hex
                 return (
-                  <button key={t.name} className="style-card text" onClick={() => setDesign(normalizeLedDesign({ ...defaultLedDesign(), ...t.d, dots: [] }))}>
+                  <button
+                    key={t.name}
+                    className={`style-card text ${DARK_BOARDS.includes(t.d.board) ? 'dark' : ''}`}
+                    style={{ background: boardById(t.d.board || 'blanco').hex }}
+                    onClick={() => setDesign(normalizeLedDesign({ ...defaultLedDesign(), ...t.d, dots: [] }))}
+                  >
                     <span className="model-line" style={{ color }}>
                       {t.d.lines[0].icon && <IconGlyph id={t.d.lines[0].icon} size={18} />}
                       <span style={{ fontFamily: `"${first.font}"` }}>{first.text}</span>
@@ -160,7 +211,7 @@ export default function LedEditor() {
         </section>
 
         <aside className="studio-panel">
-          <Section n="01" title="Texto" hint="Hasta 4 líneas">
+          <Section n="01" title="¿Qué dice tu letrero?" hint="Hasta 4 líneas">
             {design.lines.map((line, i) => (
               <div className="text-line" key={i}>
                 <div className="row">
@@ -208,7 +259,70 @@ export default function LedEditor() {
             )}
           </Section>
 
-          <Section n="02" title="Puntos" hint={`LED de ${design.ledMm} mm`}>
+          <Section n="02" title="Tamaño" hint={`${design.widthCm} × ${design.heightCm} cm`}>
+            <div className="sizes">
+              {SIZES.map((x) => (
+                <button key={x.id} className={activeSize?.id === x.id ? 'active' : ''} onClick={() => pickSize(x.widthCm)} disabled={busy}>
+                  <strong>{x.name}</strong>
+                  <span>≈ {x.widthCm} cm</span>
+                </button>
+              ))}
+            </div>
+            <p className="muted small">¿Otra medida? Mueve la altura de cada línea en el paso 1.</p>
+          </Section>
+
+          <Section n="03" title="Base" hint="Forma, color y montaje">
+            <div className="shapes">
+              {SHAPES.map((x) => (
+                <button key={x.id} className={design.shape === x.id ? 'active' : ''} onClick={() => update({ shape: x.id })} title={x.name}>
+                  <ShapeIcon shape={x.id} />
+                  <span>{x.name}</span>
+                </button>
+              ))}
+            </div>
+            <div className="board-colors">
+              {BOARDS.map((b) => (
+                <button key={b.id} className={design.board === b.id ? 'active' : ''} onClick={() => update({ board: b.id })}>
+                  <i style={{ background: b.hex, opacity: b.id === 'transparente' ? 0.5 : 1 }} />
+                  <span>{b.name}</span>
+                </button>
+              ))}
+            </div>
+            <div className="chips">
+              {BOARD_MATERIALS.map((m) => (
+                <button key={m.id} className={design.material === m.id ? 'active' : ''} onClick={() => update({ material: m.id })}>{m.name}</button>
+              ))}
+            </div>
+            <div className="mounts">
+              {MOUNTS.map((m) => (
+                <button key={m.id} className={`led-mode ${design.mount === m.id ? 'active' : ''}`} onClick={() => update({ mount: m.id })}>
+                  <MountIcon mount={m.id} />
+                  <strong>{m.name}</strong>
+                  <span>{m.note}{prices.led.mounts?.[m.id] ? ` · +${money(prices.led.mounts[m.id])}` : ''}</span>
+                </button>
+              ))}
+            </div>
+          </Section>
+
+          <Section n="04" title="Efecto de luz">
+            <div className="switch full">
+              {ANIMATIONS.map((a) => (
+                <button key={a.id} className={design.animation === a.id ? 'active' : ''} onClick={() => { update({ animation: a.id }); setNight(true) }}>{a.name}</button>
+              ))}
+            </div>
+            <p className="muted small">{ANIMATIONS.find((a) => a.id === design.animation).note}</p>
+            <label className="check-row">
+              <input type="checkbox" checked={design.extras.includes('instalacion')} onChange={(e) => update({ extras: e.target.checked ? ['instalacion'] : [] })} />
+              <span>Instalación (+{money(prices.led.installation)})</span>
+            </label>
+          </Section>
+
+          <details className="advanced">
+            <summary>
+              <span>Opciones avanzadas</span>
+              <em>Puntos, LED, alimentación y márgenes · si no sabes, lo ajustamos por ti</em>
+            </summary>
+          <Section n="·" title="Puntos" hint={`LED de ${design.ledMm} mm`}>
             <div className="led-modes">
               {DOT_STYLES.map((s) => (
                 <button key={s.id} className={`led-mode ${design.style === s.id ? 'active' : ''}`} onClick={() => update({ style: s.id })}>
@@ -236,26 +350,14 @@ export default function LedEditor() {
             {tooMany && <p className="error">Demasiados LED ({MAX_DOTS} máx.). Aumenta la separación o reduce la altura.</p>}
           </Section>
 
-          <Section n="03" title="Placa" hint="Forma, color y montaje">
-            <div className="shapes">
-              {SHAPES.map((x) => (
-                <button key={x.id} className={design.shape === x.id ? 'active' : ''} onClick={() => update({ shape: x.id })} title={x.name}>
-                  <ShapeIcon shape={x.id} />
-                  <span>{x.name}</span>
+            <Section n="·" title="Alimentación y placa">
+            <div className="led-modes">
+              {POWER.map((p) => (
+                <button key={p.id} className={`led-mode ${design.power === p.id ? 'active' : ''}`} onClick={() => update({ power: p.id })}>
+                  <span className="led" style={{ '--led': p.id === '127v' ? '#f59e0b' : '#22c55e' }} />
+                  <strong>{p.name}</strong>
+                  <span>{p.note}</span>
                 </button>
-              ))}
-            </div>
-            <div className="board-colors">
-              {BOARDS.map((b) => (
-                <button key={b.id} className={design.board === b.id ? 'active' : ''} onClick={() => update({ board: b.id })}>
-                  <i style={{ background: b.hex, opacity: b.id === 'transparente' ? 0.5 : 1 }} />
-                  <span>{b.name}</span>
-                </button>
-              ))}
-            </div>
-            <div className="chips">
-              {BOARD_MATERIALS.map((m) => (
-                <button key={m.id} className={design.material === m.id ? 'active' : ''} onClick={() => update({ material: m.id })}>{m.name}</button>
               ))}
             </div>
             <label className="range">
@@ -270,38 +372,8 @@ export default function LedEditor() {
                 <output>{design.cornerMm}</output>
               </label>
             )}
-            <div className="mounts">
-              {MOUNTS.map((m) => (
-                <button key={m.id} className={`led-mode ${design.mount === m.id ? 'active' : ''}`} onClick={() => update({ mount: m.id })}>
-                  <MountIcon mount={m.id} />
-                  <strong>{m.name}</strong>
-                  <span>{m.note}{prices.led.mounts?.[m.id] ? ` · +${money(prices.led.mounts[m.id])}` : ''}</span>
-                </button>
-              ))}
-            </div>
-          </Section>
-
-          <Section n="04" title="Encendido y fuente">
-            <div className="switch full">
-              {ANIMATIONS.map((a) => (
-                <button key={a.id} className={design.animation === a.id ? 'active' : ''} onClick={() => { update({ animation: a.id }); setNight(true) }}>{a.name}</button>
-              ))}
-            </div>
-            <p className="muted small">{ANIMATIONS.find((a) => a.id === design.animation).note}</p>
-            <div className="led-modes">
-              {POWER.map((p) => (
-                <button key={p.id} className={`led-mode ${design.power === p.id ? 'active' : ''}`} onClick={() => update({ power: p.id })}>
-                  <span className="led" style={{ '--led': p.id === '127v' ? '#f59e0b' : '#22c55e' }} />
-                  <strong>{p.name}</strong>
-                  <span>{p.note}</span>
-                </button>
-              ))}
-            </div>
-            <label className="check-row">
-              <input type="checkbox" checked={design.extras.includes('instalacion')} onChange={(e) => update({ extras: e.target.checked ? ['instalacion'] : [] })} />
-              <span>Instalación (+{money(prices.led.installation)})</span>
-            </label>
-          </Section>
+            </Section>
+          </details>
 
           <div className="checkout">
             <div className="checkout-lines">
@@ -320,13 +392,22 @@ export default function LedEditor() {
                 <strong>{money(q.total)}</strong>
                 <span className="muted small">{quantity > 1 ? `${money(q.unitPrice)} c/u` : (business.ivaIncluded ? 'IVA incluido' : `más IVA ${business.ivaRate} %`)}</span>
               </div>
-              <button className="btn primary" onClick={() => setOrdering(true)} disabled={busy || !design.dots.length || tooMany}>Pedir</button>
+              <button className="btn primary" onClick={() => setOrdering(true)} disabled={busy || !design.dots.length || tooMany}>Pedir mi letrero</button>
             </div>
           </div>
         </aside>
       </div>
 
-      {ordering && <LedOrderModal design={design} quantity={quantity} total={q.total} onClose={() => setOrdering(false)} />}
+      {ordering && (
+        <OrderModal
+          design={design}
+          quantity={quantity}
+          total={q.total}
+          preview={<LedPreview design={design} night withMount />}
+          summary={[`Letrero LED ${design.widthCm} × ${design.heightCm} cm`, `${design.dots.length} LED · ${boardMaterialById(design.material).name}`]}
+          onClose={() => setOrdering(false)}
+        />
+      )}
     </div>
   )
 }
@@ -341,111 +422,5 @@ function Section({ n, title, hint, children }) {
       </header>
       {children}
     </section>
-  )
-}
-
-function ShapeIcon({ shape }) {
-  const d = {
-    rect: 'M3 6h18v12H3z',
-    round: 'M7 6h10a4 4 0 0 1 4 4v4a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4v-4a4 4 0 0 1 4-4z',
-    pill: 'M9 6h6a6 6 0 0 1 0 12H9A6 6 0 0 1 9 6z',
-    circle: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z',
-    arch: 'M4 20V11a8 8 0 0 1 16 0v9z',
-    hex: 'M7 5h10l5 7-5 7H7l-5-7z'
-  }[shape]
-  return (
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
-      <path d={d} />
-    </svg>
-  )
-}
-
-function MountIcon({ mount }) {
-  const body = {
-    pared: <><path d="M3 3v18" /><rect x="6" y="7" width="14" height="9" rx="1.5" /><circle cx="8.5" cy="9.5" r=".8" /><circle cx="17.5" cy="9.5" r=".8" /></>,
-    colgante: <><path d="M12 2v2M12 4 6 10M12 4l6 6" /><rect x="4" y="10" width="16" height="9" rx="1.5" /></>,
-    base: <><rect x="6" y="3" width="12" height="13" rx="1.5" /><path d="M3 20h18M5 20l1.5-4h11L19 20" /></>
-  }[mount]
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      {body}
-    </svg>
-  )
-}
-
-function DotIcon({ style }) {
-  const pts = {
-    trazo: [[2, 12], [5, 8], [8, 4], [11, 8], [14, 12]],
-    contorno: [[3, 3], [8, 3], [13, 3], [13, 8], [13, 13], [8, 13], [3, 13], [3, 8]],
-    relleno: [[3, 4], [8, 4], [13, 4], [5.5, 8], [10.5, 8], [3, 12], [8, 12], [13, 12]],
-    matriz: [[3, 3], [3, 8], [3, 13], [8, 3], [13, 3], [13, 8], [13, 13], [8, 8]]
-  }[style]
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" className="dot-icon">
-      {pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="1.4" />)}
-    </svg>
-  )
-}
-
-function LedOrderModal({ design, quantity, total, onClose }) {
-  const [form, setForm] = useState({ name: '', phone: '', email: '', notes: '' })
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState('')
-  const [result, setResult] = useState(null)
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
-
-  const submit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setSending(true)
-    try {
-      setResult(await api.createOrder({ customer: form, design, quantity }))
-    } catch (err) {
-      setError(err.message || 'No se pudo enviar el pedido')
-    } finally {
-      setSending(false)
-    }
-  }
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>✕</button>
-        {result ? (
-          <div className="success">
-            <span className="led big" style={{ '--led': '#22c55e' }} />
-            <h2>Pedido recibido</h2>
-            <p className="muted">Tu folio</p>
-            <div className="folio">{result.folio}</div>
-            <p className="muted small">Guárdalo para consultar el avance. Te contactaremos para confirmar pago y detalles.</p>
-            <div className="row center-row">
-              <a className="btn primary" href={`#/presupuesto/${result.folio}/${result.token}`}>Ver mi presupuesto</a>
-              <a className="btn ghost" href={`#/seguimiento/${result.folio}`}>Seguimiento</a>
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={submit}>
-            <h2>Confirmar pedido</h2>
-            <div className="modal-preview">
-              <div className="modal-sign"><LedPreview design={design} night withMount /></div>
-              <div>
-                <strong>{design.widthCm} × {design.heightCm} cm</strong>
-                <span className="muted">{design.dots.length} LED · {boardMaterialById(design.material).name}</span>
-                <span className="muted">{POWER.find((p) => p.id === design.power).name} · {quantity} pz</span>
-                <strong>{money(total)}</strong>
-              </div>
-            </div>
-            <label className="field"><span>Nombre *</span><input className="input" required value={form.name} onChange={set('name')} /></label>
-            <div className="row">
-              <label className="field grow"><span>WhatsApp</span><input className="input" type="tel" value={form.phone} onChange={set('phone')} /></label>
-              <label className="field grow"><span>Correo</span><input className="input" type="email" value={form.email} onChange={set('email')} /></label>
-            </div>
-            <label className="field"><span>Notas</span><textarea className="input" rows="2" value={form.notes} onChange={set('notes')} placeholder="Dirección, fecha de entrega…" /></label>
-            {error && <p className="error">{error}</p>}
-            <button className="btn primary block" disabled={sending}>{sending ? 'Enviando…' : 'Enviar pedido'}</button>
-          </form>
-        )}
-      </div>
-    </div>
   )
 }

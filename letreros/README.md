@@ -25,6 +25,13 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
   DXF con barrenos del tamaño del LED, G-code y CSV con cadena y salida de cada punto
 
 
+**Pedir es fácil**
+- Tamaños en palabras del cliente: *Chico, Mediano, Grande, Extra* (ancho final); las letras se ajustan solas
+- Lo técnico (estilo de puntos, separación, LED, alimentación, márgenes) va en *Opciones avanzadas*, cerrado por defecto
+- **Compartir diseño**: enlace con el diseño para mandarlo o terminarlo después
+- Formulario con WhatsApp validado, forma de entrega (recoger, envío, instalación), fecha deseada y datos recordados
+- Al pedir: pasos siguientes, **Ver mi presupuesto** y **Confirmar por WhatsApp** al negocio
+
 **Presupuestos profesionales**
 - Cada pedido genera un presupuesto formal con tu marca: conceptos, descuento por volumen, subtotal, **IVA**
   (incluido o aparte), **anticipo**, vigencia, entrega estimada, datos de pago y términos
@@ -68,6 +75,17 @@ letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, dato
   - **DXF** (capas `CORTE` y `LED`) para LightBurn, LaserGRBL, Inkscape o CAD
   - **G-code GRBL 1.1** (Arduino): marca los puntos LED y corta el contorno. Origen = esquina inferior izquierda
   - **CSV** con las coordenadas de cada punto
+
+## ✅ Pruebas
+
+```bash
+cd letreros
+npm test        # 19 pruebas: precios, IVA, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
+npm run check   # pruebas + build
+```
+
+GitHub Actions (`.github/workflows/letreros.yml`) corre `npm ci`, `npm test` y `npm run build` en cada cambio de `letreros/`.
+La API limita intentos de acceso (10 / 10 min) y pedidos (15 / 10 min) por IP.
 
 ## 🚀 Uso local
 
@@ -131,6 +149,7 @@ letreros/
 ├── server/app.js            API: pedidos, login admin, estadísticas
 ├── server/store.js          almacenamiento: archivo JSON o Vercel Blob
 ├── server/index.js          servidor Node local / VPS
+├── tests/                   pruebas (node --test)
 └── src/
     ├── lib/design.js        modelo del letrero, plantillas, validación
     ├── lib/pricing.js       materiales, extras y cotizador (compartido con el servidor)
@@ -143,6 +162,9 @@ letreros/
     ├── lib/ledText.js       texto e íconos → puntos LED (esqueleto, contorno, relleno, matriz 5×7)
     ├── lib/icons.js         catálogo de íconos LED
     ├── lib/prices.js        precios editables, datos del negocio, permisos, totales con IVA
+    ├── lib/customer.js      validación del cliente y formas de entrega
+    ├── lib/ledModels.js     ideas / modelos por giro
+    ├── lib/share.js         compartir diseño por enlace
     ├── components/          SignPreview (SVG), TechDiagram, StatusPill, SiteHeader
     └── pages/               LedEditor, Editor (impreso), Track, QuotePage, Admin, AdminSections
 ```

@@ -3,8 +3,8 @@
 //  - DXF (contorno + puntos) para software CAD / láser
 //  - G-code GRBL (Arduino) para cortadora/grabadora láser casera
 //  - CSV con las coordenadas de los puntos
-import { holeMm, ledPointsMm, signGeometryMm } from './ledPoints'
-import { boardOutline, mountHoles, planPower } from './ledSign'
+import { holeMm, ledPointsMm, signGeometryMm } from './ledPoints.js'
+import { boardOutline, mountHoles, planPower } from './ledSign.js'
 
 export const PAPERS = [
   { id: 'carta', name: 'Carta', w: 215.9, h: 279.4 },

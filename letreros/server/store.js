@@ -6,12 +6,13 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DATA_DIR = path.join(__dirname, 'data')
+// DATA_DIR permite usar otra carpeta (p. ej. en las pruebas automáticas)
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data')
 const DB_FILE = path.join(DATA_DIR, 'orders.json')
 const BLOB_PATH = 'letreros/orders.json'
 const empty = () => ({ seq: 0, orders: [] })
 
-export const usingBlob = Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID)
+export const usingBlob = !process.env.DATA_DIR && Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID)
 
 const fileStore = {
   async load() {

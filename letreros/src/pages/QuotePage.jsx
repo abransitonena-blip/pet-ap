@@ -6,6 +6,7 @@ import { money } from '../lib/pricing'
 import { ANIMATIONS, MOUNTS, POWER, SHAPES, boardMaterialById } from '../lib/ledSign'
 import { materialById } from '../lib/pricing'
 import { statusById } from '../lib/status'
+import { deliveryName } from '../lib/customer'
 
 const fmt = (iso) => new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
 const wa = (phone, text) => {
@@ -102,7 +103,7 @@ export default function QuotePage({ folio, token }) {
         <section className="qd-meta">
           <div><span>Cliente</span><strong>{doc.customer.name}</strong></div>
           <div><span>Válido hasta</span><strong className={expired ? 'bad' : ''}>{fmt(doc.validUntil)}{expired ? ' (vencido)' : ''}</strong></div>
-          <div><span>Entrega estimada</span><strong>{b.deliveryDays} días hábiles</strong></div>
+          <div><span>Entrega</span><strong>{deliveryName(doc.customer.delivery)} · {doc.customer.date ? `para el ${fmt(doc.customer.date + 'T12:00')}` : `${b.deliveryDays} días hábiles`}</strong></div>
           <div>
             <span>Estado</span>
             <strong className={`qstate ${doc.quoteState}`}>

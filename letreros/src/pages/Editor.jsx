@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import SiteHeader from '../components/SiteHeader'
 import SignPreview from '../components/SignPreview'
 import FontSelect from '../components/FontSelect'
+import OrderModal from '../components/OrderModal'
 import { ICONS, LED_MODES, PALETTES, SIZE_PRESETS, TEMPLATES, defaultDesign, newLine, normalizeDesign } from '../lib/design'
 import { EXTRAS, MATERIALS, extraPrice, materialById, materialPrice, money, quote } from '../lib/pricing'
 import { downloadPng } from '../lib/render'
-import { api } from '../lib/api'
 import { usePublicSettings } from '../lib/settings'
 
 const DRAFT_KEY = 'letreros_draft_v2'
@@ -227,7 +227,16 @@ export default function Editor() {
         </aside>
       </div>
 
-      {ordering && <OrderModal design={design} quantity={quantity} total={q.total} onClose={() => setOrdering(false)} />}
+      {ordering && (
+        <OrderModal
+          design={design}
+          quantity={quantity}
+          total={q.total}
+          preview={<SignPreview design={design} night />}
+          summary={[`Letrero impreso ${design.widthCm} × ${design.heightCm} cm`, materialById(design.material).name]}
+          onClose={() => setOrdering(false)}
+        />
+      )}
     </div>
   )
 }
@@ -316,68 +325,5 @@ function TextEditor({ design, setDesign, update }) {
         </label>
       )}
     </>
-  )
-}
-
-function OrderModal({ design, quantity, total, onClose }) {
-  const [form, setForm] = useState({ name: '', phone: '', email: '', notes: '' })
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState('')
-  const [result, setResult] = useState(null)
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
-
-  const submit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setSending(true)
-    try {
-      setResult(await api.createOrder({ customer: form, design, quantity }))
-    } catch (err) {
-      setError(err.message || 'No se pudo enviar el pedido')
-    } finally {
-      setSending(false)
-    }
-  }
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>✕</button>
-        {result ? (
-          <div className="success">
-            <span className="led big" style={{ '--led': '#22c55e' }} />
-            <h2>Pedido recibido</h2>
-            <p className="muted">Tu folio</p>
-            <div className="folio">{result.folio}</div>
-            <p className="muted small">Guárdalo para consultar el avance. Te contactaremos para confirmar pago y detalles.</p>
-            <div className="row center-row">
-              <a className="btn primary" href={`#/presupuesto/${result.folio}/${result.token}`}>Ver mi presupuesto</a>
-              <a className="btn ghost" href={`#/seguimiento/${result.folio}`}>Seguimiento</a>
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={submit}>
-            <h2>Confirmar pedido</h2>
-            <div className="modal-preview">
-              <div className="modal-sign"><SignPreview design={design} night /></div>
-              <div>
-                <strong>{design.widthCm} × {design.heightCm} cm</strong>
-                <span className="muted">{materialById(design.material).name}</span>
-                <span className="muted">{LED_MODES.find((m) => m.id === design.led.mode).name} · {quantity} pz</span>
-                <strong>{money(total)}</strong>
-              </div>
-            </div>
-            <label className="field"><span>Nombre *</span><input className="input" required value={form.name} onChange={set('name')} /></label>
-            <div className="row">
-              <label className="field grow"><span>WhatsApp</span><input className="input" type="tel" value={form.phone} onChange={set('phone')} /></label>
-              <label className="field grow"><span>Correo</span><input className="input" type="email" value={form.email} onChange={set('email')} /></label>
-            </div>
-            <label className="field"><span>Notas</span><textarea className="input" rows="2" value={form.notes} onChange={set('notes')} placeholder="Dirección, fecha de entrega…" /></label>
-            {error && <p className="error">{error}</p>}
-            <button className="btn primary block" disabled={sending}>{sending ? 'Enviando…' : 'Enviar pedido'}</button>
-          </form>
-        )}
-      </div>
-    </div>
   )
 }

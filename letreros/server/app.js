@@ -9,6 +9,7 @@ import { normalizeLedDesign } from '../src/lib/ledSign.js'
 import {
   PERM_IDS, computeTotals, mergeBusiness, mergePrices, normalizeAdjust, publicBusiness
 } from '../src/lib/prices.js'
+import { normalizeCustomer } from '../src/lib/customer.js'
 import { store } from './store.js'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
@@ -137,6 +138,26 @@ function viewOrder(o, user) {
   return out
 }
 
+// Límite de intentos por IP (memoria de la instancia): frena fuerza bruta y spam
+function rateLimit({ windowMs, max, message }) {
+  const hits = new Map()
+  return (req, res, next) => {
+    const now = Date.now()
+    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '?'
+    const list = (hits.get(ip) || []).filter((t) => now - t < windowMs)
+    if (list.length >= max) {
+      res.set('Retry-After', String(Math.ceil(windowMs / 1000)))
+      return res.status(429).json({ error: message })
+    }
+    list.push(now)
+    hits.set(ip, list)
+    if (hits.size > 5000) hits.clear()
+    next()
+  }
+}
+const loginLimit = rateLimit({ windowMs: 10 * 60 * 1000, max: 10, message: 'Demasiados intentos. Espera unos minutos.' })
+const orderLimit = rateLimit({ windowMs: 10 * 60 * 1000, max: 15, message: 'Demasiados pedidos seguidos. Intenta más tarde.' })
+
 // Express 4 no captura errores de funciones async
 const h = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next)
 
@@ -152,15 +173,10 @@ api.get('/public/settings', h(async (req, res) => {
 }))
 
 // Crear pedido (público)
-api.post('/orders', h(async (req, res) => {
-  const { customer = {}, design, quantity } = req.body || {}
-  const name = String(customer.name || '').trim().slice(0, 80)
-  const phone = String(customer.phone || '').trim().slice(0, 30)
-  const email = String(customer.email || '').trim().slice(0, 120)
-  const notes = String(customer.notes || '').trim().slice(0, 1000)
-
-  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' })
-  if (!phone && !email) return res.status(400).json({ error: 'Deja un teléfono o correo de contacto' })
+api.post('/orders', orderLimit, h(async (req, res) => {
+  const { design, quantity } = req.body || {}
+  const checked = normalizeCustomer(req.body?.customer)
+  if (checked.error) return res.status(400).json({ error: checked.error })
 
   const clean = cleanDesign(design)
   if (!clean.lines.some((l) => l.text.trim() || l.icon)) {
@@ -184,7 +200,7 @@ api.post('/orders', h(async (req, res) => {
       status: 'nuevo',
       quoteState: 'pendiente',
       validUntil: addDays(now, db.settings.business.validityDays),
-      customer: { name, phone, email, notes },
+      customer: checked.customer,
       design: clean,
       quote: q,
       adjust,
@@ -229,7 +245,7 @@ function quoteDocument(o, business) {
     validUntil: o.validUntil,
     status: o.status,
     quoteState: o.quoteState,
-    customer: { name: o.customer.name },
+    customer: { name: o.customer.name, delivery: o.customer.delivery || 'recoger', date: o.customer.date || '' },
     design: o.design,
     quote: o.quote,
     adjust: { items: o.adjust.items, note: o.adjust.note, discountPct: o.adjust.discountPct, discountAmt: o.adjust.discountAmt },
@@ -266,7 +282,7 @@ api.post('/quote/:folio/respond', h(async (req, res) => {
 }))
 
 // ----- Admin -----
-api.post('/admin/login', h(async (req, res) => {
+api.post('/admin/login', loginLimit, h(async (req, res) => {
   const username = String(req.body?.username || '').trim().toLowerCase()
   const password = String(req.body?.password || '')
   if (!password) return res.status(401).json({ error: 'Escribe tu contraseña' })
@@ -441,6 +457,11 @@ api.delete('/admin/users/:id', requireUser, need('equipo'), h(async (req, res) =
 
 export function createApp() {
   const app = express()
+  app.disable('x-powered-by')
+  app.use((req, res, next) => {
+    res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'SAMEORIGIN' })
+    next()
+  })
   app.use(cors())
   app.use(express.json({ limit: '600kb' }))
   app.use('/api', api)
