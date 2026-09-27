@@ -7,7 +7,7 @@ import { MATERIALS, EXTRAS, quote } from '../src/lib/pricing.js'
 import { STATUS_IDS, PRINTED_STATUSES } from '../src/lib/status.js'
 import { normalizeLedDesign } from '../src/lib/ledSign.js'
 import {
-  PERM_IDS, computeTotals, mergeBusiness, mergePrices, normalizeAdjust, publicBusiness
+  PERM_IDS, computeTotals, mergeBusiness, mergePrices, normalizeAdjust, normalizePayment, paymentSummary, publicBusiness
 } from '../src/lib/prices.js'
 import { normalizeCustomer } from '../src/lib/customer.js'
 import { store } from './store.js'
@@ -48,6 +48,8 @@ async function loadDb() {
     o.quoteState = QUOTE_STATES.includes(o.quoteState) ? o.quoteState : 'pendiente'
     o.validUntil = o.validUntil || addDays(o.createdAt, db.settings.business.validityDays)
     o.totals = o.totals || computeTotals(o.quote, o.adjust, db.settings.business)
+    o.payments = Array.isArray(o.payments) ? o.payments : []
+    o.showcase = Boolean(o.showcase)
   }
   return db
 }
@@ -134,6 +136,9 @@ function viewOrder(o, user) {
   if (!can(user, 'ventas', 'presupuestos')) {
     out.quote = { ...o.quote, lines: [], total: 0, unitPrice: 0, subtotal: 0, discount: 0 }
     out.totals = null
+    out.payments = []
+  } else {
+    out.pay = paymentSummary(o.totals, o.payments)
   }
   return out
 }
@@ -206,6 +211,8 @@ api.post('/orders', orderLimit, h(async (req, res) => {
       adjust,
       totals: computeTotals(q, adjust, db.settings.business),
       adminNotes: '',
+      payments: [],
+      showcase: false,
       history: [{ status: 'nuevo', at: now, by: 'Cliente (web)' }]
     }
     db.orders.unshift(o)
@@ -231,6 +238,16 @@ api.get('/track/:folio', h(async (req, res) => {
   })
 }))
 
+// Galería pública "Hecho por AP": solo el diseño de los trabajos que el negocio decide mostrar
+api.get('/public/gallery', h(async (req, res) => {
+  const db = await loadDb()
+  const items = db.orders
+    .filter((o) => o.showcase && o.status !== 'cancelado')
+    .slice(0, 24)
+    .map((o) => ({ id: o.id.slice(0, 8), design: o.design, at: o.printedAt || o.updatedAt }))
+  res.json(items)
+}))
+
 // Presupuesto público (enlace privado con token)
 function findByToken(db, folio, token) {
   const o = db.orders.find((x) => x.folio === String(folio).toUpperCase())
@@ -250,6 +267,7 @@ function quoteDocument(o, business) {
     quote: o.quote,
     adjust: { items: o.adjust.items, note: o.adjust.note, discountPct: o.adjust.discountPct, discountAmt: o.adjust.discountAmt },
     totals: o.totals,
+    pay: paymentSummary(o.totals, o.payments),
     business: { ...publicBusiness(business), bank: business.bank, terms: business.terms }
   }
 }
@@ -306,11 +324,18 @@ api.get('/admin/stats', requireUser, (req, res) => {
   const { orders } = req.db
   const byStatus = Object.fromEntries(STATUS_IDS.map((s) => [s, 0]))
   let revenue = 0
+  let collected = 0
+  let receivable = 0
   let printedPieces = 0
   let printedM2 = 0
   for (const o of orders) {
     byStatus[o.status] = (byStatus[o.status] || 0) + 1
-    if (o.status !== 'cancelado') revenue += o.totals.total
+    if (o.status !== 'cancelado') {
+      const pay = paymentSummary(o.totals, o.payments)
+      revenue += o.totals.total
+      collected += pay.paid
+      receivable += pay.balance
+    }
     if (PRINTED_STATUSES.includes(o.status)) {
       printedPieces += o.quote.quantity
       printedM2 += o.quote.areaM2 * o.quote.quantity
@@ -322,14 +347,19 @@ api.get('/admin/stats', requireUser, (req, res) => {
     byStatus,
     quotes,
     revenue: can(req.user, 'ventas') ? revenue : null,
+    collected: can(req.user, 'ventas') ? Math.round(collected) : null,
+    receivable: can(req.user, 'ventas') ? Math.round(receivable) : null,
     printedPieces,
     printedM2: Math.round(printedM2 * 100) / 100
   })
 })
 
 api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
-  const { status, adminNotes, adjust, quoteState } = req.body || {}
+  const { status, adminNotes, adjust, quoteState, showcase } = req.body || {}
   const u = req.user
+  if (showcase !== undefined && !can(u, 'editar')) {
+    return res.status(403).json({ error: 'No tienes permiso para publicar en la galería' })
+  }
   if ((status !== undefined || adminNotes !== undefined) && !can(u, 'editar', 'produccion')) {
     return res.status(403).json({ error: 'No tienes permiso para cambiar el estado' })
   }
@@ -348,6 +378,7 @@ api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
       o.history.push({ status, at: now, by: u.name })
       if (status === 'impreso' && !o.printedAt) o.printedAt = now
     }
+    if (showcase !== undefined) o.showcase = Boolean(showcase)
     if (adminNotes !== undefined) o.adminNotes = String(adminNotes).slice(0, 2000)
     if (adjust !== undefined) {
       o.adjust = normalizeAdjust(adjust)
@@ -363,6 +394,41 @@ api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
     return o
   })
   if (order.missing) return res.status(404).json({ error: 'Pedido no encontrado' })
+  res.json(viewOrder(order, u))
+}))
+
+// Pagos y anticipos
+api.post('/admin/orders/:id/payments', requireUser, need('ventas', 'presupuestos'), h(async (req, res) => {
+  const checked = normalizePayment(req.body)
+  if (checked.error) return res.status(400).json({ error: checked.error })
+  const u = req.user
+  const order = await mutate((db) => {
+    const o = db.orders.find((x) => x.id === req.params.id)
+    if (!o) return { save: false, missing: true }
+    const now = new Date().toISOString()
+    o.payments.push({ id: crypto.randomUUID(), ...checked.payment, at: now, by: u.name })
+    const pay = paymentSummary(o.totals, o.payments)
+    o.history.push({ status: o.status, at: now, by: u.name, note: `Pago de $${checked.payment.amount} (${checked.payment.method}) · saldo $${pay.balance}` })
+    o.updatedAt = now
+    return o
+  })
+  if (order.missing) return res.status(404).json({ error: 'Pedido no encontrado' })
+  res.status(201).json(viewOrder(order, u))
+}))
+
+api.delete('/admin/orders/:id/payments/:pid', requireUser, need('ventas', 'presupuestos'), h(async (req, res) => {
+  const u = req.user
+  const order = await mutate((db) => {
+    const o = db.orders.find((x) => x.id === req.params.id)
+    const p = o?.payments.find((x) => x.id === req.params.pid)
+    if (!p) return { save: false, missing: true }
+    const now = new Date().toISOString()
+    o.payments = o.payments.filter((x) => x !== p)
+    o.history.push({ status: o.status, at: now, by: u.name, note: `Pago de $${p.amount} eliminado` })
+    o.updatedAt = now
+    return o
+  })
+  if (order.missing) return res.status(404).json({ error: 'Pago no encontrado' })
   res.json(viewOrder(order, u))
 }))
 

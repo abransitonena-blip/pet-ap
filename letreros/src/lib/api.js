@@ -35,5 +35,8 @@ export const api = {
   orders: () => request('/admin/orders', { auth: true }),
   stats: () => request('/admin/stats', { auth: true }),
   updateOrder: (id, patch) => request(`/admin/orders/${id}`, { method: 'PATCH', body: patch, auth: true }),
+  addPayment: (id, p) => request(`/admin/orders/${id}/payments`, { method: 'POST', body: p, auth: true }),
+  deletePayment: (id, pid) => request(`/admin/orders/${id}/payments/${pid}`, { method: 'DELETE', auth: true }),
+  gallery: () => request('/public/gallery'),
   deleteOrder: (id) => request(`/admin/orders/${id}`, { method: 'DELETE', auth: true })
 }

@@ -180,3 +180,35 @@ export function computeTotals(quote, adjust, business) {
     depositPct: business.depositPct
   }
 }
+
+// ---------- Pagos y anticipos ----------
+export const PAY_METHODS = [
+  { id: 'efectivo', name: 'Efectivo' },
+  { id: 'transferencia', name: 'Transferencia' },
+  { id: 'tarjeta', name: 'Tarjeta' },
+  { id: 'deposito', name: 'Depósito' }
+]
+export const payMethodName = (id) => PAY_METHODS.find((m) => m.id === id)?.name || 'Otro'
+
+export function normalizePayment(p = {}) {
+  const amount = Math.round(Number(p.amount) * 100) / 100
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 10000000) return { error: 'Monto inválido' }
+  const method = PAY_METHODS.some((m) => m.id === p.method) ? p.method : 'efectivo'
+  return { payment: { amount, method, note: String(p.note || '').trim().slice(0, 120) } }
+}
+
+// Estado de cobro: pagado, saldo y si ya cubre el anticipo
+export function paymentSummary(totals, payments = []) {
+  const total = totals?.total || 0
+  const paid = Math.round(payments.reduce((s, p) => s + (Number(p.amount) || 0), 0) * 100) / 100
+  const balance = Math.max(0, Math.round((total - paid) * 100) / 100)
+  const state = paid <= 0 ? 'sin_pago' : balance <= 0 ? 'pagado' : paid >= (totals?.deposit || 0) ? 'anticipo' : 'parcial'
+  return { paid, balance, state }
+}
+
+export const PAY_STATES = {
+  sin_pago: 'Sin pago',
+  parcial: 'Pago parcial',
+  anticipo: 'Anticipo cubierto',
+  pagado: 'Pagado'
+}

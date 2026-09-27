@@ -25,6 +25,16 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
   DXF con barrenos del tamaño del LED, G-code y CSV con cadena y salida de cada punto
 
 
+**Vista 3D realista**
+- La placa se ve con grosor, sombra en la pared y **gira con el mouse o el dedo**
+- LED con domo de cristal, brillo y reflejo; de noche la luz se proyecta sobre la placa y la pared
+- Separadores metálicos en el montaje de pared
+- **Pruébalo en tu local**: el cliente sube una foto de su fachada, arrastra el letrero y ajusta el tamaño
+
+**Hecho por AP (galería pública)**
+- En el panel marca un pedido con *Mostrar en “Hecho por AP”* y aparece en la página del cliente
+- Solo se publica el diseño (nunca nombre ni teléfono); el cliente toca **Lo quiero así** y lo usa de base
+
 **Pedir es fácil**
 - Tamaños en palabras del cliente: *Chico, Mediano, Grande, Extra* (ancho final); las letras se ajustan solas
 - Lo técnico (estilo de puntos, separación, LED, alimentación, márgenes) va en *Opciones avanzadas*, cerrado por defecto
@@ -44,6 +54,16 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 - Roles rápidos (Gerente, Ventas, Producción, Precios) o permisos a la medida: ver pedidos y clientes, cambiar estado,
   presupuestos, producción y archivos, ver montos, **editar precios**, datos del negocio, eliminar, administrar equipo
 - El servidor valida cada permiso; desactivar a alguien corta su acceso al instante; el historial dice quién hizo cada cambio
+
+**Cobros y anticipos**
+- En cada pedido: registra pagos (efectivo, transferencia, tarjeta, depósito), barra de avance con la marca del anticipo,
+  saldo y estado (*sin pago, parcial, anticipo cubierto, pagado*); quitar un pago queda en el historial
+- En el resumen: *Ventas, Cobrado y Por cobrar*; en la tabla de pedidos, el saldo de cada uno
+- El presupuesto del cliente muestra lo pagado y el saldo pendiente
+
+**Avisos de pedido nuevo**
+- El panel revisa cada 20 s; al llegar un pedido muestra un aviso con botón *Ver*
+- Con **Activar avisos** además suena un tono y sale una notificación del navegador
 
 **Precios y negocio editables** (sin tocar código): placas, LED por color, armado, fuentes, formas, montajes,
 letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, datos bancarios y términos
@@ -80,7 +100,7 @@ letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, dato
 
 ```bash
 cd letreros
-npm test        # 19 pruebas: precios, IVA, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
+npm test        # 21 pruebas: precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
 npm run check   # pruebas + build
 ```
 

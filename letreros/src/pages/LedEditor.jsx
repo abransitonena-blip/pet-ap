@@ -3,6 +3,7 @@ import SiteHeader from '../components/SiteHeader'
 import LedPreview, { previewBox } from '../components/LedPreview'
 import IconPicker, { IconGlyph } from '../components/IconPicker'
 import OrderModal from '../components/OrderModal'
+import Sign3D from '../components/Sign3D'
 import { DotIcon, MountIcon, ShapeIcon } from '../components/LedIcons'
 import { LED_MODELS } from '../lib/ledModels'
 import { readSharedDesign, shareUrl } from '../lib/share'
@@ -14,6 +15,7 @@ import {
 import { computeLedDots } from '../lib/ledText'
 import { money, quote } from '../lib/pricing'
 import { usePublicSettings } from '../lib/settings'
+import { api } from '../lib/api'
 
 const DRAFT_KEY = 'letreros_led_draft'
 const SCENE_KEY = 'ap_scene'
@@ -77,6 +79,29 @@ export default function LedEditor() {
   const [ordering, setOrdering] = useState(false)
   const [picker, setPicker] = useState(-1)
   const [copied, setCopied] = useState(false)
+  const [view3d, setView3d] = useState(true)
+  // Foto del local del cliente (solo en su navegador, no se sube)
+  const [photo, setPhoto] = useState('')
+  const [place, setPlace] = useState({ x: 0, y: 0, scale: 0.6 })
+  const drag = useRef(null)
+  const onPhoto = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (photo) URL.revokeObjectURL(photo)
+    setPhoto(URL.createObjectURL(file))
+    setPlace({ x: 0, y: 0, scale: 0.6 })
+    e.target.value = ''
+  }
+  const startDrag = (e) => {
+    if (!photo) return
+    drag.current = { x: e.clientX, y: e.clientY, from: place }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+  const moveDrag = (e) => {
+    const d = drag.current
+    if (!d) return
+    setPlace((p) => ({ ...p, x: d.from.x + e.clientX - d.x, y: d.from.y + e.clientY - d.y }))
+  }
   const busy = useLedDots(design, setDesign)
 
   // Ajuste a un tamaño: escala las letras y corrige hasta quedar a ±6 % del ancho elegido
@@ -149,29 +174,50 @@ export default function LedEditor() {
 
       <div className="studio">
         <section className="studio-stage">
-          <div className={`wall ${night ? 'night' : ''}`} data-scene={scene} style={{ '--scene': SCENES.find((x) => x.id === scene)?.hex }}>
+          <div
+            className={`wall ${night ? 'night' : ''} ${photo ? 'photo' : ''}`}
+            data-scene={photo ? undefined : scene}
+            style={photo ? { backgroundImage: `url(${photo})` } : { '--scene': SCENES.find((x) => x.id === scene)?.hex }}
+          >
             <div className="wall-tools">
-              <div className="scenes" title="Fondo de la pared">
+              <label className={`tool-btn ${photo ? 'on' : ''}`} title="Sube una foto de tu local y coloca el letrero">
+                <input type="file" accept="image/*" onChange={onPhoto} />
+                {photo ? 'Cambiar foto' : 'Pruébalo en tu local'}
+              </label>
+              {photo && <button className="tool-btn" onClick={() => { URL.revokeObjectURL(photo); setPhoto('') }}>Quitar foto</button>}
+              {!photo && <button className={`tool-btn ${view3d ? 'on' : ''}`} onClick={() => setView3d((v) => !v)}>3D</button>}
+              {!photo && <div className="scenes" title="Fondo de la pared">
                 {SCENES.map((x) => (
                   <button key={x.id} className={scene === x.id ? 'active' : ''} style={{ background: x.hex }} onClick={() => setScene(x.id)} title={x.name} />
                 ))}
-              </div>
+              </div>}
               <div className="switch">
                 <button className={!night ? 'active' : ''} onClick={() => setNight(false)}>☀ Apagado</button>
                 <button className={night ? 'active' : ''} onClick={() => setNight(true)}>☾ Encendido</button>
               </div>
             </div>
+            {photo && (
+              <label className="photo-scale">
+                Tamaño
+                <input type="range" min="0.15" max="1.4" step="0.01" value={place.scale} onChange={(e) => setPlace((p) => ({ ...p, scale: +e.target.value }))} />
+                <span className="muted">Arrastra el letrero</span>
+              </label>
+            )}
             {busy && <span className="calc"><span className="led blink" style={{ '--led': '#22c55e' }} /> Calculando puntos…</span>}
             <div
               className="wall-sign"
               style={{
                 aspectRatio: `${box.w} / ${box.h}`,
-                width: `min(100%, ${((box.w / box.h) * 50).toFixed(2)}vh)`
+                width: `min(100%, ${((box.w / box.h) * 50).toFixed(2)}vh)`,
+                ...(photo ? { transform: `translate(${place.x}px, ${place.y}px) scale(${place.scale})` } : {})
               }}
+              onPointerDown={startDrag}
+              onPointerMove={moveDrag}
+              onPointerUp={() => (drag.current = null)}
             >
-              <span className="dim dim-w">{design.widthCm} cm</span>
-              <span className="dim dim-h">{design.heightCm} cm</span>
-              <LedPreview design={design} night={night} animate={night} withMount />
+              {!photo && <span className="dim dim-w">{design.widthCm} cm</span>}
+              {!photo && <span className="dim dim-h">{design.heightCm} cm</span>}
+              <Sign3D design={design} night={night} animate={night} enabled={view3d && !photo} />
             </div>
           </div>
 
@@ -208,6 +254,7 @@ export default function LedEditor() {
               })}
             </div>
           </div>
+          <MadeByAp onPick={(d) => { setDesign(normalizeLedDesign(d)); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
         </section>
 
         <aside className="studio-panel">
@@ -421,6 +468,34 @@ function Section({ n, title, hint, children }) {
         {hint && <span className="section-hint">{hint}</span>}
       </header>
       {children}
+    </section>
+  )
+}
+
+// Trabajos reales que el negocio marcó para mostrar (solo el diseño, nunca datos del cliente)
+function MadeByAp({ onPick }) {
+  const [items, setItems] = useState([])
+  useEffect(() => {
+    api.gallery().then((list) => setItems(list.filter((x) => x.design?.kind === 'led'))).catch(() => {})
+  }, [])
+  if (!items.length) return null
+  return (
+    <section className="made-by">
+      <div className="made-by-head">
+        <h2>Hecho por AP</h2>
+        <span className="muted small">Letreros que ya entregamos · toca uno para usarlo de base</span>
+      </div>
+      <div className="made-by-strip">
+        {items.map((it) => (
+          <article key={it.id} className="made-by-item">
+            <div className="thumb-night"><LedPreview design={it.design} night /></div>
+            <footer>
+              <span className="muted">{it.design.widthCm}×{it.design.heightCm} cm · {it.design.dots.length} LED</span>
+              <button className="btn ghost sm" onClick={() => onPick(it.design)}>Lo quiero así</button>
+            </footer>
+          </article>
+        ))}
+      </div>
     </section>
   )
 }

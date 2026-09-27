@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DesignPreview from '../components/DesignPreview'
 import { Brand } from '../components/ApLogo'
 import { deliveryName } from '../lib/customer'
@@ -13,6 +13,7 @@ import { materialById, extraById, ledSpec, money } from '../lib/pricing'
 import { PRINTED_STATUSES, STATUSES, statusById } from '../lib/status'
 import { downloadDesignPng, downloadDiagramSvg, downloadDxf, downloadGcode, downloadPointsCsv, downloadSignSvg, printDiagram, printSheets } from '../lib/files'
 import { PAPERS, planTiles } from '../lib/production'
+import { PAY_METHODS, PAY_STATES, payMethodName } from '../lib/prices'
 import { ledPointsMm } from '../lib/ledPoints'
 
 const fmtDate = (iso) =>
@@ -24,6 +25,33 @@ const waLink = (phone, text = '') => {
   const digits = (phone || '').replace(/\D/g, '')
   if (!digits) return ''
   return `https://wa.me/${digits.length === 10 ? '52' + digits : digits}${text ? `?text=${encodeURIComponent(text)}` : ''}`
+}
+// Aviso de pedido nuevo: tono corto con WebAudio (sin archivos de audio)
+function chime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    ;[880, 1320].forEach((f, i) => {
+      const o = ctx.createOscillator()
+      const g = ctx.createGain()
+      o.frequency.value = f
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.16)
+      g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + i * 0.16 + 0.02)
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.16 + 0.3)
+      o.connect(g).connect(ctx.destination)
+      o.start(ctx.currentTime + i * 0.16)
+      o.stop(ctx.currentTime + i * 0.16 + 0.32)
+    })
+  } catch {
+    /* sin audio */
+  }
+}
+const ALERTS_KEY = 'ap_alerts'
+const readAlerts = () => {
+  try {
+    return localStorage.getItem(ALERTS_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 const kindName = (d) => (d.kind === 'led' ? 'LED' : 'Impreso')
 
@@ -155,6 +183,54 @@ function Dashboard({ onLogout }) {
   const [me, setMe] = useState(null)
   const [settings, setSettings] = useState(null)
   const can = useCallback((...perms) => !!me && perms.some((p) => me.perms.includes(p)), [me])
+  const [toast, setToast] = useState(null)
+  const [alerts, setAlerts] = useState(readAlerts)
+  const known = useRef(null)
+  const alertsRef = useRef(alerts)
+  alertsRef.current = alerts
+
+  // Detecta pedidos que llegaron desde la última revisión
+  const notifyNew = useCallback((list) => {
+    const ids = new Set(list.map((o) => o.id))
+    if (known.current) {
+      const fresh = list.filter((o) => !known.current.has(o.id))
+      if (fresh.length) {
+        const text = fresh.length === 1 ? `${fresh[0].folio} · ${fresh[0].customer.name}` : `${fresh.length} pedidos nuevos`
+        setToast({ text, id: fresh[0].id, at: Date.now() })
+        if (alertsRef.current) {
+          chime()
+          if ('Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification('Pedido nuevo · AP letreros', { body: text, tag: 'ap-pedido' })
+            } catch {
+              /* algunos navegadores móviles solo permiten avisos desde un service worker */
+            }
+          }
+        }
+      }
+    }
+    known.current = ids
+  }, [])
+
+  const toggleAlerts = async () => {
+    const next = !alerts
+    if (next && 'Notification' in window && Notification.permission === 'default') {
+      await Notification.requestPermission().catch(() => {})
+    }
+    if (next) chime()
+    setAlerts(next)
+    try {
+      localStorage.setItem(ALERTS_KEY, next ? '1' : '0')
+    } catch {
+      /* sin almacenamiento */
+    }
+  }
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 12000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   const load = useCallback(async () => {
     try {
@@ -162,6 +238,7 @@ function Dashboard({ onLogout }) {
       const canOrders = ORDER_PERMS.some((p) => user.perms.includes(p))
       const [o, s, st] = await Promise.all([canOrders ? api.orders() : [], api.stats(), api.settings()])
       setMe(user)
+      if (canOrders) notifyNew(o)
       setOrders(o)
       setStats(s)
       setSettings(st)
@@ -172,11 +249,11 @@ function Dashboard({ onLogout }) {
     } finally {
       setLoading(false)
     }
-  }, [onLogout])
+  }, [onLogout, notifyNew])
 
   useEffect(() => {
     load()
-    const t = setInterval(load, 30000)
+    const t = setInterval(load, 20000)
     return () => clearInterval(t)
   }, [load])
 
@@ -190,6 +267,8 @@ function Dashboard({ onLogout }) {
     }
   }
   const updateOrder = (id, patch) => handle(() => api.updateOrder(id, patch))
+  const addPayment = (id, p) => handle(() => api.addPayment(id, p))
+  const deletePayment = (id, pid) => handle(() => api.deletePayment(id, pid))
   const deleteOrder = (id) =>
     handle(async () => {
       await api.deleteOrder(id)
@@ -235,7 +314,15 @@ function Dashboard({ onLogout }) {
       <main className="admin-main">
         <header className="admin-top">
           <h1>{active?.label}</h1>
-          <button className="btn ghost sm" onClick={load}>Actualizar</button>
+          <div className="row">
+            {can('pedidos', 'produccion', 'presupuestos') && (
+              <button className={`btn ghost sm alerts-btn ${alerts ? 'on' : ''}`} onClick={toggleAlerts} title="Sonido y notificación cuando llega un pedido">
+                <span className="led sm" style={{ '--led': alerts ? '#22c55e' : '#9ca3af' }} data-off={!alerts || undefined} />
+                {alerts ? 'Avisos activos' : 'Activar avisos'}
+              </button>
+            )}
+            <button className="btn ghost sm" onClick={load}>Actualizar</button>
+          </div>
         </header>
         {loading || !me ? (
           <p className="muted">Cargando…</p>
@@ -265,9 +352,23 @@ function Dashboard({ onLogout }) {
           onUpdate={(patch) => updateOrder(current.id, patch)}
           onUpdateAny={updateOrder}
           onDelete={() => deleteOrder(current.id)}
+          onAddPayment={(p) => addPayment(current.id, p)}
+          onDeletePayment={(pid) => deletePayment(current.id, pid)}
           can={can}
           business={settings?.business}
         />
+      )}
+
+      {toast && (
+        <div className="toast" key={toast.at} role="status">
+          <span className="led blink" style={{ '--led': '#ff4fb0' }} />
+          <div className="grow">
+            <strong>Pedido nuevo</strong>
+            <span className="small">{toast.text}</span>
+          </div>
+          <button className="btn primary sm" onClick={() => { open(toast.id); setToast(null) }}>Ver</button>
+          <button className="modal-close" onClick={() => setToast(null)}>✕</button>
+        </div>
       )}
     </div>
   )
@@ -285,7 +386,14 @@ function Overview({ stats, orders, onOpen, showMoney }) {
     { label: 'Por producir', value: pending },
     { label: 'En producción', value: stats.byStatus.imprimiendo || 0 },
     { label: 'LED por armar', value: ledToBuild.toLocaleString('es-MX') },
-    ...(showMoney ? [{ label: 'Ticket promedio', value: money(ticket) }, { label: 'Ventas', value: money(stats.revenue) }] : []),
+    ...(showMoney
+      ? [
+          { label: 'Ventas', value: money(stats.revenue) },
+          { label: 'Cobrado', value: money(stats.collected || 0) },
+          { label: 'Por cobrar', value: money(stats.receivable || 0), hot: stats.receivable > 0 },
+          { label: 'Ticket promedio', value: money(ticket) }
+        ]
+      : []),
     { label: 'Presupuestos aceptados', value: stats.quotes?.aceptada ?? 0 }
   ]
 
@@ -293,7 +401,7 @@ function Overview({ stats, orders, onOpen, showMoney }) {
     <>
       <div className="kpis">
         {tiles.map((t) => (
-          <div className="kpi" key={t.label}>
+          <div className={`kpi ${t.hot ? 'hot' : ''}`} key={t.label}>
             <span>{t.label}</span>
             <strong>{t.value}</strong>
           </div>
@@ -395,7 +503,10 @@ function OrdersList({ orders, onOpen, onUpdate, can }) {
                 <td>{o.design.widthCm}×{o.design.heightCm}<div className="muted small">{materialName(o.design)}</div></td>
                 <td className="small"><span className={`kind ${o.design.kind === 'led' ? 'led-kind' : ''}`}>{kindName(o.design)}</span><div className="muted small">{ledName(o.design)}</div></td>
                 <td>{o.quote.quantity}</td>
-                <td>{o.totals ? money(o.totals.total) : '—'}{o.quoteState === 'aceptada' && <div className="small ok-text">aceptado</div>}</td>
+                <td>
+                  {o.totals ? money(o.totals.total) : '—'}
+                  {o.pay && <div className={`small pay-${o.pay.state}`}>{o.pay.state === 'sin_pago' ? (o.quoteState === 'aceptada' ? 'aceptado' : '') : o.pay.state === 'pagado' ? 'pagado' : `saldo ${money(o.pay.balance)}`}</div>}
+                </td>
                 <td><StatusPill status={o.status} /></td>
                 <td className="actions" onClick={(e) => e.stopPropagation()}>
                   {waLink(o.customer.phone) && (
@@ -471,7 +582,7 @@ function PrintedGallery({ orders, onOpen }) {
           <div className="gallery-thumb"><DesignPreview design={o.design} night /></div>
           <figcaption>
             <div className="row between">
-              <strong>{o.folio}</strong>
+              <strong>{o.folio}{o.showcase && <span className="star" title="En la galería pública"> ★</span>}</strong>
               <StatusPill status={o.status} />
             </div>
             <span className="muted small">{o.customer.name} · {o.quote.quantity} pz · {o.design.widthCm}×{o.design.heightCm} cm</span>
@@ -584,7 +695,55 @@ function Files({ orders, onOpen }) {
   )
 }
 
-function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDelete, can, business }) {
+function Payments({ order, onAdd, onDelete, canEdit }) {
+  const { totals, pay, payments = [] } = order
+  const suggested = pay.paid < totals.deposit ? totals.deposit - pay.paid : pay.balance
+  const [amount, setAmount] = useState(String(suggested || ''))
+  const [method, setMethod] = useState('transferencia')
+  const pct = totals.total ? Math.min(100, (pay.paid / totals.total) * 100) : 0
+  const depPct = totals.total ? (totals.deposit / totals.total) * 100 : 0
+  const submit = (e) => {
+    e.preventDefault()
+    if (Number(amount) > 0) onAdd({ amount: Number(amount), method })
+  }
+  return (
+    <section className="payments">
+      <h3>Cobro · <span className={`pay-pill pay-${pay.state}`}>{PAY_STATES[pay.state]}</span></h3>
+      <div className="pay-bar" title={`Pagado ${Math.round(pct)} %`}>
+        <i style={{ width: `${pct}%` }} />
+        <b style={{ left: `${depPct}%` }} title={`Anticipo ${totals.depositPct} %`} />
+      </div>
+      <ul className="quote-lines">
+        <li><span>Total ({totals.ivaIncluded ? 'IVA incluido' : `+ IVA ${totals.ivaRate} %`})</span><span>{money(totals.total)}</span></li>
+        <li><span>Anticipo {totals.depositPct} %</span><span>{money(totals.deposit)}</span></li>
+        <li><span>Pagado</span><span>{money(pay.paid)}</span></li>
+        <li className="total-line"><span>Saldo</span><span>{money(pay.balance)}</span></li>
+      </ul>
+      {payments.length > 0 && (
+        <ul className="pay-list">
+          {payments.map((p) => (
+            <li key={p.id}>
+              <strong>{money(p.amount)}</strong>
+              <span className="muted small grow">{payMethodName(p.method)} · {fmtDate(p.at)}{p.by && ` · ${p.by}`}</span>
+              {canEdit && <button className="link-btn danger small" onClick={() => confirm(`¿Quitar el pago de ${money(p.amount)}?`) && onDelete(p.id)}>Quitar</button>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canEdit && pay.balance > 0 && (
+        <form className="pay-form" onSubmit={submit}>
+          <input className="input" type="number" min="1" step="any" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Monto" />
+          <select className="input" value={method} onChange={(e) => setMethod(e.target.value)} aria-label="Forma de pago">
+            {PAY_METHODS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+          <button className="btn primary sm">Registrar pago</button>
+        </form>
+      )}
+    </section>
+  )
+}
+
+function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDelete, onAddPayment, onDeletePayment, can, business }) {
   const [notes, setNotes] = useState(order.adminNotes || '')
   const d = order.design
   const led = ledSpec(d)
@@ -690,15 +849,24 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDel
               {order.customer.notes && <p className="note">{order.customer.notes}</p>}
             </section>
 
-            {order.totals && (
-              <section>
-                <h3>Presupuesto · <QuotePill state={order.quoteState} /></h3>
-                <ul className="quote-lines">
-                  <li><span>Total ({order.totals.ivaIncluded ? 'IVA incluido' : `+ IVA ${order.totals.ivaRate} %`})</span><span>{money(order.totals.total)}</span></li>
-                  <li><span>Anticipo {order.totals.depositPct} %</span><span>{money(order.totals.deposit)}</span></li>
-                </ul>
-                {can('presupuestos', 'ventas') && <button className="link-btn" onClick={() => setTab('presupuesto')}>Ver y ajustar presupuesto →</button>}
-              </section>
+            {order.totals && order.pay && (
+              <>
+                <Payments key={order.payments?.length} order={order} onAdd={onAddPayment} onDelete={onDeletePayment} canEdit={can('ventas', 'presupuestos')} />
+                <p className="small">
+                  Presupuesto <QuotePill state={order.quoteState} />{' '}
+                  {can('presupuestos', 'ventas') && <button className="link-btn" onClick={() => setTab('presupuesto')}>Ver y ajustar →</button>}
+                </p>
+              </>
+            )}
+
+            {can('editar') && (
+              <label className="showcase-toggle">
+                <input type="checkbox" checked={!!order.showcase} onChange={(e) => onUpdate({ showcase: e.target.checked })} />
+                <span>
+                  <strong>Mostrar en “Hecho por AP”</strong>
+                  <span className="muted small">El diseño aparece en la página pública como ejemplo (sin datos del cliente)</span>
+                </span>
+              </label>
             )}
 
             <section>

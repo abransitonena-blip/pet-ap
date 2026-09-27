@@ -1,6 +1,13 @@
 import { useId } from 'react'
 import { SEQ_CHANNELS, boardById, boardOutline, ledColorById, mountHoles } from '../lib/ledSign'
 
+// Mezcla dos colores hex (t = 0 → a, t = 1 → b)
+export function mix(a, b, t) {
+  const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16))
+  const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16))
+  return '#' + pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, '0')).join('')
+}
+
 // Espacio extra alrededor de la placa para dibujar el montaje (mm)
 export function previewBox(design, withMount = true) {
   const W = design.widthCm * 10
@@ -57,9 +64,39 @@ export default function LedPreview({ design, night = false, animate = false, wit
         <filter id={`g-${uid}`} x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation={design.ledMm * 0.9} />
         </filter>
-        <radialGradient id={`lens-${uid}`} cx="35%" cy="35%" r="65%">
-          <stop offset="0" stopColor="#fff" stopOpacity="0.9" />
-          <stop offset="0.35" stopColor="#fff" stopOpacity="0" />
+        <filter id={`sp-${uid}`} x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation={design.ledMm * 2.6} />
+        </filter>
+        <filter id={`sh-${uid}`} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation={design.ledMm * 0.25} />
+        </filter>
+        {/* Domo del LED: núcleo brillante, color y borde más oscuro (volumen) */}
+        {colors.map((c, i) => (
+          <radialGradient key={i} id={`d-${uid}-${i}`} cx="38%" cy="34%" r="68%">
+            {night ? (
+              <>
+                <stop offset="0" stopColor="#ffffff" />
+                <stop offset="0.3" stopColor={mix(c, '#ffffff', 0.45)} />
+                <stop offset="0.72" stopColor={c} />
+                <stop offset="1" stopColor={mix(c, '#000000', 0.25)} />
+              </>
+            ) : (
+              <>
+                <stop offset="0" stopColor={mix(c, '#ffffff', 0.7)} />
+                <stop offset="0.45" stopColor={mix(c, '#ffffff', 0.15)} stopOpacity="0.85" />
+                <stop offset="1" stopColor={mix(c, '#000000', 0.45)} stopOpacity="0.9" />
+              </>
+            )}
+          </radialGradient>
+        ))}
+        <radialGradient id={`lens-${uid}`} cx="32%" cy="28%" r="40%">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.95" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id={`metal-${uid}`} cx="35%" cy="30%" r="75%">
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset="0.45" stopColor="#c9ccd2" />
+          <stop offset="1" stopColor="#6d717a" />
         </radialGradient>
         {(seq || blink) && <style>{css}</style>}
       </defs>
@@ -83,9 +120,24 @@ export default function LedPreview({ design, night = false, animate = false, wit
         stroke={glass ? '#ffffff88' : '#00000014'}
         strokeWidth={glass ? 2 : 1}
       />
-      {holes.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r={2.2} fill="#00000033" stroke="#ffffff66" strokeWidth={0.8} />
-      ))}
+      {holes.map(([x, y], i) =>
+        design.mount === 'pared' ? (
+          // Separador metálico (standoff) de pared
+          <g key={i}>
+            <circle cx={x + 1.2} cy={y + 1.6} r={7} fill="#000" opacity="0.22" filter={`url(#sh-${uid})`} />
+            <circle cx={x} cy={y} r={7} fill={`url(#metal-${uid})`} stroke="#5d6068" strokeWidth={0.5} />
+            <circle cx={x} cy={y} r={3.2} fill="none" stroke="#8b8f97" strokeWidth={0.6} />
+          </g>
+        ) : (
+          <circle key={i} cx={x} cy={y} r={2.2} fill="#00000033" stroke="#ffffff66" strokeWidth={0.8} />
+        )
+      )}
+      {/* Luz que se derrama sobre la placa */}
+      {night && (
+        <g filter={`url(#sp-${uid})`} opacity="0.3">
+          {design.dots.map((d, i) => (i % 2 ? null : <circle key={i} cx={d[0]} cy={d[1]} r={r * 3.2} fill={colors[d[2]]} />))}
+        </g>
+      )}
       {groups.map((g) => (
         <g
           key={g}
@@ -99,20 +151,26 @@ export default function LedPreview({ design, night = false, animate = false, wit
               ))}
             </g>
           )}
+          {!night && (
+            <g filter={`url(#sh-${uid})`} opacity="0.28">
+              {dotsOf(g).map((d, i) => (
+                <circle key={i} cx={d[0] + r * 0.25} cy={d[1] + r * 0.45} r={r} fill="#000" />
+              ))}
+            </g>
+          )}
           {dotsOf(g).map((d, i) => (
             <circle
               key={i}
               cx={d[0]}
               cy={d[1]}
               r={r}
-              fill={colors[d[2]]}
-              fillOpacity={night ? 1 : 0.55}
-              stroke={night ? 'none' : '#00000055'}
-              strokeWidth={0.4}
+              fill={`url(#d-${uid}-${d[2]})`}
+              stroke={mix(colors[d[2]] || '#ff0000', '#000000', night ? 0.1 : 0.5)}
+              strokeWidth={r * 0.12}
             />
           ))}
           {dotsOf(g).map((d, i) => (
-            <circle key={i} cx={d[0]} cy={d[1]} r={r} fill={`url(#lens-${uid})`} />
+            <circle key={i} cx={d[0] - r * 0.22} cy={d[1] - r * 0.28} r={r * 0.42} fill={`url(#lens-${uid})`} />
           ))}
         </g>
       ))}

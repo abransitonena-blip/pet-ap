@@ -265,7 +265,7 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .admin-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .admin-top h1 { font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
 
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); margin-bottom: 18px; overflow: hidden; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); margin-bottom: 18px; overflow: hidden; }
 .kpi { padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid var(--line); }
 .kpi:last-child { border-right: none; }
 .kpi span { font-size: 12px; color: var(--muted); }
@@ -627,3 +627,71 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 }
 .style-card.text.dark em { color: #ffffffb3; }
 .style-card.text[style*='background'] { border-color: #0000000f; }
+
+/* ---------- Vista 3D ---------- */
+.sign3d { position: relative; width: 100%; height: 100%; perspective: 1100px; touch-action: none; }
+.sign3d.on { cursor: grab; }
+.sign3d .rig { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.2, .7, .2, 1); }
+.sign3d .rig.live { transition: transform .12s ease-out; }
+.sign3d .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.sign3d .face .sign-svg { width: 100%; height: 100%; }
+.sign3d .shadow-layer { opacity: .22; filter: blur(8px); }
+.wall-spill { position: absolute; inset: -30% -20%; filter: blur(34px); opacity: .75; pointer-events: none; mix-blend-mode: screen; }
+.wall.night .wall-sign { filter: none; }
+.wall:not(.night) .wall-sign:has(.sign3d.on) { filter: none; }
+
+/* Foto del local del cliente */
+.wall.photo { background-size: cover !important; background-position: center !important; }
+.wall.photo.night::after { content: ''; position: absolute; inset: 0; background: #0a0610; opacity: .55; pointer-events: none; }
+.wall.photo .wall-sign { z-index: 1; cursor: move; touch-action: none; }
+.wall .tool-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: #ffffffcc; backdrop-filter: blur(6px); font-size: 12.5px; font-weight: 500; cursor: pointer; border: none; }
+.wall .tool-btn.on { background: var(--ink); color: #fff; }
+.wall .tool-btn input { display: none; }
+.photo-scale { position: absolute; left: 16px; bottom: 14px; z-index: 3; display: flex; align-items: center; gap: 8px; background: #ffffffd9; padding: 6px 12px; border-radius: 999px; font-size: 12px; }
+.photo-scale input { accent-color: var(--brand); width: 130px; }
+.wall-tools { z-index: 4; flex-wrap: wrap; justify-content: flex-end; }
+
+/* ---------- Cobro, avisos y galería ---------- */
+.kpi.hot strong { color: var(--brand); }
+.payments h3 { display: flex; align-items: center; gap: 6px; }
+.pay-pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--soft); color: var(--ink-2); }
+.pay-pill.pay-parcial { background: #fff4d6; color: #a16207; }
+.pay-pill.pay-anticipo { background: var(--brand-soft); color: #c0267f; }
+.pay-pill.pay-pagado { background: #dcfce7; color: #15803d; }
+.small.pay-parcial, .small.pay-anticipo { color: #c0267f; }
+.small.pay-pagado { color: #16a34a; }
+.small.pay-sin_pago { color: #16a34a; }
+.pay-bar { position: relative; height: 8px; border-radius: 999px; background: var(--soft); margin: 4px 0 10px; }
+.pay-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: linear-gradient(90deg, var(--brand), #ff8fcf); transition: width .4s; }
+.pay-bar b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); border-radius: 2px; }
+.pay-list { list-style: none; margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.pay-list li { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 6px 10px; background: var(--soft); border-radius: 10px; }
+.pay-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 10px; }
+.showcase-toggle { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+.showcase-toggle input { accent-color: var(--brand); margin-top: 3px; width: 16px; height: 16px; }
+.showcase-toggle > span { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.star { color: var(--brand); }
+.alerts-btn { display: inline-flex; align-items: center; gap: 6px; }
+.alerts-btn.on { border-color: #bbf7d0; color: #15803d; }
+.toast {
+  position: fixed; right: 20px; bottom: 20px; z-index: 80; display: flex; align-items: center; gap: 12px;
+  background: var(--ink); color: #fff; padding: 12px 14px 12px 16px; border-radius: 14px; box-shadow: 0 18px 40px rgba(0,0,0,.25);
+  min-width: 300px; animation: toast-in .35s cubic-bezier(.2,.9,.3,1.3);
+}
+.toast .grow { display: flex; flex-direction: column; }
+.toast .modal-close { position: static; color: #fff; opacity: .6; }
+@keyframes toast-in { from { transform: translateY(30px); opacity: 0; } }
+@media (max-width: 640px) { .toast { left: 12px; right: 12px; min-width: 0; } .pay-form { grid-template-columns: 1fr 1fr; } .pay-form .btn { grid-column: 1 / -1; } }
+
+/* Galería pública "Hecho por AP" */
+.made-by { margin-top: 18px; }
+.made-by-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.made-by-head h2 { font-size: 15px; font-weight: 600; }
+.made-by-strip { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x mandatory; }
+.made-by-item { flex: 0 0 220px; scroll-snap-align: start; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; display: flex; flex-direction: column; }
+.made-by-item .thumb-night { background: radial-gradient(ellipse at 50% 40%, #f7d3e2, #e9b8cd); aspect-ratio: 16 / 10; display: grid; place-items: center; padding: 12px; }
+.made-by-item .thumb-night svg { max-width: 100%; max-height: 100%; }
+.made-by-item footer { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; font-size: 12px; }
+.qd-totals .paid { color: #16a34a; }
+.made-by-item footer .btn { white-space: nowrap; }
+.made-by-item footer .muted { line-height: 1.3; }

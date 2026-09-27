@@ -152,6 +152,12 @@ export default function QuotePage({ folio, token }) {
           {t.depositPct > 0 && t.depositPct < 100 && (
             <div className="deposit"><span>Anticipo para iniciar ({t.depositPct} %)</span><span>{money(t.deposit)}</span></div>
           )}
+          {doc.pay?.paid > 0 && (
+            <>
+              <div className="paid"><span>Pagado</span><span>− {money(doc.pay.paid)}</span></div>
+              <div className="grand"><span>{doc.pay.balance > 0 ? 'Saldo pendiente' : 'Pagado por completo ✓'}</span><span>{money(doc.pay.balance)}</span></div>
+            </>
+          )}
         </section>
 
         {doc.adjust.note && <p className="qd-note">{doc.adjust.note}</p>}

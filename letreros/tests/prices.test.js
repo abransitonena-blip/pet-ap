@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DEFAULT_PRICES, computeTotals, mergeBusiness, mergePrices, normalizeAdjust, volumeDiscount } from '../src/lib/prices.js'
+import { DEFAULT_PRICES, computeTotals, mergeBusiness, mergePrices, normalizeAdjust, normalizePayment, paymentSummary, volumeDiscount } from '../src/lib/prices.js'
 import { quote } from '../src/lib/pricing.js'
 import { defaultDesign } from '../src/lib/design.js'
 import { defaultLedDesign, normalizeLedDesign } from '../src/lib/ledSign.js'
@@ -57,4 +57,15 @@ test('normalizeAdjust descarta conceptos vacíos o absurdos', () => {
   const a = normalizeAdjust({ items: [{ label: '', amount: 5 }, { label: 'Flete', amount: 300 }, { label: 'X', amount: 9e9 }], discountPct: 500 })
   assert.deepEqual(a.items, [{ label: 'Flete', amount: 300 }])
   assert.equal(a.discountPct, 100)
+})
+
+test('pagos: validación y estado de cobro', () => {
+  assert.ok(normalizePayment({ amount: 0 }).error)
+  assert.equal(normalizePayment({ amount: '250.5', method: 'raro' }).payment.method, 'efectivo')
+  const totals = { total: 1000, deposit: 500 }
+  assert.equal(paymentSummary(totals, []).state, 'sin_pago')
+  assert.equal(paymentSummary(totals, [{ amount: 200 }]).state, 'parcial')
+  assert.equal(paymentSummary(totals, [{ amount: 500 }]).state, 'anticipo')
+  const done = paymentSummary(totals, [{ amount: 500 }, { amount: 600 }])
+  assert.deepEqual([done.state, done.balance], ['pagado', 0])
 })

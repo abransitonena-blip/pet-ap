@@ -80,6 +80,34 @@ test('flujo completo: pedido, presupuesto público, aceptar y permisos', async (
   assert.equal((await call('GET', '/admin/me', null, taller)).status, 401, 'desactivar corta el acceso')
 })
 
+test('pagos: anticipo, saldo, permisos y galería pública', async () => {
+  const owner = await login('admin', 'clave-prueba')
+  const { folio } = (await call('POST', '/orders', ledOrder)).body
+  const order = (await call('GET', '/admin/orders', null, owner)).body.find((o) => o.folio === folio)
+  assert.equal(order.pay.state, 'sin_pago')
+  const total = order.totals.total
+
+  assert.equal((await call('POST', `/admin/orders/${order.id}/payments`, { amount: -5 }, owner)).status, 400)
+  const paid = await call('POST', `/admin/orders/${order.id}/payments`, { amount: order.totals.deposit, method: 'transferencia' }, owner)
+  assert.equal(paid.status, 201)
+  assert.equal(paid.body.pay.state, 'anticipo')
+  assert.equal(paid.body.pay.balance, total - order.totals.deposit)
+
+  const stats = (await call('GET', '/admin/stats', null, owner)).body
+  assert.ok(stats.collected >= order.totals.deposit)
+
+  const pid = paid.body.payments[0].id
+  const undone = await call('DELETE', `/admin/orders/${order.id}/payments/${pid}`, null, owner)
+  assert.equal(undone.body.pay.paid, 0)
+
+  assert.equal((await call('GET', '/public/gallery')).body.length, 0)
+  await call('PATCH', `/admin/orders/${order.id}`, { showcase: true }, owner)
+  const gallery = (await call('GET', '/public/gallery')).body
+  assert.equal(gallery.length, 1)
+  assert.equal(gallery[0].customer, undefined, 'la galería no expone datos del cliente')
+  assert.equal(gallery[0].design.kind, 'led')
+})
+
 test('límite de intentos de acceso', async () => {
   let last
   for (let i = 0; i < 12; i++) last = await call('POST', '/admin/login', { username: 'nadie', password: 'x' })
