@@ -5,23 +5,26 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 
 ## ✨ Qué incluye
 
-**Sitio público (`#/`)**
-- Editor visual con vista previa en vivo sobre una pared (con medidas en cm)
-- Hasta 6 líneas de texto: 10 tipografías, color, tamaño, negritas/itálicas, espaciado, alineación
-- Íconos, fondo sólido o degradado, borde, esquinas redondeadas y efecto neón
-- 6 plantillas (cafetería, neón, taquería, barbería, se vende, minimal)
-- Medidas rápidas o personalizadas, 8 materiales (lona, vinil, coroplast, PVC, MDF, acrílico, caja de luz, neón LED) y extras
-- Cotizador automático con descuento por volumen
-- Descarga del diseño en PNG
-- Pedido con folio (`LT-0001`) y página de seguimiento (`#/seguimiento`)
+**Panel público (`#/`), minimalista**
+- Vista previa en vivo sobre una pared, con medidas en cm y modo **☀ Día / ☾ Noche** para ver el LED encendido
+- **3 colores por letrero** (fondo · texto · acento): 8 paletas en tendencia o colores propios
+- **Iluminación LED**: neón LED, retroiluminado (halo) o tira LED en el contorno; el LED usa el color de acento
+- Medidas rápidas (40×30 a 300×90, verticales y cuadradas) o personalizadas
+- Hasta 6 líneas de texto: 10 tipografías, tamaño, espaciado, negritas/itálicas, color texto o acento, íconos
+- 6 estilos de inicio, 6 materiales y extras, precio al instante con descuento por volumen
+- Pedido con folio (`LT-0001`) y seguimiento en `#/seguimiento`
 
-**Panel admin (`#/admin`)**
-- **Resumen:** pedidos totales, por imprimir, imprimiendo, piezas y m² impresos, ventas, gráfica por estado
-- **Pedidos:** tabla con miniatura del diseño, búsqueda y filtros por estado
-- **Cola de impresión:** tablero Aprobado → Imprimiendo → Impreso con botones de un clic
-- **Impresos:** galería de todos los letreros impresos/entregados
-- Detalle de cada pedido: diseño grande, **PNG en alta resolución (6000 px) listo para imprimir**,
-  cambio de estado, datos del cliente (tel/WhatsApp/correo), cotización, notas internas e historial
+**Panel admin (`#/admin`), minimalista con indicadores LED**
+- **Resumen:** KPIs y tablero de estados con LEDs (parpadea lo que se está imprimiendo)
+- **Pedidos:** tabla con miniatura, búsqueda y filtros
+- **Producción:** tablero Aprobado → Imprimiendo → Impreso
+- **Impresos:** galería de letreros impresos/entregados (vista nocturna)
+- **Archivos:** por cada pedido
+  - **PNG** 6000 px para impresión
+  - **SVG** vectorial a escala real (ancho/alto en cm)
+  - **Diagrama técnico** SVG: plano con cotas, escala, 3 colores en HEX, tipografías, material,
+    cantidad de LED, consumo en watts y fuente de poder recomendada
+  - **PDF**: abre el diagrama listo para "Imprimir → Guardar como PDF" (A4 horizontal)
 
 ## 🚀 Uso local
 
@@ -66,9 +69,10 @@ letreros/
     ├── lib/design.js        modelo del letrero, plantillas, validación
     ├── lib/pricing.js       materiales, extras y cotizador (compartido con el servidor)
     ├── lib/status.js        estados de producción
-    ├── lib/render.js        composición + exportación PNG
-    ├── components/          SignPreview (SVG), StatusPill, SiteHeader
+    ├── lib/render.js        composición, efectos LED y exportación PNG
+    ├── lib/files.js         SVG vectorial y diagrama técnico (SVG/PDF)
+    ├── components/          SignPreview (SVG), TechDiagram, StatusPill, SiteHeader
     └── pages/               Editor, Track, Admin
 ```
 
-Precios y materiales se editan en `src/lib/pricing.js`; el servidor siempre recalcula el total.
+Precios, materiales y LED se editan en `src/lib/pricing.js`; paletas en `src/lib/design.js`; el servidor siempre recalcula el total.

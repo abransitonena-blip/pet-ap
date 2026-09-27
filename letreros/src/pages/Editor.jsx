@@ -1,34 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
 import SiteHeader from '../components/SiteHeader'
 import SignPreview from '../components/SignPreview'
-import { FONTS, ICONS, SIZE_PRESETS, TEMPLATES, defaultDesign, newLine, normalizeDesign } from '../lib/design'
+import { FONTS, ICONS, LED_MODES, PALETTES, SIZE_PRESETS, TEMPLATES, defaultDesign, newLine, normalizeDesign } from '../lib/design'
 import { EXTRAS, MATERIALS, materialById, money, quote } from '../lib/pricing'
 import { downloadPng } from '../lib/render'
 import { api } from '../lib/api'
 
-const DRAFT_KEY = 'letreros_draft'
+const DRAFT_KEY = 'letreros_draft_v2'
 const MATERIAL_IDS = MATERIALS.map((m) => m.id)
 const EXTRA_IDS = EXTRAS.map((e) => e.id)
+const normalize = (d) => normalizeDesign(d, MATERIAL_IDS, EXTRA_IDS)
 
 function loadDraft() {
   try {
     const raw = localStorage.getItem(DRAFT_KEY)
-    if (raw) return normalizeDesign(JSON.parse(raw), MATERIAL_IDS, EXTRA_IDS)
+    if (raw) return normalize(JSON.parse(raw))
   } catch {}
   return defaultDesign()
 }
 
-const TABS = [
-  { id: 'plantillas', label: 'Plantillas' },
-  { id: 'texto', label: 'Texto' },
-  { id: 'estilo', label: 'Fondo y borde' },
-  { id: 'medida', label: 'Medida' }
-]
-
 export default function Editor() {
   const [design, setDesign] = useState(loadDraft)
-  const [tab, setTab] = useState('texto')
   const [quantity, setQuantity] = useState(1)
+  const [night, setNight] = useState(true)
   const [ordering, setOrdering] = useState(false)
   const [exporting, setExporting] = useState(false)
 
@@ -51,92 +45,182 @@ export default function Editor() {
   }
 
   return (
-    <div className="page editor-page">
+    <div className="page">
       <SiteHeader active="editor" />
 
-      <div className="editor">
-        <aside className="panel controls">
-          <div className="tabs">
-            {TABS.map((t) => (
-              <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div className="tab-body">
-            {tab === 'plantillas' && <TemplatesTab onPick={(d) => setDesign(normalizeDesign(d, MATERIAL_IDS, EXTRA_IDS))} />}
-            {tab === 'texto' && <TextTab design={design} setDesign={setDesign} update={update} />}
-            {tab === 'estilo' && <StyleTab design={design} update={update} />}
-            {tab === 'medida' && <SizeTab design={design} update={update} />}
-          </div>
-        </aside>
-
-        <section className="stage">
-          <div className="stage-wall">
+      <div className="studio">
+        <section className="studio-stage">
+          <div className={`wall ${night ? 'night' : ''}`}>
+            <div className="wall-tools">
+              <div className="switch">
+                <button className={!night ? 'active' : ''} onClick={() => setNight(false)}>☀ Día</button>
+                <button className={night ? 'active' : ''} onClick={() => setNight(true)}>☾ Noche</button>
+              </div>
+            </div>
             <div
-              className="stage-sign"
+              className="wall-sign"
               style={{
                 aspectRatio: `${design.widthCm} / ${design.heightCm}`,
-                width: `min(100%, ${((design.widthCm / design.heightCm) * 55).toFixed(2)}vh)`
+                width: `min(100%, ${((design.widthCm / design.heightCm) * 50).toFixed(2)}vh)`
               }}
             >
               <span className="dim dim-w">{design.widthCm} cm</span>
               <span className="dim dim-h">{design.heightCm} cm</span>
-              <SignPreview design={design} />
+              <SignPreview design={design} night={night} />
             </div>
           </div>
-          <div className="stage-actions">
-            <span className="muted">
-              {materialById(design.material).name} · {q.areaM2} m²
-            </span>
-            <div className="row">
-              <button className="btn ghost" onClick={() => setDesign(defaultDesign())}>Reiniciar</button>
-              <button className="btn ghost" onClick={exportPng} disabled={exporting}>
-                {exporting ? 'Generando…' : 'Descargar PNG'}
-              </button>
+
+          <div className="styles-row">
+            <span className="label">Estilos</span>
+            <div className="styles-scroll">
+              {TEMPLATES.map((t) => (
+                <button key={t.name} className="style-card" onClick={() => setDesign(normalize(t.design))} title={t.name}>
+                  <SignPreview design={t.design} />
+                  <span>{t.name}</span>
+                </button>
+              ))}
             </div>
           </div>
         </section>
 
-        <aside className="panel summary">
-          <h3>Tu cotización</h3>
-          <ul className="quote-lines">
-            {q.lines.map((l, i) => (
-              <li key={i}>
-                <span>{l.label}</span>
-                <span>{money(l.amount)}</span>
-              </li>
-            ))}
-            {q.discount > 0 && (
-              <li className="discount">
-                <span>Descuento por volumen ({Math.round(q.discountRate * 100)}%)</span>
-                <span>−{money(q.discount)}</span>
-              </li>
-            )}
-          </ul>
-          <label className="field">
-            <span>Cantidad</span>
-            <div className="stepper">
-              <button onClick={() => setQuantity((n) => Math.max(1, n - 1))}>−</button>
-              <input
-                type="number"
-                min="1"
-                max="500"
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, Math.min(500, Number(e.target.value) || 1)))}
-              />
-              <button onClick={() => setQuantity((n) => Math.min(500, n + 1))}>+</button>
+        <aside className="studio-panel">
+          <Section n="01" title="Medida">
+            <div className="chips">
+              {SIZE_PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  className={design.widthCm === p.widthCm && design.heightCm === p.heightCm ? 'active' : ''}
+                  onClick={() => update({ widthCm: p.widthCm, heightCm: p.heightCm })}
+                >
+                  {p.label}
+                </button>
+              ))}
             </div>
-          </label>
-          <p className="hint">5+ piezas: 5% · 10+: 8% · 20+: 12% · 50+: 20% de descuento</p>
-          <div className="total">
-            <span>Total</span>
-            <strong>{money(q.total)}</strong>
+            <div className="size-inputs">
+              <NumberField label="Ancho" value={design.widthCm} onChange={(v) => update({ widthCm: v })} />
+              <button className="icon-btn" title="Girar" onClick={() => update({ widthCm: design.heightCm, heightCm: design.widthCm })}>⇄</button>
+              <NumberField label="Alto" value={design.heightCm} onChange={(v) => update({ heightCm: v })} />
+            </div>
+          </Section>
+
+          <Section n="02" title="Colores" hint="3 colores · tendencia 2026">
+            <div className="palettes">
+              {PALETTES.map((p) => (
+                <button
+                  key={p.id}
+                  className={`palette ${design.palette === p.id ? 'active' : ''}`}
+                  onClick={() => update({ palette: p.id, colors: { ...p.colors } })}
+                >
+                  <span className="swatches">
+                    <i style={{ background: p.colors.bg }} />
+                    <i style={{ background: p.colors.text }} />
+                    <i style={{ background: p.colors.accent }} />
+                  </span>
+                  <span>{p.name}</span>
+                </button>
+              ))}
+            </div>
+            <div className="color-trio">
+              {[['bg', 'Fondo'], ['text', 'Texto'], ['accent', 'Acento']].map(([k, label]) => (
+                <label key={k}>
+                  <input
+                    type="color"
+                    value={design.colors[k]}
+                    onChange={(e) => update({ palette: 'custom', colors: { ...design.colors, [k]: e.target.value } })}
+                  />
+                  <span>{label}</span>
+                  <code>{design.colors[k].toUpperCase()}</code>
+                </label>
+              ))}
+            </div>
+          </Section>
+
+          <Section n="03" title="Texto">
+            <TextEditor design={design} setDesign={setDesign} update={update} />
+          </Section>
+
+          <Section n="04" title="Iluminación LED" hint="El LED usa tu color de acento">
+            <div className="led-modes">
+              {LED_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  className={`led-mode ${design.led.mode === m.id ? 'active' : ''}`}
+                  onClick={() => {
+                    update({ led: { mode: m.id } })
+                    if (m.id !== 'none') setNight(true)
+                  }}
+                >
+                  <span className="led" style={{ '--led': m.id === 'none' ? '#c4c4c4' : design.colors.accent }} data-off={m.id === 'none' || undefined} />
+                  <strong>{m.name}</strong>
+                  <span>{m.note}</span>
+                </button>
+              ))}
+            </div>
+            <label className="range">
+              <span>Borde</span>
+              <input type="range" min="0" max="40" value={design.border.width} onChange={(e) => update({ border: { ...design.border, width: +e.target.value } })} />
+              <output>{design.border.width}</output>
+            </label>
+            <label className="range">
+              <span>Esquinas</span>
+              <input type="range" min="0" max="200" value={design.border.radius} onChange={(e) => update({ border: { ...design.border, radius: +e.target.value } })} />
+              <output>{design.border.radius}</output>
+            </label>
+          </Section>
+
+          <Section n="05" title="Material">
+            <div className="list">
+              {MATERIALS.map((m) => (
+                <button key={m.id} className={`list-item ${design.material === m.id ? 'active' : ''}`} onClick={() => update({ material: m.id })}>
+                  <span className="radio" />
+                  <span className="grow">{m.name} <em>{m.note}</em></span>
+                  <span className="muted">{money(m.pricePerM2)}/m²</span>
+                </button>
+              ))}
+            </div>
+            <div className="list extras">
+              {EXTRAS.map((ex) => {
+                const on = design.extras.includes(ex.id)
+                return (
+                  <button
+                    key={ex.id}
+                    className={`list-item ${on ? 'active' : ''}`}
+                    onClick={() => update({ extras: on ? design.extras.filter((e) => e !== ex.id) : [...design.extras, ex.id] })}
+                  >
+                    <span className="checkbox" />
+                    <span className="grow">{ex.name}</span>
+                    <span className="muted">+{money(ex.price)}/{ex.per === 'm2' ? 'm²' : ex.per}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </Section>
+
+          <div className="checkout">
+            <div className="checkout-lines">
+              {q.lines.map((l, i) => (
+                <div key={i}><span>{l.label}</span><span>{money(l.amount)}</span></div>
+              ))}
+              {q.discount > 0 && (
+                <div className="discount"><span>Descuento {Math.round(q.discountRate * 100)}%</span><span>−{money(q.discount)}</span></div>
+              )}
+            </div>
+            <div className="checkout-bar">
+              <div className="qty">
+                <button onClick={() => setQuantity((n) => Math.max(1, n - 1))}>−</button>
+                <span>{quantity}</span>
+                <button onClick={() => setQuantity((n) => Math.min(500, n + 1))}>+</button>
+              </div>
+              <div className="grow price">
+                <strong>{money(q.total)}</strong>
+                <span className="muted small">{quantity > 1 ? `${money(q.unitPrice)} c/u` : 'IVA incluido'}</span>
+              </div>
+              <button className="btn primary" onClick={() => setOrdering(true)}>Pedir</button>
+            </div>
+            <button className="link-btn" onClick={exportPng} disabled={exporting}>
+              {exporting ? 'Generando…' : 'Descargar vista previa (PNG)'}
+            </button>
           </div>
-          <p className="muted small">{money(q.unitPrice)} por pieza · IVA incluido</p>
-          <button className="btn primary block" onClick={() => setOrdering(true)}>
-            Hacer pedido
-          </button>
         </aside>
       </div>
 
@@ -145,214 +229,92 @@ export default function Editor() {
   )
 }
 
-function TemplatesTab({ onPick }) {
+function Section({ n, title, hint, children }) {
   return (
-    <div className="template-grid">
-      {TEMPLATES.map((t) => (
-        <button key={t.name} className="template" onClick={() => onPick(t.design)}>
-          <SignPreview design={t.design} />
-          <span>{t.name}</span>
-        </button>
-      ))}
-    </div>
+    <section className="section">
+      <header>
+        <span className="section-n">{n}</span>
+        <h3>{title}</h3>
+        {hint && <span className="section-hint">{hint}</span>}
+      </header>
+      {children}
+    </section>
   )
 }
 
-function TextTab({ design, setDesign, update }) {
+function NumberField({ label, value, onChange }) {
+  return (
+    <label className="number-field">
+      <span>{label}</span>
+      <input type="number" min="10" max="1000" value={value} onChange={(e) => onChange(Math.max(10, Math.min(1000, Number(e.target.value) || 10)))} />
+      <em>cm</em>
+    </label>
+  )
+}
+
+function TextEditor({ design, setDesign, update }) {
   const setLine = (i, patch) =>
     setDesign((d) => ({ ...d, lines: d.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) }))
-  const move = (i, dir) =>
-    setDesign((d) => {
-      const lines = [...d.lines]
-      const j = i + dir
-      if (j < 0 || j >= lines.length) return d
-      ;[lines[i], lines[j]] = [lines[j], lines[i]]
-      return { ...d, lines }
-    })
   const remove = (i) => setDesign((d) => ({ ...d, lines: d.lines.filter((_, j) => j !== i) }))
 
   return (
     <>
-      <div className="field">
-        <span>Alineación</span>
-        <div className="segmented">
-          {[['left', 'Izquierda'], ['center', 'Centro'], ['right', 'Derecha']].map(([v, label]) => (
-            <button key={v} className={design.align === v ? 'active' : ''} onClick={() => update({ align: v })}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {design.lines.map((line, i) => (
-        <div className="line-card" key={i}>
-          <div className="line-head">
-            <strong>Línea {i + 1}</strong>
-            <div className="row tight">
-              <button className="icon-btn" onClick={() => move(i, -1)} title="Subir">↑</button>
-              <button className="icon-btn" onClick={() => move(i, 1)} title="Bajar">↓</button>
-              <button className="icon-btn danger" onClick={() => remove(i)} title="Eliminar">✕</button>
-            </div>
-          </div>
-          <input
-            className="input"
-            value={line.text}
-            maxLength={80}
-            placeholder="Escribe aquí…"
-            onChange={(e) => setLine(i, { text: e.target.value })}
-          />
+        <div className="text-line" key={i}>
           <div className="row">
-            <select className="input" value={line.font} onChange={(e) => setLine(i, { font: e.target.value })} style={{ fontFamily: line.font }}>
-              {FONTS.map((f) => (
-                <option key={f.id} value={f.id} style={{ fontFamily: f.id }}>{f.label}</option>
-              ))}
+            <input className="input grow" value={line.text} maxLength={80} placeholder="Escribe aquí…" onChange={(e) => setLine(i, { text: e.target.value })} />
+            <button className="icon-btn" onClick={() => remove(i)} title="Quitar línea">✕</button>
+          </div>
+          <div className="row">
+            <select className="input grow" value={line.font} onChange={(e) => setLine(i, { font: e.target.value })}>
+              {FONTS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
             </select>
-            <input type="color" value={line.color} onChange={(e) => setLine(i, { color: e.target.value })} />
+            <div className="tone">
+              <button className={line.tone === 'text' ? 'active' : ''} onClick={() => setLine(i, { tone: 'text' })} title="Color de texto">
+                <i style={{ background: design.colors.text }} />
+              </button>
+              <button className={line.tone === 'accent' ? 'active' : ''} onClick={() => setLine(i, { tone: 'accent' })} title="Color de acento">
+                <i style={{ background: design.colors.accent }} />
+              </button>
+            </div>
             <button className={`toggle ${line.bold ? 'on' : ''}`} onClick={() => setLine(i, { bold: !line.bold })}><b>B</b></button>
             <button className={`toggle ${line.italic ? 'on' : ''}`} onClick={() => setLine(i, { italic: !line.italic })}><i>I</i></button>
           </div>
-          <Range label="Tamaño" min={4} max={80} value={line.size} onChange={(v) => setLine(i, { size: v })} />
-          <Range label="Espaciado" min={-5} max={40} value={line.letterSpacing} onChange={(v) => setLine(i, { letterSpacing: v })} />
+          <label className="range">
+            <span>Tamaño</span>
+            <input type="range" min="4" max="80" value={line.size} onChange={(e) => setLine(i, { size: +e.target.value })} />
+            <output>{line.size}</output>
+          </label>
+          <label className="range">
+            <span>Espacio</span>
+            <input type="range" min="-5" max="40" value={line.letterSpacing} onChange={(e) => setLine(i, { letterSpacing: +e.target.value })} />
+            <output>{line.letterSpacing}</output>
+          </label>
         </div>
       ))}
-      {design.lines.length < 6 && (
-        <button className="btn ghost block" onClick={() => setDesign((d) => ({ ...d, lines: [...d.lines, newLine({ size: 12 })] }))}>
-          + Agregar línea
-        </button>
-      )}
-
-      <div className="field">
-        <span>Ícono</span>
-        <div className="icon-grid">
-          {ICONS.map((ic) => (
-            <button key={ic || 'none'} className={design.icon === ic ? 'active' : ''} onClick={() => update({ icon: ic })}>
-              {ic || '∅'}
-            </button>
+      <div className="row between">
+        {design.lines.length < 6 ? (
+          <button className="link-btn" onClick={() => setDesign((d) => ({ ...d, lines: [...d.lines, newLine()] }))}>+ Agregar línea</button>
+        ) : <span />}
+        <div className="switch small">
+          {[['left', '⟸'], ['center', '≡'], ['right', '⟹']].map(([v, label]) => (
+            <button key={v} className={design.align === v ? 'active' : ''} onClick={() => update({ align: v })} title={v}>{label}</button>
           ))}
         </div>
       </div>
-      {design.icon && <Range label="Tamaño del ícono" min={5} max={60} value={design.iconSize} onChange={(v) => update({ iconSize: v })} />}
-    </>
-  )
-}
-
-function StyleTab({ design, update }) {
-  const bg = design.background
-  const border = design.border
-  const setBg = (patch) => update({ background: { ...bg, ...patch } })
-  const setBorder = (patch) => update({ border: { ...border, ...patch } })
-
-  return (
-    <>
-      <div className="field">
-        <span>Fondo</span>
-        <div className="segmented">
-          <button className={bg.type === 'solid' ? 'active' : ''} onClick={() => setBg({ type: 'solid' })}>Sólido</button>
-          <button className={bg.type === 'gradient' ? 'active' : ''} onClick={() => setBg({ type: 'gradient' })}>Degradado</button>
-        </div>
-      </div>
-      <div className="row">
-        <label className="color-field">
-          <input type="color" value={bg.color1} onChange={(e) => setBg({ color1: e.target.value })} />
-          <span>{bg.type === 'gradient' ? 'Color 1' : 'Color'}</span>
-        </label>
-        {bg.type === 'gradient' && (
-          <label className="color-field">
-            <input type="color" value={bg.color2} onChange={(e) => setBg({ color2: e.target.value })} />
-            <span>Color 2</span>
-          </label>
-        )}
-      </div>
-      {bg.type === 'gradient' && <Range label="Ángulo" min={0} max={360} value={bg.angle} unit="°" onChange={(v) => setBg({ angle: v })} />}
-
-      <hr />
-      <div className="field">
-        <span>Borde</span>
-        <label className="color-field">
-          <input type="color" value={border.color} onChange={(e) => setBorder({ color: e.target.value })} />
-          <span>Color del borde</span>
-        </label>
-      </div>
-      <Range label="Grosor" min={0} max={60} value={border.width} onChange={(v) => setBorder({ width: v })} />
-      <Range label="Esquinas redondeadas" min={0} max={200} value={border.radius} onChange={(v) => setBorder({ radius: v })} />
-
-      <hr />
-      <label className="check">
-        <input type="checkbox" checked={design.glow} onChange={(e) => update({ glow: e.target.checked })} />
-        <span>Efecto neón (brillo en el texto)</span>
-      </label>
-    </>
-  )
-}
-
-function SizeTab({ design, update }) {
-  const toggleExtra = (id) =>
-    update({ extras: design.extras.includes(id) ? design.extras.filter((e) => e !== id) : [...design.extras, id] })
-
-  return (
-    <>
-      <div className="field">
-        <span>Medidas rápidas (cm)</span>
-        <div className="chips">
-          {SIZE_PRESETS.map((p) => (
-            <button
-              key={p.label}
-              className={design.widthCm === p.widthCm && design.heightCm === p.heightCm ? 'active' : ''}
-              onClick={() => update({ widthCm: p.widthCm, heightCm: p.heightCm })}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="row">
-        <label className="field grow">
-          <span>Ancho (cm)</span>
-          <input className="input" type="number" min="10" max="1000" value={design.widthCm}
-            onChange={(e) => update({ widthCm: Math.max(10, Math.min(1000, Number(e.target.value) || 10)) })} />
-        </label>
-        <button className="icon-btn swap" title="Girar" onClick={() => update({ widthCm: design.heightCm, heightCm: design.widthCm })}>⇄</button>
-        <label className="field grow">
-          <span>Alto (cm)</span>
-          <input className="input" type="number" min="10" max="1000" value={design.heightCm}
-            onChange={(e) => update({ heightCm: Math.max(10, Math.min(1000, Number(e.target.value) || 10)) })} />
-        </label>
-      </div>
-
-      <div className="field">
-        <span>Material</span>
-        <div className="material-list">
-          {MATERIALS.map((m) => (
-            <button key={m.id} className={`material ${design.material === m.id ? 'active' : ''}`} onClick={() => update({ material: m.id })}>
-              <strong>{m.name}</strong>
-              <span>{m.note}</span>
-              <em>{money(m.pricePerM2)}/m²</em>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="field">
-        <span>Extras</span>
-        {EXTRAS.map((ex) => (
-          <label key={ex.id} className="check">
-            <input type="checkbox" checked={design.extras.includes(ex.id)} onChange={() => toggleExtra(ex.id)} />
-            <span>{ex.name}</span>
-            <em className="muted">+{money(ex.price)}/{ex.per === 'm2' ? 'm²' : ex.per}</em>
-          </label>
+      <div className="icons">
+        {ICONS.map((ic) => (
+          <button key={ic || 'none'} className={design.icon === ic ? 'active' : ''} onClick={() => update({ icon: ic })}>{ic || '∅'}</button>
         ))}
       </div>
+      {design.icon && (
+        <label className="range">
+          <span>Ícono</span>
+          <input type="range" min="5" max="60" value={design.iconSize} onChange={(e) => update({ iconSize: +e.target.value })} />
+          <output>{design.iconSize}</output>
+        </label>
+      )}
     </>
-  )
-}
-
-function Range({ label, value, onChange, unit = '', ...props }) {
-  return (
-    <label className="range">
-      <span>{label}</span>
-      <input type="range" value={value} onChange={(e) => onChange(Number(e.target.value))} {...props} />
-      <output>{value}{unit}</output>
-    </label>
   )
 }
 
@@ -382,31 +344,31 @@ function OrderModal({ design, quantity, total, onClose }) {
         <button className="modal-close" onClick={onClose}>✕</button>
         {result ? (
           <div className="success">
-            <div className="success-icon">✓</div>
-            <h2>¡Pedido recibido!</h2>
-            <p>Tu folio es</p>
+            <span className="led big" style={{ '--led': '#22c55e' }} />
+            <h2>Pedido recibido</h2>
+            <p className="muted">Tu folio</p>
             <div className="folio">{result.folio}</div>
-            <p className="muted">Guárdalo para consultar el estado de tu letrero. Te contactaremos para confirmar el pago y los detalles.</p>
-            <a className="btn primary" href={`#/seguimiento/${result.folio}`}>Ver estado del pedido</a>
+            <p className="muted small">Guárdalo para consultar el avance. Te contactaremos para confirmar pago y detalles.</p>
+            <a className="btn primary" href={`#/seguimiento/${result.folio}`}>Ver mi pedido</a>
           </div>
         ) : (
           <form onSubmit={submit}>
-            <h2>Confirma tu pedido</h2>
+            <h2>Confirmar pedido</h2>
             <div className="modal-preview">
-              <SignPreview design={design} />
+              <div className="modal-sign"><SignPreview design={design} night /></div>
               <div>
                 <strong>{design.widthCm} × {design.heightCm} cm</strong>
                 <span className="muted">{materialById(design.material).name}</span>
-                <span className="muted">{quantity} pieza{quantity > 1 ? 's' : ''}</span>
-                <strong className="accent">{money(total)}</strong>
+                <span className="muted">{LED_MODES.find((m) => m.id === design.led.mode).name} · {quantity} pz</span>
+                <strong>{money(total)}</strong>
               </div>
             </div>
             <label className="field"><span>Nombre *</span><input className="input" required value={form.name} onChange={set('name')} /></label>
             <div className="row">
-              <label className="field grow"><span>Teléfono / WhatsApp</span><input className="input" type="tel" value={form.phone} onChange={set('phone')} /></label>
+              <label className="field grow"><span>WhatsApp</span><input className="input" type="tel" value={form.phone} onChange={set('phone')} /></label>
               <label className="field grow"><span>Correo</span><input className="input" type="email" value={form.email} onChange={set('email')} /></label>
             </div>
-            <label className="field"><span>Notas (dirección, fecha de entrega, etc.)</span><textarea className="input" rows="3" value={form.notes} onChange={set('notes')} /></label>
+            <label className="field"><span>Notas</span><textarea className="input" rows="2" value={form.notes} onChange={set('notes')} placeholder="Dirección, fecha de entrega…" /></label>
             {error && <p className="error">{error}</p>}
             <button className="btn primary block" disabled={sending}>{sending ? 'Enviando…' : 'Enviar pedido'}</button>
           </form>

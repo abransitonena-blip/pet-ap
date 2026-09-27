@@ -1,9 +1,11 @@
 import { statusById } from '../lib/status'
 
+// Indicador tipo LED: parpadea mientras el pedido está en proceso
 export default function StatusPill({ status }) {
   const s = statusById(status)
   return (
-    <span className="pill" style={{ color: s.color, background: `${s.color}22`, borderColor: `${s.color}55` }}>
+    <span className="status">
+      <span className={`led ${s.id === 'imprimiendo' ? 'blink' : ''}`} style={{ '--led': s.color }} />
       {s.label}
     </span>
   )

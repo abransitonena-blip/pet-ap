@@ -27,7 +27,10 @@ if (!process.env.ADMIN_PASSWORD) {
 // ---------- Persistencia en archivo JSON ----------
 function loadDb() {
   try {
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))
+    const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))
+    // Asegura que los diseños guardados con versiones anteriores sigan siendo válidos
+    for (const o of data.orders) o.design = normalizeDesign(o.design, MATERIAL_IDS, EXTRA_IDS)
+    return data
   } catch {
     return { seq: 0, orders: [] }
   }

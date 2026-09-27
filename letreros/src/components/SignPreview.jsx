@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from 'react'
-import { gradientVector, layoutSign } from '../lib/render'
+import { layoutSign, nightOverlay } from '../lib/render'
 
 // Re-renderiza cuando terminan de cargar las fuentes web (cambian las medidas del texto)
 function useFontsVersion() {
@@ -14,48 +14,57 @@ function useFontsVersion() {
   return version
 }
 
-export default function SignPreview({ design, className = '', title }) {
+// `night`: simula el letrero de noche (solo brilla lo que tiene LED).
+// `svgProps`: atributos extra para anidar el SVG (x, y, width, height) en el diagrama.
+export default function SignPreview({ design, night = false, className = '', svgProps = {} }) {
   const fontsVersion = useFontsVersion()
-  const uid = useId().replace(/:/g, '')
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
   const L = useMemo(() => layoutSign(design), [design, fontsVersion])
-  const bg = L.background
-  const g = gradientVector(bg.angle)
   const b = L.borderPx
+  const overlay = night ? nightOverlay(L.mode) : 0
+  const glow = L.mode === 'neon'
+  const halo = L.mode === 'backlit' && night
+
+  const panelOverlay = overlay > 0 && L.mode !== 'none' && (
+    <rect width={L.W} height={L.H} rx={L.radiusPx} fill="#000" opacity={overlay} />
+  )
 
   return (
     <svg
+      xmlns="http://www.w3.org/2000/svg"
       className={`sign-svg ${className}`}
       viewBox={`0 0 ${L.W} ${L.H}`}
       role="img"
-      aria-label={title || design.lines.map((l) => l.text).join(' ')}
+      aria-label={design.lines.map((l) => l.text).join(' ')}
+      style={halo ? { filter: `drop-shadow(0 0 18px ${L.colors.accent}) drop-shadow(0 0 40px ${L.colors.accent})`, overflow: 'visible' } : undefined}
+      {...svgProps}
     >
       <defs>
-        <linearGradient id={`bg-${uid}`} x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2}>
-          <stop offset="0" stopColor={bg.color1} />
-          <stop offset="1" stopColor={bg.type === 'gradient' ? bg.color2 : bg.color1} />
-        </linearGradient>
         <filter id={`glow-${uid}`} x="-20%" y="-50%" width="140%" height="200%">
-          <feGaussianBlur stdDeviation="10" result="blur" />
+          <feGaussianBlur stdDeviation={night ? 14 : 8} result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
             <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
+        <filter id={`dot-${uid}`} x="-200%" y="-200%" width="500%" height="500%">
+          <feGaussianBlur stdDeviation={L.dotR * (night ? 1.6 : 0.9)} result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
-      <rect width={L.W} height={L.H} rx={L.radiusPx} fill={`url(#bg-${uid})`} />
+      <rect width={L.W} height={L.H} rx={L.radiusPx} fill={L.colors.bg} />
       {b > 0 && (
         <rect
-          x={b / 2}
-          y={b / 2}
-          width={L.W - b}
-          height={L.H - b}
+          x={b / 2} y={b / 2} width={L.W - b} height={L.H - b}
           rx={Math.max(0, L.radiusPx - b / 2)}
-          fill="none"
-          stroke={L.border.color}
-          strokeWidth={b}
+          fill="none" stroke={L.colors.accent} strokeWidth={b}
         />
       )}
+      {panelOverlay}
       {L.items.map((it, i) =>
         it.type === 'icon' ? (
           <text key={i} x={it.x} y={it.y} fontSize={it.px} textAnchor={it.anchor} dominantBaseline="central">
@@ -74,13 +83,21 @@ export default function SignPreview({ design, className = '', title }) {
             letterSpacing={it.spacing}
             textAnchor={it.anchor}
             dominantBaseline="central"
-            filter={L.glow ? `url(#glow-${uid})` : undefined}
+            filter={glow ? `url(#glow-${uid})` : undefined}
             style={{ whiteSpace: 'pre' }}
           >
             {it.text}
           </text>
         )
       )}
+      {L.dots.length > 0 && (
+        <g filter={`url(#dot-${uid})`}>
+          {L.dots.map(([x, y], i) => (
+            <circle key={i} cx={x} cy={y} r={L.dotR} fill={night ? '#fff' : L.colors.accent} stroke={L.colors.accent} strokeWidth={L.dotR * 0.5} />
+          ))}
+        </g>
+      )}
+      {overlay > 0 && L.mode === 'none' && <rect width={L.W} height={L.H} rx={L.radiusPx} fill="#000" opacity={overlay} />}
     </svg>
   )
 }

@@ -46,7 +46,7 @@ export default function Track({ initialFolio }) {
 
         {order && (
           <div className="track-card">
-            <div className="track-preview"><SignPreview design={order.design} /></div>
+            <div className="track-preview"><SignPreview design={order.design} night={order.design.led?.mode !== 'none'} /></div>
             <div className="row between">
               <h2>{order.folio}</h2>
               <span className="muted">{order.quantity} pz · {money(order.total)}</span>
