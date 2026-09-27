@@ -50,6 +50,8 @@ async function loadDb() {
     o.totals = o.totals || computeTotals(o.quote, o.adjust, db.settings.business)
     o.payments = Array.isArray(o.payments) ? o.payments : []
     o.showcase = Boolean(o.showcase)
+    o.photos = Array.isArray(o.photos) ? o.photos : []
+    o.review = o.review || null
   }
   return db
 }
@@ -213,6 +215,8 @@ api.post('/orders', orderLimit, h(async (req, res) => {
       adminNotes: '',
       payments: [],
       showcase: false,
+      photos: [],
+      review: null,
       history: [{ status: 'nuevo', at: now, by: 'Cliente (web)' }]
     }
     db.orders.unshift(o)
@@ -238,14 +242,86 @@ api.get('/track/:folio', h(async (req, res) => {
   })
 }))
 
-// Galería pública "Hecho por AP": solo el diseño de los trabajos que el negocio decide mostrar
+// ---------- Fotos y opiniones reales ----------
+const IMAGE_TYPES = { 'image/jpeg': [0xff, 0xd8, 0xff], 'image/png': [0x89, 0x50, 0x4e, 0x47], 'image/webp': [0x52, 0x49, 0x46, 0x46] }
+const MAX_PHOTO = 2.5 * 1024 * 1024
+const REVIEWABLE = ['impreso', 'entregado']
+
+// data:image/...;base64 → Buffer, validando tipo por su firma y tamaño
+function decodeImage(dataUrl) {
+  const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl || ''))
+  if (!m) return { error: 'La foto debe ser JPG, PNG o WebP' }
+  const buffer = Buffer.from(m[2], 'base64')
+  if (buffer.length > MAX_PHOTO) return { error: 'La foto pesa demasiado (máx. 2.5 MB)' }
+  if (!IMAGE_TYPES[m[1]].every((b, i) => buffer[i] === b)) return { error: 'El archivo no es una imagen válida' }
+  return { buffer, type: m[1] }
+}
+
+async function savePhoto(dataUrl, extra) {
+  const img = decodeImage(dataUrl)
+  if (img.error) return img
+  const id = crypto.randomBytes(16).toString('hex')
+  await store.putPhoto(id, img.buffer, img.type)
+  return { photo: { id, type: img.type, at: new Date().toISOString(), ...extra } }
+}
+
+const clean = (v, max) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, max)
+// "María López" → "María L."
+const shortName = (name) => {
+  const [first, last] = clean(name, 60).split(' ')
+  return last ? `${first} ${last[0].toUpperCase()}.` : first || 'Cliente'
+}
+
+function publicReview(o) {
+  const r = o.review
+  return {
+    id: o.id.slice(0, 8),
+    stars: r.stars,
+    text: r.text,
+    name: shortName(r.name || o.customer.name),
+    business: r.business,
+    city: r.city,
+    at: r.at,
+    photo: r.photoId || o.photos[0]?.id || null,
+    design: o.design
+  }
+}
+
+// Las fotos tienen id aleatorio de 128 bits: el enlace funciona como llave
+api.get('/photos/:id', h(async (req, res) => {
+  if (!/^[a-f0-9]{32}$/.test(req.params.id)) return res.status(404).end()
+  const db = await loadDb()
+  const meta = db.orders.flatMap((o) => o.photos).find((p) => p.id === req.params.id)
+  const buffer = meta && (await store.getPhoto(meta.id))
+  if (!buffer) return res.status(404).end()
+  res.set({ 'Content-Type': meta.type, 'Cache-Control': 'public, max-age=604800, immutable' })
+  res.send(buffer)
+}))
+
+// Galería pública "Hecho por AP": trabajos que el negocio decide mostrar (sin datos del cliente)
 api.get('/public/gallery', h(async (req, res) => {
   const db = await loadDb()
   const items = db.orders
     .filter((o) => o.showcase && o.status !== 'cancelado')
     .slice(0, 24)
-    .map((o) => ({ id: o.id.slice(0, 8), design: o.design, at: o.printedAt || o.updatedAt }))
+    .map((o) => ({
+      id: o.id.slice(0, 8),
+      design: o.design,
+      at: o.printedAt || o.updatedAt,
+      photos: o.photos.map((p) => p.id),
+      review: o.review?.status === 'publicada' ? { stars: o.review.stars, text: o.review.text, name: shortName(o.review.name || o.customer.name) } : null
+    }))
   res.json(items)
+}))
+
+// Opiniones verificadas: solo clientes con pedido terminado, publicadas tras revisión
+api.get('/public/reviews', h(async (req, res) => {
+  const db = await loadDb()
+  const list = db.orders.filter((o) => o.review?.status === 'publicada')
+  const count = list.length
+  const avg = count ? Math.round((list.reduce((a, o) => a + o.review.stars, 0) / count) * 10) / 10 : 0
+  const items = list.sort((a, b) => b.review.at.localeCompare(a.review.at)).slice(0, 30).map(publicReview)
+  res.json({ count, avg, items })
 }))
 
 // Presupuesto público (enlace privado con token)
@@ -268,6 +344,8 @@ function quoteDocument(o, business) {
     adjust: { items: o.adjust.items, note: o.adjust.note, discountPct: o.adjust.discountPct, discountAmt: o.adjust.discountAmt },
     totals: o.totals,
     pay: paymentSummary(o.totals, o.payments),
+    canReview: REVIEWABLE.includes(o.status),
+    review: o.review ? { stars: o.review.stars, text: o.review.text, status: o.review.status, photoId: o.review.photoId || null } : null,
     business: { ...publicBusiness(business), bank: business.bank, terms: business.terms }
   }
 }
@@ -297,6 +375,46 @@ api.post('/quote/:folio/respond', h(async (req, res) => {
   })
   if (result.missing) return res.status(404).json({ error: 'Presupuesto no encontrado' })
   res.json(result.doc)
+}))
+
+const reviewLimit = rateLimit({ windowMs: 10 * 60 * 1000, max: 8, message: 'Demasiados intentos. Espera unos minutos.' })
+
+api.post('/quote/:folio/review', reviewLimit, h(async (req, res) => {
+  const { t, stars, text, name, business, city, image } = req.body || {}
+  const n = Math.round(Number(stars))
+  if (!(n >= 1 && n <= 5)) return res.status(400).json({ error: 'Elige de 1 a 5 estrellas' })
+  if (clean(text, 600).length < 3) return res.status(400).json({ error: 'Cuéntanos un poco cómo te fue' })
+  const db0 = await loadDb()
+  const found = findByToken(db0, req.params.folio, t)
+  if (!found) return res.status(404).json({ error: 'Presupuesto no encontrado' })
+  if (!REVIEWABLE.includes(found.status)) return res.status(400).json({ error: 'Podrás opinar cuando tu letrero esté terminado' })
+  let photo = null
+  if (image) {
+    const saved = await savePhoto(image, { by: 'Cliente', source: 'cliente' })
+    if (saved.error) return res.status(400).json({ error: saved.error })
+    photo = saved.photo
+  }
+  const result = await mutate((db) => {
+    const o = findByToken(db, req.params.folio, t)
+    if (!o) return { save: false, missing: true }
+    const now = new Date().toISOString()
+    if (photo) o.photos.push(photo)
+    o.review = {
+      stars: n,
+      text: clean(text, 600),
+      name: clean(name, 60) || o.customer.name,
+      business: clean(business, 60),
+      city: clean(city, 40),
+      photoId: photo?.id || o.review?.photoId || null,
+      status: 'pendiente',
+      at: now
+    }
+    o.history.push({ status: o.status, at: now, by: 'Cliente', note: `Dejó su opinión (${n}★)` })
+    o.updatedAt = now
+    return { doc: quoteDocument(o, db.settings.business) }
+  })
+  if (result.missing) return res.status(404).json({ error: 'Presupuesto no encontrado' })
+  res.status(201).json(result.doc)
 }))
 
 // ----- Admin -----
@@ -355,9 +473,12 @@ api.get('/admin/stats', requireUser, (req, res) => {
 })
 
 api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
-  const { status, adminNotes, adjust, quoteState, showcase } = req.body || {}
+  const { status, adminNotes, adjust, quoteState, showcase, reviewStatus } = req.body || {}
   const u = req.user
-  if (showcase !== undefined && !can(u, 'editar')) {
+  if (reviewStatus !== undefined && !['pendiente', 'publicada', 'oculta'].includes(reviewStatus)) {
+    return res.status(400).json({ error: 'Estado de opinión inválido' })
+  }
+  if ((showcase !== undefined || reviewStatus !== undefined) && !can(u, 'editar')) {
     return res.status(403).json({ error: 'No tienes permiso para publicar en la galería' })
   }
   if ((status !== undefined || adminNotes !== undefined) && !can(u, 'editar', 'produccion')) {
@@ -379,6 +500,10 @@ api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
       if (status === 'impreso' && !o.printedAt) o.printedAt = now
     }
     if (showcase !== undefined) o.showcase = Boolean(showcase)
+    if (reviewStatus !== undefined && o.review && o.review.status !== reviewStatus) {
+      o.review.status = reviewStatus
+      o.history.push({ status: o.status, at: now, by: u.name, note: `Opinión ${reviewStatus}` })
+    }
     if (adminNotes !== undefined) o.adminNotes = String(adminNotes).slice(0, 2000)
     if (adjust !== undefined) {
       o.adjust = normalizeAdjust(adjust)
@@ -395,6 +520,40 @@ api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
   })
   if (order.missing) return res.status(404).json({ error: 'Pedido no encontrado' })
   res.json(viewOrder(order, u))
+}))
+
+// Fotos del trabajo terminado (las sube el taller)
+api.post('/admin/orders/:id/photos', requireUser, need('editar', 'produccion'), h(async (req, res) => {
+  if (!req.db.orders.some((o) => o.id === req.params.id)) return res.status(404).json({ error: 'Pedido no encontrado' })
+  const saved = await savePhoto(req.body?.image, { by: req.user.name, source: 'taller' })
+  if (saved.error) return res.status(400).json({ error: saved.error })
+  const order = await mutate((db) => {
+    const o = db.orders.find((x) => x.id === req.params.id)
+    if (!o) return { save: false, missing: true }
+    if (o.photos.length >= 12) return { save: false, full: true }
+    o.photos.push(saved.photo)
+    o.updatedAt = saved.photo.at
+    return o
+  })
+  if (order.missing) return res.status(404).json({ error: 'Pedido no encontrado' })
+  if (order.full) {
+    await store.deletePhoto(saved.photo.id)
+    return res.status(400).json({ error: 'Máximo 12 fotos por pedido' })
+  }
+  res.status(201).json(viewOrder(order, req.user))
+}))
+
+api.delete('/admin/orders/:id/photos/:pid', requireUser, need('editar', 'produccion'), h(async (req, res) => {
+  const order = await mutate((db) => {
+    const o = db.orders.find((x) => x.id === req.params.id)
+    if (!o?.photos.some((p) => p.id === req.params.pid)) return { save: false, missing: true }
+    o.photos = o.photos.filter((p) => p.id !== req.params.pid)
+    if (o.review?.photoId === req.params.pid) o.review.photoId = null
+    return o
+  })
+  if (order.missing) return res.status(404).json({ error: 'Foto no encontrada' })
+  await store.deletePhoto(req.params.pid)
+  res.json(viewOrder(order, req.user))
 }))
 
 // Pagos y anticipos
@@ -434,11 +593,13 @@ api.delete('/admin/orders/:id/payments/:pid', requireUser, need('ventas', 'presu
 
 api.delete('/admin/orders/:id', requireUser, need('eliminar'), h(async (req, res) => {
   const result = await mutate((db) => {
-    const before = db.orders.length
-    db.orders = db.orders.filter((o) => o.id !== req.params.id)
-    return db.orders.length === before ? { save: false, missing: true } : {}
+    const o = db.orders.find((x) => x.id === req.params.id)
+    if (!o) return { save: false, missing: true }
+    db.orders = db.orders.filter((x) => x !== o)
+    return { photos: o.photos.map((p) => p.id) }
   })
   if (result.missing) return res.status(404).json({ error: 'Pedido no encontrado' })
+  await Promise.all(result.photos.map((id) => store.deletePhoto(id)))
   res.status(204).end()
 }))
 
@@ -529,7 +690,7 @@ export function createApp() {
     next()
   })
   app.use(cors())
-  app.use(express.json({ limit: '600kb' }))
+  app.use(express.json({ limit: '4mb' }))
   app.use('/api', api)
   app.use('/api', (err, req, res, next) => {
     console.error(err)

@@ -7,6 +7,7 @@ import { ANIMATIONS, MOUNTS, POWER, SHAPES, boardMaterialById, finishById } from
 import { materialById } from '../lib/pricing'
 import { statusById } from '../lib/status'
 import { deliveryName } from '../lib/customer'
+import { ReviewForm } from '../components/Reviews'
 
 const fmt = (iso) => new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
 const wa = (phone, text) => {
@@ -185,6 +186,8 @@ export default function QuotePage({ folio, token }) {
           <p className="terms">{b.terms}</p>
         </footer>
       </article>
+
+      {doc.canReview && <ReviewForm doc={doc} token={token} onSaved={setDoc} />}
     </div>
   )
 }

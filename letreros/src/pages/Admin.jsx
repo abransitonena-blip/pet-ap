@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DesignPreview from '../components/DesignPreview'
 import { Brand } from '../components/ApLogo'
 import { deliveryName } from '../lib/customer'
-import { Business, Clients, Prices, QuoteEditor, QuotePill, Quotes, Team } from './AdminSections'
+import { Business, Clients, Prices, QuoteEditor, QuotePill, Quotes, Team, quoteLink } from './AdminSections'
+import Market from './Market'
+import { Stars } from '../components/Reviews'
+import { fileToJpeg, photoUrl } from '../lib/image'
 import StatusPill from '../components/StatusPill'
 import TechDiagram from '../components/TechDiagram'
 import LedDiagram from '../components/LedDiagram'
@@ -119,8 +122,10 @@ const SECTIONS = [
   { id: 'presupuestos', label: 'Presupuestos', perms: ['presupuestos'] },
   { id: 'produccion', label: 'Producción', perms: ['produccion', 'editar'] },
   { id: 'impresos', label: 'Terminados', perms: ['pedidos', 'produccion'] },
+  { id: 'opiniones', label: 'Opiniones', perms: ['editar'] },
   { id: 'archivos', label: 'Archivos', perms: ['produccion'] },
   { id: 'clientes', label: 'Clientes', perms: ['pedidos'] },
+  { id: 'mercado', label: 'Mercado', perms: ['ventas', 'precios'], group: 'Estrategia' },
   { id: 'precios', label: 'Precios', perms: ['precios'], group: 'Configuración' },
   { id: 'equipo', label: 'Equipo', perms: ['equipo'] },
   { id: 'ajustes', label: 'Negocio', perms: ['ajustes'] }
@@ -268,6 +273,11 @@ function Dashboard({ onLogout }) {
   }
   const updateOrder = (id, patch) => handle(() => api.updateOrder(id, patch))
   const addPayment = (id, p) => handle(() => api.addPayment(id, p))
+  const addPhotos = (id, files) =>
+    handle(async () => {
+      for (const file of files) await api.addPhoto(id, await fileToJpeg(file))
+    })
+  const deletePhoto = (id, pid) => handle(() => api.deletePhoto(id, pid))
   const deletePayment = (id, pid) => handle(() => api.deletePayment(id, pid))
   const deleteOrder = (id) =>
     handle(async () => {
@@ -280,7 +290,8 @@ function Dashboard({ onLogout }) {
   const counts = {
     pedidos: orders.filter((o) => o.status === 'nuevo').length,
     presupuestos: orders.filter((o) => o.quoteState === 'pendiente').length,
-    produccion: orders.filter((o) => ['aprobado', 'imprimiendo'].includes(o.status)).length
+    produccion: orders.filter((o) => ['aprobado', 'imprimiendo'].includes(o.status)).length,
+    opiniones: orders.filter((o) => o.review?.status === 'pendiente').length
   }
   const sections = SECTIONS.filter((s) => !s.perms.length || can(...s.perms))
   const active = sections.find((s) => s.id === section) || sections[0]
@@ -334,6 +345,8 @@ function Dashboard({ onLogout }) {
             {active.id === 'produccion' && <Production orders={orders} onOpen={open} onUpdate={updateOrder} />}
             {active.id === 'impresos' && <PrintedGallery orders={orders} onOpen={open} />}
             {active.id === 'archivos' && <Files orders={orders} onOpen={open} />}
+            {active.id === 'opiniones' && <ReviewsAdmin orders={orders} onOpen={open} onUpdate={updateOrder} />}
+            {active.id === 'mercado' && <Market settings={settings} />}
             {active.id === 'clientes' && <Clients orders={orders} onOpen={open} showMoney={can('ventas')} />}
             {active.id === 'precios' && <Prices settings={settings} onSaved={setSettings} />}
             {active.id === 'equipo' && <Team me={me} />}
@@ -354,6 +367,8 @@ function Dashboard({ onLogout }) {
           onDelete={() => deleteOrder(current.id)}
           onAddPayment={(p) => addPayment(current.id, p)}
           onDeletePayment={(pid) => deletePayment(current.id, pid)}
+          onAddPhotos={(files) => addPhotos(current.id, files)}
+          onDeletePhoto={(pid) => deletePhoto(current.id, pid)}
           can={can}
           business={settings?.business}
         />
@@ -743,7 +758,132 @@ function Payments({ order, onAdd, onDelete, canEdit }) {
   )
 }
 
-function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDelete, onAddPayment, onDeletePayment, can, business }) {
+// Fotos reales del letrero terminado + opinión del cliente
+function FinishedWork({ order, onUpdate, onAddPhotos, onDeletePhoto, can }) {
+  const [busy, setBusy] = useState(false)
+  const photos = order.photos || []
+  const r = order.review
+  const done = ['impreso', 'entregado'].includes(order.status)
+  const upload = async (e) => {
+    const files = [...(e.target.files || [])]
+    e.target.value = ''
+    if (!files.length) return
+    setBusy(true)
+    await onAddPhotos(files.slice(0, 12 - photos.length))
+    setBusy(false)
+  }
+  const askReview = waLink(
+    order.customer.phone,
+    `Hola ${order.customer.name.split(' ')[0]}, ¡gracias por tu compra en AP! ¿Nos regalas tu opinión y una foto de tu letrero instalado? Toma 1 minuto: ${quoteLink(order)}`
+  )
+  return (
+    <section className="finished">
+      <h3>Trabajo terminado</h3>
+      <div className="photo-grid">
+        {photos.map((p) => (
+          <figure key={p.id}>
+            <a href={photoUrl(p.id)} target="_blank" rel="noreferrer"><img src={photoUrl(p.id)} alt="Letrero terminado" loading="lazy" /></a>
+            <figcaption>{p.source === 'cliente' ? 'Del cliente' : p.by}</figcaption>
+            {can('editar', 'produccion') && <button className="photo-del" onClick={() => confirm('¿Quitar esta foto?') && onDeletePhoto(p.id)} title="Quitar">✕</button>}
+          </figure>
+        ))}
+        {can('editar', 'produccion') && photos.length < 12 && (
+          <label className={`photo-add ${busy ? 'busy' : ''}`}>
+            <input type="file" accept="image/*" multiple onChange={upload} disabled={busy} />
+            <span>{busy ? 'Subiendo…' : '＋ Foto real'}</span>
+          </label>
+        )}
+      </div>
+      <p className="muted small">Sube fotos del letrero instalado (de día y de noche). Con “Mostrar en Hecho por AP” aparecen en la página.</p>
+
+      {r ? (
+        <div className={`review-admin ${r.status}`}>
+          <div className="row between">
+            <Stars value={r.stars} size={16} />
+            <span className={`rv-pill ${r.status}`}>{{ pendiente: 'Por revisar', publicada: 'Publicada', oculta: 'Oculta' }[r.status]}</span>
+          </div>
+          <p>“{r.text}”</p>
+          <span className="muted small">{r.name}{r.business && ` · ${r.business}`}{r.city && ` · ${r.city}`}</span>
+          {can('editar') && (
+            <div className="row">
+              {r.status !== 'publicada' && <button className="btn primary sm" onClick={() => onUpdate({ reviewStatus: 'publicada' })}>Publicar</button>}
+              {r.status !== 'oculta' && <button className="btn ghost sm" onClick={() => onUpdate({ reviewStatus: 'oculta' })}>Ocultar</button>}
+            </div>
+          )}
+        </div>
+      ) : (
+        done && askReview && <a className="btn ghost sm" href={askReview} target="_blank" rel="noreferrer">⭐ Pedir opinión por WhatsApp</a>
+      )}
+    </section>
+  )
+}
+
+// Moderación: solo se publican opiniones reales de pedidos terminados
+function ReviewsAdmin({ orders, onOpen, onUpdate }) {
+  const [filter, setFilter] = useState('pendiente')
+  const withReview = orders.filter((o) => o.review)
+  const list = withReview.filter((o) => filter === 'todas' || o.review.status === filter)
+  const published = withReview.filter((o) => o.review.status === 'publicada')
+  const avg = published.length ? published.reduce((a, o) => a + o.review.stars, 0) / published.length : 0
+  const waiting = orders.filter((o) => ['impreso', 'entregado'].includes(o.status) && !o.review)
+  return (
+    <>
+      <div className="kpis">
+        <div className="kpi"><span>Promedio publicado</span><strong>{published.length ? avg.toFixed(1) : '—'} <Stars value={avg} size={14} /></strong></div>
+        <div className="kpi"><span>Publicadas</span><strong>{published.length}</strong></div>
+        <div className="kpi"><span>Por revisar</span><strong>{withReview.filter((o) => o.review.status === 'pendiente').length}</strong></div>
+        <div className="kpi"><span>Entregados sin opinión</span><strong>{waiting.length}</strong></div>
+      </div>
+      <div className="chips">
+        {[['pendiente', 'Por revisar'], ['publicada', 'Publicadas'], ['oculta', 'Ocultas'], ['todas', 'Todas']].map(([id, label]) => (
+          <button key={id} className={filter === id ? 'active' : ''} onClick={() => setFilter(id)}>{label}</button>
+        ))}
+      </div>
+      {list.length === 0 && (
+        <p className="muted">
+          {withReview.length ? 'Nada en este filtro.' : 'Aún no hay opiniones. Al entregar un letrero, abre el pedido y usa “Pedir opinión por WhatsApp”: el cliente califica y sube su foto desde su enlace.'}
+        </p>
+      )}
+      <div className="review-list">
+        {list.map((o) => (
+          <article key={o.id} className="review-admin-card">
+            <div className="thumb" onClick={() => onOpen(o.id)}>
+              {o.review.photoId || o.photos?.[0] ? <img src={photoUrl(o.review.photoId || o.photos[0].id)} alt="" /> : <DesignPreview design={o.design} night />}
+            </div>
+            <div className="grow">
+              <div className="row between">
+                <Stars value={o.review.stars} size={15} />
+                <span className="muted small">{o.folio} · {fmtDate(o.review.at)}</span>
+              </div>
+              <p>“{o.review.text}”</p>
+              <span className="muted small">{o.review.name}{o.review.business && ` · ${o.review.business}`}{o.review.city && ` · ${o.review.city}`}</span>
+            </div>
+            <div className="col-actions">
+              {o.review.status !== 'publicada' && <button className="btn primary sm" onClick={() => onUpdate(o.id, { reviewStatus: 'publicada' })}>Publicar</button>}
+              {o.review.status !== 'oculta' && <button className="btn ghost sm" onClick={() => onUpdate(o.id, { reviewStatus: 'oculta' })}>Ocultar</button>}
+            </div>
+          </article>
+        ))}
+      </div>
+      {waiting.length > 0 && (
+        <section className="card">
+          <h2>Pide su opinión ({waiting.length})</h2>
+          <ul className="recent">
+            {waiting.slice(0, 8).map((o) => (
+              <li key={o.id} onClick={() => onOpen(o.id)}>
+                <div className="thumb"><DesignPreview design={o.design} /></div>
+                <div className="grow"><strong>{o.folio}</strong><span className="muted small">{o.customer.name}</span></div>
+                <StatusPill status={o.status} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
+  )
+}
+
+function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDelete, onAddPayment, onDeletePayment, onAddPhotos, onDeletePhoto, can, business }) {
   const [notes, setNotes] = useState(order.adminNotes || '')
   const d = order.design
   const led = ledSpec(d)
@@ -859,12 +999,16 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDel
               </>
             )}
 
+            {['impreso', 'entregado'].includes(order.status) || order.photos?.length || order.review ? (
+              <FinishedWork order={order} onUpdate={onUpdate} onAddPhotos={onAddPhotos} onDeletePhoto={onDeletePhoto} can={can} />
+            ) : null}
+
             {can('editar') && (
               <label className="showcase-toggle">
                 <input type="checkbox" checked={!!order.showcase} onChange={(e) => onUpdate({ showcase: e.target.checked })} />
                 <span>
                   <strong>Mostrar en “Hecho por AP”</strong>
-                  <span className="muted small">El diseño aparece en la página pública como ejemplo (sin datos del cliente)</span>
+                  <span className="muted small">El diseño y sus fotos reales aparecen en la página pública (sin nombre ni teléfono del cliente)</span>
                 </span>
               </label>
             )}

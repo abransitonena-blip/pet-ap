@@ -42,6 +42,15 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 - Efecto **Respirar** (desvanecido suave con controlador PWM)
 - **148 íconos** y modelos nuevos (Café madera, Bar, Boutique, Fiesta)
 
+**Opiniones verificadas y fotos reales**
+- Al entregar, el botón *Pedir opinión por WhatsApp* manda al cliente su enlace privado; ahí califica (1–5 ★), comenta y sube la foto de su letrero instalado
+- Solo pueden opinar clientes con pedido terminado; cada opinión se revisa en *Opiniones* antes de publicarse (compra verificada, se muestra solo nombre e inicial)
+- El taller sube fotos reales de cada trabajo en el pedido (hasta 12, se reducen a 1600 px); se guardan en Vercel Blob privado o en `data/fotos`
+- La página pública muestra el promedio de estrellas, las opiniones con foto y la galería con fotos reales
+
+**Mercado (panel → Estrategia)**
+- Análisis con fuentes: tamaño del mercado (INEGI), competencia y precios (Radox, programables, neón flex), tu precio actual en vivo contra el mercado y plan de acción. Documento: `docs/analisis-mercado.md`
+
 **Hecho por AP (galería pública)**
 - En el panel marca un pedido con *Mostrar en “Hecho por AP”* y aparece en la página del cliente
 - Solo se publica el diseño (nunca nombre ni teléfono); el cliente toca **Lo quiero así** y lo usa de base
@@ -111,7 +120,7 @@ letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, dato
 
 ```bash
 cd letreros
-npm test        # 23 pruebas: combinaciones de color, marco, acabados, precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
+npm test        # 24 pruebas: opiniones y fotos, combinaciones de color, marco, acabados, precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
 npm run check   # pruebas + build
 ```
 

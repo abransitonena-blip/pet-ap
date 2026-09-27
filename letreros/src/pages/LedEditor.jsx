@@ -18,6 +18,8 @@ import { computeLedDots } from '../lib/ledText'
 import { money, quote } from '../lib/pricing'
 import { usePublicSettings } from '../lib/settings'
 import { api } from '../lib/api'
+import { photoUrl } from '../lib/image'
+import { ReviewsSection, Stars } from '../components/Reviews'
 
 const DRAFT_KEY = 'letreros_led_draft'
 const SCENE_KEY = 'ap_scene'
@@ -484,6 +486,7 @@ export default function LedEditor() {
         </aside>
       </div>
 
+      <ReviewsSection />
       <MadeByAp onPick={(d) => { setDesign(normalizeLedDesign(d)); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
 
       {ordering && (
@@ -524,12 +527,25 @@ function MadeByAp({ onPick }) {
     <section className="made-by">
       <div className="made-by-head">
         <h2>Hecho por AP</h2>
-        <span className="muted small">Letreros que ya entregamos · toca uno para usarlo de base</span>
+        <span className="muted small">Letreros que ya entregamos · toca “Lo quiero así” para usarlo de base</span>
       </div>
       <div className="made-by-strip">
         {items.map((it) => (
           <article key={it.id} className="made-by-item">
-            <div className="thumb-night"><LedPreview design={it.design} night /></div>
+            <div className="thumb-night">
+              {it.photos?.length ? (
+                <>
+                  <img className="made-photo" src={photoUrl(it.photos[0])} alt="Letrero terminado" loading="lazy" />
+                  <span className="real-tag">Foto real{it.photos.length > 1 ? ` · ${it.photos.length}` : ''}</span>
+                  <span className="design-pip"><LedPreview design={it.design} night /></span>
+                </>
+              ) : (
+                <LedPreview design={it.design} night />
+              )}
+            </div>
+            {it.review && (
+              <p className="made-review"><Stars value={it.review.stars} size={12} /> “{it.review.text.slice(0, 90)}{it.review.text.length > 90 ? '…' : ''}” <em>— {it.review.name}</em></p>
+            )}
             <footer>
               <span className="muted">{it.design.widthCm}×{it.design.heightCm} cm · {it.design.dots.length} LED</span>
               <button className="btn ghost sm" onClick={() => onPick(it.design)}>Lo quiero así</button>

@@ -38,5 +38,9 @@ export const api = {
   addPayment: (id, p) => request(`/admin/orders/${id}/payments`, { method: 'POST', body: p, auth: true }),
   deletePayment: (id, pid) => request(`/admin/orders/${id}/payments/${pid}`, { method: 'DELETE', auth: true }),
   gallery: () => request('/public/gallery'),
+  reviews: () => request('/public/reviews'),
+  sendReview: (folio, body) => request(`/quote/${encodeURIComponent(folio)}/review`, { method: 'POST', body }),
+  addPhoto: (id, image) => request(`/admin/orders/${id}/photos`, { method: 'POST', body: { image }, auth: true }),
+  deletePhoto: (id, pid) => request(`/admin/orders/${id}/photos/${pid}`, { method: 'DELETE', auth: true }),
   deleteOrder: (id) => request(`/admin/orders/${id}`, { method: 'DELETE', auth: true })
 }

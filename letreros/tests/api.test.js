@@ -108,6 +108,43 @@ test('pagos: anticipo, saldo, permisos y galería pública', async () => {
   assert.equal(gallery[0].design.kind, 'led')
 })
 
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+
+test('opiniones verificadas y fotos reales', async () => {
+  const owner = await login('admin', 'clave-prueba')
+  const { folio, token } = (await call('POST', '/orders', { ...ledOrder, customer: { ...ledOrder.customer, name: 'María López' } })).body
+  const early = await call('POST', `/quote/${folio}/review`, { t: token, stars: 5, text: 'Excelente' })
+  assert.equal(early.status, 400, 'no se puede opinar antes de terminar')
+
+  const order = (await call('GET', '/admin/orders', null, owner)).body.find((o) => o.folio === folio)
+  await call('PATCH', `/admin/orders/${order.id}`, { status: 'entregado' }, owner)
+
+  const fake = 'data:image/png;base64,' + Buffer.from('<svg>no es png</svg>').toString('base64')
+  assert.equal((await call('POST', `/admin/orders/${order.id}/photos`, { image: fake }, owner)).status, 400)
+  const withPhoto = await call('POST', `/admin/orders/${order.id}/photos`, { image: PNG }, owner)
+  assert.equal(withPhoto.status, 201)
+  const pid = withPhoto.body.photos[0].id
+  const img = await fetch(`${base}/photos/${pid}`)
+  assert.equal(img.headers.get('content-type'), 'image/png')
+
+  assert.equal((await call('POST', `/quote/${folio}/review`, { t: 'otro', stars: 5, text: 'Hola' })).status, 404)
+  const sent = await call('POST', `/quote/${folio}/review`, { t: token, stars: 5, text: 'Quedó hermoso, muy buena atención', city: 'Puebla' })
+  assert.equal(sent.status, 201)
+  assert.equal(sent.body.review.status, 'pendiente')
+  assert.equal((await call('GET', '/public/reviews')).body.count, 0, 'no se publica sin revisión')
+
+  await call('PATCH', `/admin/orders/${order.id}`, { reviewStatus: 'publicada' }, owner)
+  const pub = (await call('GET', '/public/reviews')).body
+  assert.equal(pub.count, 1)
+  assert.equal(pub.avg, 5)
+  assert.equal(pub.items[0].name, 'María L.', 'solo nombre e inicial')
+  assert.equal(pub.items[0].photo, pid)
+  assert.equal(pub.items[0].phone, undefined)
+
+  await call('DELETE', `/admin/orders/${order.id}/photos/${pid}`, null, owner)
+  assert.equal((await fetch(`${base}/photos/${pid}`)).status, 404)
+})
+
 test('límite de intentos de acceso', async () => {
   let last
   for (let i = 0; i < 12; i++) last = await call('POST', '/admin/login', { username: 'nadie', password: 'x' })
