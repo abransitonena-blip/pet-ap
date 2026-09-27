@@ -6,8 +6,16 @@ export const LED_PITCH_MM = 33 // separación entre focos de la tira en el conto
 export const BACKLIT_PITCH_MM = 130 // separación entre módulos LED retroiluminados
 export const LED_HOLE_MM = 5 // diámetro de marca / barreno por punto
 
+// Barreno según el tipo de letrero (letrero LED: el tamaño del LED elegido)
+export const holeMm = (design) => (design.kind === 'led' ? design.ledMm : LED_HOLE_MM)
+
 // Geometría real del letrero en mm (mismas proporciones que layoutSign)
 export function signGeometryMm(design) {
+  if (design.kind === 'led') {
+    const w = design.widthCm * 10
+    const h = design.heightCm * 10
+    return { w, h, border: 0, radius: Math.min(design.cornerMm, Math.min(w, h) / 2) }
+  }
   const w = design.widthCm * 10
   const h = design.heightCm * 10
   const base = Math.min(w, h)
@@ -73,6 +81,7 @@ const round1 = (n) => Math.round(n * 10) / 10
 
 // Devuelve los puntos LED del letrero en mm, o [] si la luz no lleva puntos (neón sigue las letras)
 export function ledPointsMm(design) {
+  if (design.kind === 'led') return (design.dots || []).map((d) => [d[0], d[1]])
   const mode = design.led?.mode || 'none'
   const g = signGeometryMm(design)
   let pts = []

@@ -5,17 +5,50 @@
 // El acento también es el color del borde y de la iluminación LED.
 
 export const FONTS = [
-  { id: 'Anton', label: 'Anton' },
-  { id: 'Bebas Neue', label: 'Bebas Neue' },
-  { id: 'Montserrat', label: 'Montserrat' },
-  { id: 'Inter', label: 'Inter' },
-  { id: 'Playfair Display', label: 'Playfair' },
-  { id: 'Righteous', label: 'Righteous' },
-  { id: 'Pacifico', label: 'Pacifico' },
-  { id: 'Lobster', label: 'Lobster' },
-  { id: 'Permanent Marker', label: 'Marker' },
-  { id: 'Monoton', label: 'Monoton' }
+  // Bloque: letras gruesas, ideales para contorno y relleno
+  { id: 'Anton', label: 'Anton', group: 'Bloque' },
+  { id: 'Bebas Neue', label: 'Bebas Neue', group: 'Bloque' },
+  { id: 'Oswald', label: 'Oswald', group: 'Bloque', q: 'Oswald:wght@400;700' },
+  { id: 'Alfa Slab One', label: 'Alfa Slab', group: 'Bloque' },
+  { id: 'Black Ops One', label: 'Black Ops', group: 'Bloque' },
+  { id: 'Russo One', label: 'Russo One', group: 'Bloque' },
+  { id: 'Rubik Mono One', label: 'Rubik Mono', group: 'Bloque' },
+  { id: 'Bungee', label: 'Bungee', group: 'Bloque' },
+  { id: 'Lilita One', label: 'Lilita One', group: 'Bloque' },
+  // Moderna / redonda
+  { id: 'Montserrat', label: 'Montserrat', group: 'Moderna', q: 'Montserrat:ital,wght@0,400;0,800;1,400;1,800' },
+  { id: 'Poppins', label: 'Poppins', group: 'Moderna', q: 'Poppins:wght@400;800' },
+  { id: 'Inter', label: 'Inter', group: 'Moderna', q: 'Inter:wght@400;600;700;800' },
+  { id: 'Fredoka', label: 'Fredoka', group: 'Moderna', q: 'Fredoka:wght@400;700' },
+  { id: 'Baloo 2', label: 'Baloo', group: 'Moderna', q: 'Baloo+2:wght@400;800' },
+  { id: 'Righteous', label: 'Righteous', group: 'Moderna' },
+  // Display / neón
+  { id: 'Audiowide', label: 'Audiowide', group: 'Display' },
+  { id: 'Orbitron', label: 'Orbitron', group: 'Display', q: 'Orbitron:wght@400;800' },
+  { id: 'Monoton', label: 'Monoton', group: 'Display' },
+  { id: 'Shrikhand', label: 'Shrikhand', group: 'Display' },
+  { id: 'Permanent Marker', label: 'Marker', group: 'Display' },
+  // Script: cursivas, lucen con trazo
+  { id: 'Pacifico', label: 'Pacifico', group: 'Script' },
+  { id: 'Lobster', label: 'Lobster', group: 'Script' },
+  { id: 'Dancing Script', label: 'Dancing Script', group: 'Script', q: 'Dancing+Script:wght@400;700' },
+  { id: 'Kaushan Script', label: 'Kaushan', group: 'Script' },
+  { id: 'Yellowtail', label: 'Yellowtail', group: 'Script' },
+  { id: 'Satisfy', label: 'Satisfy', group: 'Script' },
+  { id: 'Great Vibes', label: 'Great Vibes', group: 'Script' },
+  { id: 'Sacramento', label: 'Sacramento', group: 'Script' },
+  { id: 'Caveat', label: 'Caveat', group: 'Script', q: 'Caveat:wght@400;700' },
+  // Clásica
+  { id: 'Playfair Display', label: 'Playfair', group: 'Clásica', q: 'Playfair+Display:ital,wght@0,400;0,800;1,400;1,800' }
 ]
+
+export const FONT_GROUPS = ['Bloque', 'Moderna', 'Display', 'Script', 'Clásica']
+
+// Una sola URL de Google Fonts para la página y los archivos exportados
+export const GOOGLE_FONTS_URL =
+  'https://fonts.googleapis.com/css2?' +
+  FONTS.map((f) => `family=${f.q || f.id.replace(/ /g, '+')}`).join('&') +
+  '&display=swap'
 
 // Paletas de 3 colores en tendencia
 export const PALETTES = [

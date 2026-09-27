@@ -5,6 +5,7 @@ import crypto from 'node:crypto'
 import { normalizeDesign } from '../src/lib/design.js'
 import { MATERIALS, EXTRAS, quote } from '../src/lib/pricing.js'
 import { STATUS_IDS, PRINTED_STATUSES } from '../src/lib/status.js'
+import { normalizeLedDesign } from '../src/lib/ledSign.js'
 import { store } from './store.js'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
@@ -20,11 +21,14 @@ if (!process.env.ADMIN_PASSWORD) {
   console.warn('⚠️  ADMIN_PASSWORD no está definido; usando "admin123". Cámbialo en producción.')
 }
 
+// Cada tipo de letrero tiene su propio modelo y validación
+const cleanDesign = (d) => (d?.kind === 'led' ? normalizeLedDesign(d) : normalizeDesign(d, MATERIAL_IDS, EXTRA_IDS))
+
 // ---------- Datos ----------
 async function loadDb() {
   const db = await store.load()
   // Asegura que los diseños guardados con versiones anteriores sigan siendo válidos
-  for (const o of db.orders) o.design = normalizeDesign(o.design, MATERIAL_IDS, EXTRA_IDS)
+  for (const o of db.orders) o.design = cleanDesign(o.design)
   return db
 }
 
@@ -92,12 +96,15 @@ api.post('/orders', h(async (req, res) => {
   if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' })
   if (!phone && !email) return res.status(400).json({ error: 'Deja un teléfono o correo de contacto' })
 
-  const cleanDesign = normalizeDesign(design, MATERIAL_IDS, EXTRA_IDS)
-  if (!cleanDesign.lines.some((l) => l.text.trim())) {
+  const clean = cleanDesign(design)
+  if (!clean.lines.some((l) => l.text.trim())) {
     return res.status(400).json({ error: 'El letrero no tiene texto' })
   }
+  if (clean.kind === 'led' && !clean.dots.length) {
+    return res.status(400).json({ error: 'El letrero no tiene puntos LED' })
+  }
 
-  const q = quote({ ...cleanDesign, quantity })
+  const q = quote({ ...clean, quantity })
   const order = await mutate((db) => {
     const now = new Date().toISOString()
     db.seq += 1
@@ -108,7 +115,7 @@ api.post('/orders', h(async (req, res) => {
       updatedAt: now,
       status: 'nuevo',
       customer: { name, phone, email, notes },
-      design: cleanDesign,
+      design: clean,
       quote: q,
       adminNotes: '',
       history: [{ status: 'nuevo', at: now }]
@@ -204,7 +211,7 @@ api.delete('/admin/orders/:id', requireAdmin, h(async (req, res) => {
 export function createApp() {
   const app = express()
   app.use(cors())
-  app.use(express.json({ limit: '200kb' }))
+  app.use(express.json({ limit: '600kb' }))
   app.use('/api', api)
   app.use('/api', (err, req, res, next) => {
     console.error(err)

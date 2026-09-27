@@ -3,7 +3,8 @@
 //  - DXF (contorno + puntos) para software CAD / láser
 //  - G-code GRBL (Arduino) para cortadora/grabadora láser casera
 //  - CSV con las coordenadas de los puntos
-import { LED_HOLE_MM, ledPointsMm, signGeometryMm } from './ledPoints'
+import { holeMm, ledPointsMm, signGeometryMm } from './ledPoints'
+import { planPower } from './ledSign'
 
 export const PAPERS = [
   { id: 'carta', name: 'Carta', w: 215.9, h: 279.4 },
@@ -53,8 +54,8 @@ function regMark([x, y]) {
   return `<g stroke="#e11d48" stroke-width="0.25" fill="none"><circle cx="${f(x)}" cy="${f(y)}" r="3"/><line x1="${f(x - 5)}" y1="${f(y)}" x2="${f(x + 5)}" y2="${f(y)}"/><line x1="${f(x)}" y1="${f(y - 5)}" x2="${f(x)}" y2="${f(y + 5)}"/></g>`
 }
 
-function ledMarks(points) {
-  const r = LED_HOLE_MM / 2
+function ledMarks(points, hole) {
+  const r = hole / 2
   return points
     .map(
       ([x, y], i) =>
@@ -82,7 +83,7 @@ export function sheetsHtml(order, paperId, signMarkup) {
   const g = signGeometryMm(d)
   const points = ledPointsMm(d)
   const marks = registrationMarks(plan)
-  const overlay = cutOutline(g) + ledMarks(points) + marks.map(regMark).join('')
+  const overlay = cutOutline(g) + ledMarks(points, holeMm(d)) + marks.map(regMark).join('')
   const nested = (w, h) =>
     signMarkup.replace(/^<svg/, `<svg class="art" x="0" y="0" width="${f(w)}" height="${f(h)}" preserveAspectRatio="none"`)
 
@@ -118,7 +119,7 @@ export function sheetsHtml(order, paperId, signMarkup) {
       <h1>Hojas de impresión · ${order.folio}</h1>
       <p><b>${plan.count} hojas</b> ${plan.paper.name} (${plan.orientation}) · ${plan.cols} columnas × ${plan.rows} filas · letrero ${d.widthCm} × ${d.heightCm} cm a <b>escala 1:1</b></p>
       <p>Imprime al <b>100 % / tamaño real</b> (sin "ajustar a la página"). Mide la barra: debe medir exactamente 10 cm. ${scaleBar(100)}</p>
-      <p>Encima las hojas ${SHEET_OVERLAP_MM} mm usando las marcas rojas ⊕. Línea punteada = corte. ${points.length ? `Círculos numerados = <b>${points.length} puntos LED</b> (Ø ${LED_HOLE_MM} mm).` : ''}</p>
+      <p>Encima las hojas ${SHEET_OVERLAP_MM} mm usando las marcas rojas ⊕. Línea punteada = corte. ${points.length ? `Círculos numerados = <b>${points.length} puntos LED</b> (barreno Ø ${holeMm(d)} mm).` : ''}</p>
       <div class="map">${mapSvg}</div>
     </div></section>`,
     ...tiles.map(
@@ -181,7 +182,7 @@ export function dxf(design) {
     arc(r, r, 180, 270)
   }
   for (const [x, y] of ledPointsMm(design)) {
-    out.push('0', 'CIRCLE', '8', 'LED', '10', f(x), '20', f(Y(y)), '40', f(LED_HOLE_MM / 2))
+    out.push('0', 'CIRCLE', '8', 'LED', '10', f(x), '20', f(Y(y)), '40', f(holeMm(design) / 2))
   }
   out.push('0', 'ENDSEC', '0', 'EOF')
   return out.join('\n') + '\n'
@@ -230,6 +231,14 @@ export function gcode(order, { power = 1000, markPower = 300, feed = 600, passes
 // ---------- CSV de puntos ----------
 export function pointsCsv(design) {
   const g = signGeometryMm(design)
+  if (design.kind === 'led') {
+    const plan = planPower(design)
+    const rows = design.dots.map(([x, y, line], i) => {
+      const s = plan.strings[plan.dotString[i] - 1]
+      return `${i + 1},${f(x)},${f(g.h - y)},${f(y)},${line + 1},${design.lines[line]?.color || ''},S${s?.id ?? ''},${s?.output ?? ''}`
+    })
+    return ['punto,x_mm,y_mm_desde_abajo,y_mm_desde_arriba,linea,color,cadena,salida', ...rows].join('\n') + '\n'
+  }
   const rows = ledPointsMm(design).map(([x, y], i) => `${i + 1},${f(x)},${f(g.h - y)},${f(y)}`)
   return ['punto,x_mm,y_mm_desde_abajo,y_mm_desde_arriba', ...rows].join('\n') + '\n'
 }

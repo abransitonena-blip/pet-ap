@@ -5,7 +5,8 @@ export default function SiteHeader({ active }) {
         <span className="brand-mark" /> LetreroLab
       </a>
       <nav>
-        <a href="#/" className={active === 'editor' ? 'active' : ''}>Diseñar</a>
+        <a href="#/" className={active === 'led' ? 'active' : ''}>Letrero LED</a>
+        <a href="#/impreso" className={active === 'editor' ? 'active' : ''}>Impreso</a>
         <a href="#/seguimiento" className={active === 'track' ? 'active' : ''}>Mi pedido</a>
         <a href="#/admin">Admin</a>
       </nav>

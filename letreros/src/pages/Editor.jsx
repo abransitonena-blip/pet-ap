@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import SiteHeader from '../components/SiteHeader'
 import SignPreview from '../components/SignPreview'
-import { FONTS, ICONS, LED_MODES, PALETTES, SIZE_PRESETS, TEMPLATES, defaultDesign, newLine, normalizeDesign } from '../lib/design'
+import FontSelect from '../components/FontSelect'
+import { ICONS, LED_MODES, PALETTES, SIZE_PRESETS, TEMPLATES, defaultDesign, newLine, normalizeDesign } from '../lib/design'
 import { EXTRAS, MATERIALS, materialById, money, quote } from '../lib/pricing'
 import { downloadPng } from '../lib/render'
 import { api } from '../lib/api'
@@ -266,9 +267,7 @@ function TextEditor({ design, setDesign, update }) {
             <button className="icon-btn" onClick={() => remove(i)} title="Quitar línea">✕</button>
           </div>
           <div className="row">
-            <select className="input grow" value={line.font} onChange={(e) => setLine(i, { font: e.target.value })}>
-              {FONTS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
-            </select>
+            <FontSelect value={line.font} onChange={(font) => setLine(i, { font })} />
             <div className="tone">
               <button className={line.tone === 'text' ? 'active' : ''} onClick={() => setLine(i, { tone: 'text' })} title="Color de texto">
                 <i style={{ background: design.colors.text }} />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import SiteHeader from '../components/SiteHeader'
-import SignPreview from '../components/SignPreview'
+import DesignPreview from '../components/DesignPreview'
 import { api } from '../lib/api'
 import { money } from '../lib/pricing'
 import { STATUSES } from '../lib/status'
@@ -46,7 +46,7 @@ export default function Track({ initialFolio }) {
 
         {order && (
           <div className="track-card">
-            <div className="track-preview"><SignPreview design={order.design} night={order.design.led?.mode !== 'none'} /></div>
+            <div className="track-preview"><DesignPreview design={order.design} night={order.design.kind === 'led' || order.design.led?.mode !== 'none'} animate /></div>
             <div className="row between">
               <h2>{order.folio}</h2>
               <span className="muted">{order.quantity} pz · {money(order.total)}</span>

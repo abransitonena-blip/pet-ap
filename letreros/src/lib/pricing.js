@@ -1,4 +1,5 @@
 import { LED_PITCH_MM, ledPointsMm } from './ledPoints.js'
+import { ledQuoteParts } from './ledSign.js'
 
 // Catálogo y cotizador. Compartido entre navegador y servidor
 // (el servidor siempre recalcula el precio, nunca confía en el cliente).
@@ -66,8 +67,39 @@ export function ledSpec({ widthCm, heightCm, led, border }) {
   return spec
 }
 
-export function quote({ widthCm, heightCm, material, extras = [], led, quantity = 1 }) {
-  const qty = Math.max(1, Math.min(500, Math.round(Number(quantity) || 1)))
+function finishQuote(qty, areaM2, perPiece, perOrder, lines) {
+  const subtotal = perPiece * qty + perOrder
+  const discountRate = quantityDiscount(qty)
+  const discount = perPiece * qty * discountRate
+  return {
+    quantity: qty,
+    areaM2,
+    unitPrice: round2(perPiece),
+    lines,
+    subtotal: round2(subtotal),
+    discountRate,
+    discount: round2(discount),
+    total: Math.round(subtotal - discount)
+  }
+}
+
+// Letrero de puntos LED
+function quoteLed(design, qty) {
+  const { areaM2, parts } = ledQuoteParts(design)
+  const perPiece = parts.reduce((a, p) => a + p.amount, 0)
+  const lines = parts.map((p) => ({ label: p.label, amount: round2(p.amount * qty) }))
+  let perOrder = 0
+  if (design.extras?.includes('instalacion')) {
+    perOrder = extraById('instalacion').price
+    lines.push({ label: 'Instalación', amount: perOrder })
+  }
+  return finishQuote(qty, areaM2, perPiece, perOrder, lines)
+}
+
+export function quote(design) {
+  const qty = Math.max(1, Math.min(500, Math.round(Number(design.quantity) || 1)))
+  if (design.kind === 'led') return quoteLed(design, qty)
+  const { widthCm, heightCm, material, extras = [], led } = design
   const areaM2 = round2((widthCm / 100) * (heightCm / 100))
   const perimeterM = round2((2 * (widthCm + heightCm)) / 100)
   const mat = materialById(material)
@@ -103,21 +135,7 @@ export function quote({ widthCm, heightCm, material, extras = [], led, quantity 
     lines.push({ label: ex.name, amount: round2(amount) })
   }
 
-  const subtotal = perPiece * qty + perOrder
-  const discountRate = quantityDiscount(qty)
-  const discount = perPiece * qty * discountRate
-  const total = subtotal - discount
-
-  return {
-    quantity: qty,
-    areaM2,
-    unitPrice: round2(perPiece),
-    lines,
-    subtotal: round2(subtotal),
-    discountRate,
-    discount: round2(discount),
-    total: Math.round(total)
-  }
+  return finishQuote(qty, areaM2, perPiece, perOrder, lines)
 }
 
 export const money = (n) =>

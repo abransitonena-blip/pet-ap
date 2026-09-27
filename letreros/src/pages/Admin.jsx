@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import SignPreview from '../components/SignPreview'
+import DesignPreview from '../components/DesignPreview'
 import StatusPill from '../components/StatusPill'
 import TechDiagram from '../components/TechDiagram'
+import LedDiagram from '../components/LedDiagram'
+import { ANIMATIONS, DOT_STYLES, POWER, boardMaterialById, ledColorById, planPower } from '../lib/ledSign'
 import { api, getToken, setToken } from '../lib/api'
 import { LED_MODES } from '../lib/design'
 import { materialById, extraById, ledSpec, money } from '../lib/pricing'
 import { PRINTED_STATUSES, STATUSES, statusById } from '../lib/status'
-import { downloadPng } from '../lib/render'
-import { downloadDiagramSvg, downloadDxf, downloadGcode, downloadPointsCsv, downloadSignSvg, printDiagram, printSheets } from '../lib/files'
+import { downloadDesignPng, downloadDiagramSvg, downloadDxf, downloadGcode, downloadPointsCsv, downloadSignSvg, printDiagram, printSheets } from '../lib/files'
 import { PAPERS, planTiles } from '../lib/production'
 import { ledPointsMm } from '../lib/ledPoints'
 
 const fmtDate = (iso) =>
   new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-const ledName = (d) => LED_MODES.find((m) => m.id === d.led?.mode)?.name || 'Sin luz'
+const ledName = (d) =>
+  d.kind === 'led' ? `Puntos LED · ${d.dots.length}` : LED_MODES.find((m) => m.id === d.led?.mode)?.name || 'Sin luz'
+const materialName = (d) => (d.kind === 'led' ? boardMaterialById(d.material).name : materialById(d.material).name)
 
 const SECTIONS = [
   { id: 'resumen', label: 'Resumen' },
@@ -175,7 +178,7 @@ function Dashboard({ onLogout }) {
 
 function Overview({ stats, orders, onOpen }) {
   const pending = ['nuevo', 'en_diseno', 'aprobado'].reduce((n, s) => n + (stats.byStatus[s] || 0), 0)
-  const ledOrders = orders.filter((o) => o.design.led?.mode && o.design.led.mode !== 'none').length
+  const ledOrders = orders.filter((o) => o.design.kind === 'led' || (o.design.led?.mode && o.design.led.mode !== 'none')).length
   const tiles = [
     { label: 'Pedidos', value: stats.total },
     { label: 'Por imprimir', value: pending },
@@ -217,7 +220,7 @@ function Overview({ stats, orders, onOpen }) {
           <ul className="recent">
             {orders.slice(0, 6).map((o) => (
               <li key={o.id} onClick={() => onOpen(o.id)}>
-                <div className="thumb"><SignPreview design={o.design} /></div>
+                <div className="thumb"><DesignPreview design={o.design} /></div>
                 <div className="grow">
                   <strong>{o.folio}</strong>
                   <span className="muted small">{o.customer.name} · {fmtDate(o.createdAt)}</span>
@@ -269,10 +272,10 @@ function OrdersList({ orders, onOpen }) {
           <tbody>
             {filtered.map((o) => (
               <tr key={o.id} onClick={() => onOpen(o.id)}>
-                <td><div className="thumb"><SignPreview design={o.design} /></div></td>
+                <td><div className="thumb"><DesignPreview design={o.design} /></div></td>
                 <td><strong>{o.folio}</strong><div className="muted small">{fmtDate(o.createdAt)}</div></td>
                 <td>{o.customer.name}<div className="muted small">{o.customer.phone || o.customer.email}</div></td>
-                <td>{o.design.widthCm}×{o.design.heightCm}<div className="muted small">{materialById(o.design.material).name}</div></td>
+                <td>{o.design.widthCm}×{o.design.heightCm}<div className="muted small">{materialName(o.design)}</div></td>
                 <td className="small">{ledName(o.design)}</td>
                 <td>{o.quote.quantity}</td>
                 <td>{money(o.quote.total)}</td>
@@ -302,12 +305,12 @@ function Production({ orders, onOpen, onUpdate }) {
             </h2>
             {items.map((o) => (
               <article key={o.id} className="kanban-card">
-                <div className="kanban-thumb" onClick={() => onOpen(o.id)}><SignPreview design={o.design} /></div>
+                <div className="kanban-thumb" onClick={() => onOpen(o.id)}><DesignPreview design={o.design} /></div>
                 <div className="row between">
                   <strong>{o.folio}</strong>
                   <span className="muted small">{o.quote.quantity} pz · {o.design.widthCm}×{o.design.heightCm}</span>
                 </div>
-                <span className="muted small">{materialById(o.design.material).name} · {ledName(o.design)}</span>
+                <span className="muted small">{materialName(o.design)} · {ledName(o.design)}</span>
                 <div className="row">
                   <button className="btn ghost sm" onClick={() => onOpen(o.id, 'diagrama')}>Diagrama</button>
                   {next[col.id] && (
@@ -336,7 +339,7 @@ function PrintedGallery({ orders, onOpen }) {
     <div className="gallery">
       {printed.map((o) => (
         <figure key={o.id} className="gallery-item" onClick={() => onOpen(o.id)}>
-          <div className="gallery-thumb"><SignPreview design={o.design} night /></div>
+          <div className="gallery-thumb"><DesignPreview design={o.design} night /></div>
           <figcaption>
             <div className="row between">
               <strong>{o.folio}</strong>
@@ -385,7 +388,7 @@ function FileButtons({ order }) {
   return (
     <div className="file-groups">
       <div className="file-buttons">
-        <button className="file" onClick={run('png', () => downloadPng(order.design, `${order.folio}.png`, 6000))} disabled={!!busy}>
+        <button className="file" onClick={run('png', () => downloadDesignPng(order.design, `${order.folio}.png`, 6000))} disabled={!!busy}>
           <b>PNG</b><span>{busy === 'png' ? 'Generando…' : 'Impresión 6000 px'}</span>
         </button>
         <button className="file" onClick={run('svg', () => downloadSignSvg(order.design, `${order.folio}.svg`))} disabled={!!busy}>
@@ -438,7 +441,7 @@ function Files({ orders, onOpen }) {
       <div className="files-list">
         {list.map((o) => (
           <article key={o.id} className="file-row">
-            <div className="file-thumb" onClick={() => onOpen(o.id, 'diagrama')}><SignPreview design={o.design} /></div>
+            <div className="file-thumb" onClick={() => onOpen(o.id, 'diagrama')}><DesignPreview design={o.design} /></div>
             <div className="file-meta">
               <strong>{o.folio}</strong>
               <span className="muted small">{o.customer.name} · {o.design.widthCm}×{o.design.heightCm} cm · {ledName(o.design)}</span>
@@ -475,12 +478,12 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onDelete }) {
 
         {tab === 'diagrama' ? (
           <>
-            <div className="diagram-frame"><TechDiagram order={order} /></div>
+            <div className="diagram-frame">{d.kind === 'led' ? <LedDiagram order={order} /> : <TechDiagram order={order} />}</div>
             <FileButtons order={order} />
           </>
         ) : (
           <>
-            <div className="drawer-preview"><SignPreview design={d} night={d.led?.mode !== 'none'} /></div>
+            <div className="drawer-preview"><DesignPreview design={d} night={d.kind === 'led' || d.led?.mode !== 'none'} animate /></div>
             <FileButtons order={order} />
 
             <section>
@@ -495,23 +498,25 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onDelete }) {
               </div>
             </section>
 
+            {d.kind === 'led' ? <LedSpecs order={order} /> : (
             <section className="spec-grid">
-              <div><span>Medida</span><strong>{d.widthCm} × {d.heightCm} cm</strong></div>
-              <div><span>Material</span><strong>{materialById(d.material).name}</strong></div>
-              <div><span>Cantidad</span><strong>{order.quote.quantity}</strong></div>
-              <div><span>Área total</span><strong>{Math.round(order.quote.areaM2 * order.quote.quantity * 100) / 100} m²</strong></div>
-              <div><span>Iluminación</span><strong>{ledName(d)}</strong></div>
-              <div><span>LED</span><strong>{led ? `${led.quantity} · ${led.watts} W` : '—'}</strong></div>
-              <div className="wide">
-                <span>Colores</span>
-                <strong className="row">
-                  {['bg', 'text', 'accent'].map((k) => (
-                    <span key={k} className="hex"><i style={{ background: d.colors[k] }} />{d.colors[k].toUpperCase()}</span>
-                  ))}
-                </strong>
-              </div>
-              <div className="wide"><span>Extras</span><strong>{d.extras.map((e) => extraById(e)?.name).filter(Boolean).join(', ') || '—'}</strong></div>
-            </section>
+                <div><span>Medida</span><strong>{d.widthCm} × {d.heightCm} cm</strong></div>
+                <div><span>Material</span><strong>{materialById(d.material).name}</strong></div>
+                <div><span>Cantidad</span><strong>{order.quote.quantity}</strong></div>
+                <div><span>Área total</span><strong>{Math.round(order.quote.areaM2 * order.quote.quantity * 100) / 100} m²</strong></div>
+                <div><span>Iluminación</span><strong>{ledName(d)}</strong></div>
+                <div><span>LED</span><strong>{led ? `${led.quantity} · ${led.watts} W` : '—'}</strong></div>
+                <div className="wide">
+                  <span>Colores</span>
+                  <strong className="row">
+                    {['bg', 'text', 'accent'].map((k) => (
+                      <span key={k} className="hex"><i style={{ background: d.colors[k] }} />{d.colors[k].toUpperCase()}</span>
+                    ))}
+                  </strong>
+                </div>
+                <div className="wide"><span>Extras</span><strong>{d.extras.map((e) => extraById(e)?.name).filter(Boolean).join(', ') || '—'}</strong></div>
+              </section>
+            )}
 
             <section>
               <h3>Cliente</h3>
@@ -559,5 +564,44 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onDelete }) {
         )}
       </aside>
     </div>
+  )
+}
+
+function LedSpecs({ order }) {
+  const d = order.design
+  const plan = planPower(d)
+  return (
+    <>
+      <section className="spec-grid">
+        <div><span>Placa</span><strong>{d.widthCm} × {d.heightCm} cm</strong></div>
+        <div><span>Material</span><strong>{boardMaterialById(d.material).name}</strong></div>
+        <div><span>LED</span><strong>{d.dots.length} de {d.ledMm} mm</strong></div>
+        <div><span>Cantidad</span><strong>{order.quote.quantity}</strong></div>
+        <div><span>Puntos</span><strong>{DOT_STYLES.find((x) => x.id === d.style)?.name} · cada {d.pitchMm} mm</strong></div>
+        <div><span>Encendido</span><strong>{ANIMATIONS.find((a) => a.id === d.animation)?.name}</strong></div>
+        <div><span>Fuente</span><strong>{POWER.find((p) => p.id === d.power)?.name}</strong></div>
+        <div><span>Consumo</span><strong>{plan.watts} W · {plan.totalMa} mA</strong></div>
+        <div className="wide">
+          <span>Textos</span>
+          <strong>
+            {d.lines.map((l, i) => (
+              <span key={i} className="hex"><i style={{ background: ledColorById(l.color).hex }} />“{l.text}” {l.font} {l.heightMm / 10} cm</span>
+            ))}
+          </strong>
+        </div>
+      </section>
+      <section>
+        <h3>Cadenas ({plan.strings.length}){d.power === '127v' ? ` · ${plan.boardsB ? `${plan.boardsB} placa B` : `${plan.boardsA} placa A`}` : ` · eliminador ${plan.supplyA} A`}</h3>
+        <ul className="quote-lines">
+          {plan.strings.slice(0, 8).map((s) => (
+            <li key={s.id}>
+              <span><span className="led sm" style={{ '--led': ledColorById(s.color).hex }} /> S{s.id} · {s.count} LED · {s.volts} V</span>
+              <span>{d.power === '127v' ? s.cap : `${s.resistor} Ω`} · {s.mA} mA</span>
+            </li>
+          ))}
+          {plan.strings.length > 8 && <li className="muted"><span>… {plan.strings.length - 8} más en el diagrama</span></li>}
+        </ul>
+      </section>
+    </>
   )
 }

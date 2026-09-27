@@ -5,7 +5,22 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 
 ## ✨ Qué incluye
 
-**Panel público (`#/`), minimalista**
+**Letrero LED de puntos (`#/`, tipo Radox)**
+- Escribe el texto (hasta 4 líneas), elige entre **30 fuentes** (bloque, moderna, display, script) y el color del LED por línea
+- La app **convierte cada letra en puntos LED** con la fuente real:
+  *trazo* (una línea por el centro, ideal para cursivas), *contorno* (letras gruesas), *relleno* o *matriz 5×7* clásica
+- Separación entre LED, LED de 3/5/8 mm, placa (negro, humo, blanco, cristal, madera; acrílico, PVC o MDF)
+- Encendido **fijo, parpadeo o secuencial** (letra por letra en 3 canales), con vista previa animada
+- **Cálculo eléctrico** como las placas del repo de hardware:
+  - 127 V capacitiva (placa B): cadenas ≤ 100 V, capacitor 224J/334J/474J por salida con `I = 240·C·(180 − Vtira)`;
+    secuencial con placa A (NE555 + CD4017 + SCR)
+  - 12 V eliminador: cadenas en serie con resistencia E12 a 15 mA
+- En el admin: **diagrama de conexión** (recorrido de cada cadena S+ → S−, tabla de capacitores/resistencias,
+  lista de materiales y advertencia de 127 V), plantilla de **barrenos 1:1** numerada en orden de cableado,
+  DXF con barrenos del tamaño del LED, G-code y CSV con cadena y salida de cada punto
+
+
+**Letrero impreso (`#/impreso`), minimalista**
 - Vista previa en vivo sobre una pared, con medidas en cm y modo **☀ Día / ☾ Noche** para ver el LED encendido
 - **3 colores por letrero** (fondo · texto · acento): 8 paletas en tendencia o colores propios
 - **Iluminación LED**: neón LED, retroiluminado (halo) o tira LED en el contorno; el LED usa el color de acento
@@ -99,8 +114,10 @@ letreros/
     ├── lib/files.js         descargas: SVG, diagrama, hojas, DXF, G-code, CSV
     ├── lib/production.js    hojas 1:1, DXF, G-code GRBL, CSV
     ├── lib/ledPoints.js     posición real (mm) de cada punto LED
+    ├── lib/ledSign.js       letrero LED: modelo, cadenas, capacitores, materiales, precio
+    ├── lib/ledText.js       texto → puntos LED (esqueleto, contorno, relleno, matriz 5×7)
     ├── components/          SignPreview (SVG), TechDiagram, StatusPill, SiteHeader
-    └── pages/               Editor, Track, Admin
+    └── pages/               LedEditor, Editor (impreso), Track, Admin
 ```
 
 Precios, materiales y LED se editan en `src/lib/pricing.js`; paletas en `src/lib/design.js`; el servidor siempre recalcula el total.
