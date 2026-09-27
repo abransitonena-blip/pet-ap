@@ -1,0 +1,25 @@
+{
+  "name": "raritos",
+  "caption": "#parejaderaritos #raritos #fyp #parati #amor #meme",
+  "plantilla": "Cuando me estoy burlando de la pareja de raritos pero {frase}",
+  "frases": [
+    "él le dice a ella \"gracias por dejar de hacer las cosas que me dolían\"",
+    "ella le dice a él \"no tienes que cambiar, solo quédate\"",
+    "él le dice a ella \"contigo no tengo que fingir que estoy bien\"",
+    "ella le presume a sus amigas \"él sí me escucha cuando hablo de mis cosas raras\"",
+    "él se aprendió todas las canciones de su banda favorita solo para cantarlas con ella",
+    "comparten audífonos en el camión y ninguno dice nada en una hora",
+    "ella le guarda la última galleta sin que él se la pida",
+    "él le dice \"gracias por no rendirte conmigo\""
+  ],
+  "reacciones": [
+    {"texto": "yo:", "emoji": "😭"},
+    {"texto": "me duele en el alma", "emoji": "🥲"},
+    {"texto": "yo después:", "emoji": "💔"},
+    {"texto": "ya no me estoy riendo", "emoji": "😔"}
+  ],
+  "fondos": ["noche", "lluvia", "neon", "atardecer", "grunge"],
+  "imagen_reaccion": null,
+  "duracion_texto": 4,
+  "duracion_reaccion": 2.5
+}

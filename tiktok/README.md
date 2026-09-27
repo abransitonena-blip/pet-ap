@@ -1,21 +1,18 @@
-# Memes para TikTok (formato carrusel "Cuando...")
+# Memes "pareja de raritos" para TikTok
 
-Genera el formato de 2 fotos: **foto 1** fondo oscuro con texto centrado, **foto 2** imagen de reacción.
-Sale en PNG 1080x1920 (para subir como carrusel de fotos) y en MP4 (para subir como video).
+Carrusel de 2 fotos (y MP4): **foto 1** fondo aesthetic + frase "Cuando me estoy burlando de la pareja de raritos pero…", **foto 2** reacción (emoji + texto, o tu propia imagen).
 
 ```bash
-pip install pillow imageio-ffmpeg
-python tiktok/make_meme.py tiktok/ejemplo.json
+pip install pillow numpy imageio-ffmpeg
+python tiktok/make_meme.py tiktok/raritos.json
 ```
 
-Resultados en `tiktok/output/`.
+Salen en `tiktok/output/`: `raritos_XX_1.png`, `raritos_XX_2.png` (carrusel) y `raritos_XX.mp4` (video).
 
-## Cómo hacer uno nuevo
-1. Copia `ejemplo.json` y cambia el `text` de la primera foto.
-2. Pon tus imágenes en `tiktok/` y escribe su nombre en `"image"` (ej. `"image": "reaccion.jpg"`).
-   Sin imagen se usa un fondo oscuro de rayas.
-3. Opcional: `"audio": "sonido.mp3"` para el video. En TikTok es mejor añadir un sonido en tendencia desde la app.
+## Editar `raritos.json`
+- `frases`: una por meme; se insertan en `plantilla`.
+- `reacciones`: texto + emoji de la foto 2 (se van rotando).
+- `fondos`: `noche`, `lluvia`, `neon`, `atardecer`, `grunge` (generados por código, sin derechos).
+- `imagen_reaccion`: ruta a tu foto de reacción (ej. `"llorando.jpg"`) para usarla en lugar del emoji.
 
-Opciones por foto: `grayscale`, `brightness` (0.75 = más oscuro), `font_size`, `text_y` (0.5 = centro), `duration` (segundos).
-
-Consejo: usa fotos propias o libres de derechos; los clips de TV/FIFA pueden provocar que TikTok silencie o baje el video.
+Consejo: añade el sonido en tendencia desde la app de TikTok.
