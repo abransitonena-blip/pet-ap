@@ -27,7 +27,7 @@ export function previewBox(design, withMount = true) {
 
 // Vista del letrero de puntos LED en mm reales.
 // `night`: LED encendidos con brillo · `animate`: parpadeo / secuencial en vivo
-export default function LedPreview({ design, night = false, animate = false, withMount = false, className = '', svgProps = {} }) {
+export default function LedPreview({ design, night = false, animate = false, withMount = false, relief = true, className = '', svgProps = {} }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
   const W = design.widthCm * 10
   const H = design.heightCm * 10
@@ -133,7 +133,7 @@ export default function LedPreview({ design, night = false, animate = false, wit
       )}
       <path d={outline.d} fill={baseHex} fillOpacity={glass ? 0.28 : 1} />
       <g clipPath={`url(#c-${uid})`}>
-        {finish !== 'liso' && <FinishLayer finish={finish} id={`f-${uid}`} W={W} H={H} />}
+        {finish !== 'liso' && <FinishLayer finish={finish} id={`f-${uid}`} W={W} H={H} relief={relief} />}
         <rect x="0" y="0" width={W} height={H} fill={`url(#am-${uid})`} />
         {/* De noche la placa queda en penumbra; la luz de los LED la ilumina encima */}
         {night && !glass && <rect x="0" y="0" width={W} height={H} fill="#1a0f16" opacity="0.2" />}

@@ -32,8 +32,14 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 - **Pruébalo en tu local**: el cliente sube una foto de su fachada, arrastra el letrero y ajusta el tamaño
 
 **Acabados, fondos y combinaciones**
-- **10 acabados de placa** con textura realista a escala real: color liso, madera (pino, roble, nogal),
-  mármol, concreto, aluminio cepillado, espejo, oro y oro rosa; precio por m² editable en el panel
+- **15 acabados de placa** con textura realista a escala real: color liso, madera (pino, roble, nogal),
+  mármol, concreto, pizarra, terrazo, fibra de carbono, aluminio cepillado, espejo, oro, oro rosa y cobre;
+  precio por m² editable en el panel
+- **Relieve con luz real** (mapa de alturas + luz difusa y especular): la veta de la madera, el poro del concreto,
+  las capas de la pizarra y el cepillado del aluminio tienen sombra y brillo; barniz/pulido en nogal, mármol y carbono
+- **Variantes**: el cliente guarda hasta 4 versiones y las compara (medida, LED, precio, la más económica)
+- **Descargar imagen**: PNG del letrero sobre la pared elegida o sobre la foto de su local, con la luz de noche,
+  medida y precio, para mandarlo por WhatsApp
 - **12 fondos de pared**: rosa, blanco, arena, salvia, concreto, ladrillo, ladrillo blanco, duela de madera,
   azulejo, mármol, terrazo y muro verde (texturas SVG, sin descargar imágenes)
 - **Combinar LED** por línea: un color, dos colores alternados por letra o arcoíris

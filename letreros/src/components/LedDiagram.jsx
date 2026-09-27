@@ -44,7 +44,7 @@ export default function LedDiagram({ order }) {
 
       {/* Placa con el recorrido de cada cadena */}
       <g opacity="0.35">
-        <LedPreview design={d} night={false} svgProps={{ x: sx, y: sy, width: sw, height: sh, className: undefined }} />
+        <LedPreview design={d} night={false} relief={false} svgProps={{ x: sx, y: sy, width: sw, height: sh, className: undefined }} />
       </g>
       <path d={boardOutline(d).d} transform={`translate(${sx} ${sy}) scale(${scale})`} fill="none" stroke={INK} strokeWidth={1 / scale} />
       {mountHoles(d).map(([x, y], i) => (

@@ -118,7 +118,7 @@ export function ReviewsSection() {
         {data.items.map((r) => (
           <article key={r.id} className="review-card">
             <button className="review-media" onClick={() => r.photo && setOpen(r.photo)} disabled={!r.photo}>
-              {r.photo ? <img src={photoUrl(r.photo)} alt={`Letrero de ${r.business || r.name}`} loading="lazy" /> : <LedPreview design={r.design} night />}
+              {r.photo ? <img src={photoUrl(r.photo)} alt={`Letrero de ${r.business || r.name}`} loading="lazy" /> : <LedPreview design={r.design} night relief={false} />}
             </button>
             <div className="review-body">
               <Stars value={r.stars} size={14} />

@@ -49,10 +49,14 @@ export const FINISHES = [
   { id: 'nogal', name: 'Nogal', base: '#6e4a31', group: 'Madera', price: 350 },
   { id: 'marmol', name: 'Mármol', base: '#eeebe5', group: 'Piedra', price: 400 },
   { id: 'concreto', name: 'Concreto', base: '#b6b2ab', group: 'Piedra', price: 250 },
+  { id: 'pizarra', name: 'Pizarra', base: '#474c52', group: 'Piedra', price: 300 },
+  { id: 'terrazo', name: 'Terrazo', base: '#efe6df', group: 'Piedra', price: 350 },
+  { id: 'carbono', name: 'Carbono', base: '#26282c', group: 'Especial', price: 450 },
   { id: 'aluminio', name: 'Aluminio', base: '#c9cdd3', group: 'Metal', price: 450 },
   { id: 'espejo', name: 'Espejo', base: '#d5dae0', group: 'Metal', price: 500 },
   { id: 'oro', name: 'Oro', base: '#d8b867', group: 'Metal', price: 550 },
-  { id: 'rosaoro', name: 'Oro rosa', base: '#e2aa9f', group: 'Metal', price: 550 }
+  { id: 'rosaoro', name: 'Oro rosa', base: '#e2aa9f', group: 'Metal', price: 550 },
+  { id: 'cobre', name: 'Cobre', base: '#c98355', group: 'Metal', price: 550 }
 ]
 
 // Pared de la vista previa (solo visual). `tex`: pared con textura (ver lib/walls.js)

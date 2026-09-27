@@ -13,7 +13,100 @@ const METAL = {
   espejo: ['#f7f9fb', '#c4cad2', '#ffffff', '#8f97a2', '#e6e9ee'],
   oro: ['#fbecb9', '#c79d45', '#fff6d6', '#9c7127', '#ead08a'],
   rosaoro: ['#f9dcd5', '#c98d83', '#fff0ec', '#a3665d', '#efc3b9'],
-  aluminio: ['#e3e6ea', '#b8bec6', '#eef0f3', '#a9afb8', '#d8dce1']
+  aluminio: ['#e3e6ea', '#b8bec6', '#eef0f3', '#a9afb8', '#d8dce1'],
+  cobre: ['#f4c7a3', '#b8693d', '#ffe2cc', '#8a4524', '#e3a07a']
+}
+
+// Relieve con luz real: el ruido es un mapa de alturas; la luz viene de arriba a la izquierda
+// (sombras en los surcos y brillo en las crestas, como el barniz o el metal cepillado)
+const RELIEF = {
+  pino: { freq: '0.0026 0.14', oct: 4, seed: 7, scale: 1.4, shade: 0.35, spec: 0.35, exp: 22 },
+  roble: { freq: '0.0026 0.14', oct: 4, seed: 7, scale: 1.8, shade: 0.4, spec: 0.3, exp: 20 },
+  nogal: { freq: '0.0026 0.14', oct: 4, seed: 7, scale: 1.6, shade: 0.45, spec: 0.4, exp: 26 },
+  concreto: { freq: '0.18', oct: 3, seed: 9, scale: 0.9, shade: 0.28, spec: 0.06, exp: 6 },
+  pizarra: { freq: '0.006 0.035', oct: 5, seed: 17, scale: 4, shade: 0.55, spec: 0.25, exp: 12 },
+  aluminio: { freq: '0.0007 0.9', oct: 2, seed: 2, scale: 0.6, shade: 0.15, spec: 0.7, exp: 8 },
+  terrazo: { freq: '0.9', oct: 1, seed: 3, scale: 0.4, shade: 0.12, spec: 0.2, exp: 30 }
+}
+
+function Relief({ id, W, H, r }) {
+  return (
+    <>
+      <filter id={`${id}-r`} filterUnits="userSpaceOnUse" x="0" y="0" width={W} height={H} colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency={r.freq} numOctaves={r.oct} seed={r.seed} result="n" />
+        <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0" result="height" />
+        <feDiffuseLighting in="height" surfaceScale={r.scale} diffuseConstant="1" lightingColor="#fff" result="diffuse">
+          <feDistantLight azimuth="225" elevation="48" />
+        </feDiffuseLighting>
+        <feColorMatrix in="diffuse" type="matrix" values={`0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  ${-r.shade * 1.6} 0 0 0 ${r.shade * 1.25}`} result="shadow" />
+        <feSpecularLighting in="height" surfaceScale={r.scale} specularConstant={r.spec} specularExponent={r.exp} lightingColor="#fff" result="spec">
+          <feDistantLight azimuth="225" elevation="48" />
+        </feSpecularLighting>
+        <feColorMatrix in="spec" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.55 0" result="shine" />
+        <feMerge>
+          <feMergeNode in="shadow" />
+          <feMergeNode in="shine" />
+        </feMerge>
+      </filter>
+      <rect x="0" y="0" width={W} height={H} filter={`url(#${id}-r)`} />
+    </>
+  )
+}
+
+// Pizarra: capas de piedra oscura con vetas
+function Slate({ id, W, H }) {
+  return (
+    <>
+      <filter id={id} filterUnits="userSpaceOnUse" x="0" y="0" width={W} height={H} colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.004 0.05" numOctaves="5" seed="17" result="n" />
+        <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.5  0 0 0 0 0.53  0 0 0 0 0.56  1.4 0 0 0 -0.55" result="light" />
+        <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.08  0 0 0 0 0.09  0 0 0 0 0.1  -1.4 0 0 0 0.7" result="dark" />
+        <feMerge><feMergeNode in="dark" /><feMergeNode in="light" /></feMerge>
+      </filter>
+      <rect x="0" y="0" width={W} height={H} filter={`url(#${id})`} opacity="0.75" />
+    </>
+  )
+}
+
+// Fibra de carbono: tejido sarga 2×2 de 6 mm
+function Carbon({ id }) {
+  const t = 6
+  return (
+    <>
+      <linearGradient id={`${id}-a`} x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#1b1c1f" /><stop offset="0.5" stopColor="#4a4d55" /><stop offset="1" stopColor="#1b1c1f" />
+      </linearGradient>
+      <linearGradient id={`${id}-b`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#141518" /><stop offset="0.5" stopColor="#34363c" /><stop offset="1" stopColor="#141518" />
+      </linearGradient>
+      <pattern id={`${id}-p`} width={t * 2} height={t * 2} patternUnits="userSpaceOnUse">
+        <rect width={t} height={t} fill={`url(#${id}-a)`} />
+        <rect x={t} width={t} height={t} fill={`url(#${id}-b)`} />
+        <rect y={t} width={t} height={t} fill={`url(#${id}-b)`} />
+        <rect x={t} y={t} width={t} height={t} fill={`url(#${id}-a)`} />
+      </pattern>
+      <rect width="100%" height="100%" x="0" y="0" fill={`url(#${id}-p)`} />
+    </>
+  )
+}
+
+// Terrazo: chispas de piedra de colores (semilla fija, siempre igual)
+function Terrazzo({ W, H }) {
+  const colors = ['#e59aa9', '#9aa98e', '#d9b68a', '#8f8a86', '#f3c9a8', '#c95f5f', '#ffffff']
+  let seed = 7
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  const n = Math.min(900, Math.round((W * H) / 900))
+  const chips = []
+  for (let i = 0; i < n; i++) {
+    const x = rnd() * W, y = rnd() * H, r = 1.5 + rnd() * 5
+    const pts = [0, 1, 2, 3, 4].map((k) => {
+      const a = (k / 5) * Math.PI * 2 + rnd()
+      const rr = r * (0.6 + rnd() * 0.6)
+      return `${(x + Math.cos(a) * rr).toFixed(1)},${(y + Math.sin(a) * rr).toFixed(1)}`
+    })
+    chips.push(<polygon key={i} points={pts.join(' ')} fill={colors[i % colors.length]} />)
+  }
+  return <g>{chips}</g>
 }
 function Wood({ id, W, H, kind }) {
   const w = WOOD[kind]
@@ -126,13 +219,37 @@ function Metal({ id, W, H, kind }) {
   )
 }
 
-// Capa de textura (sin recorte): la usa LedPreview dentro de un clipPath con la forma de la placa
-export function FinishLayer({ finish, id, W, H }) {
+function Base({ finish, id, W, H }) {
   if (WOOD[finish]) return <Wood id={id} W={W} H={H} kind={finish} />
   if (finish === 'marmol') return <Marble id={id} W={W} H={H} />
   if (finish === 'concreto') return <Concrete id={id} W={W} H={H} />
+  if (finish === 'pizarra') return <Slate id={id} W={W} H={H} />
+  if (finish === 'carbono') return <Carbon id={id} />
+  if (finish === 'terrazo') return <Terrazzo W={W} H={H} />
   if (METAL[finish]) return <Metal id={id} W={W} H={H} kind={finish} />
   return null
+}
+
+// Capa de textura (sin recorte): la usa LedPreview dentro de un clipPath con la forma de la placa.
+// `relief` añade el relieve con luz (se apaga en miniaturas para que carguen rápido)
+export function FinishLayer({ finish, id, W, H, relief = true }) {
+  return (
+    <>
+      <Base finish={finish} id={id} W={W} H={H} />
+      {relief && RELIEF[finish] && <Relief id={id} W={W} H={H} r={RELIEF[finish]} />}
+      {/* Barniz / pulido: brillo amplio y suave */}
+      {['marmol', 'carbono', 'nogal', 'terrazo'].includes(finish) && (
+        <>
+          <linearGradient id={`${id}-gl`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#fff" stopOpacity="0" />
+            <stop offset="0.38" stopColor="#fff" stopOpacity={finish === 'carbono' ? 0.18 : 0.22} />
+            <stop offset="0.5" stopColor="#fff" stopOpacity="0" />
+          </linearGradient>
+          <rect x="0" y="0" width={W} height={H} fill={`url(#${id}-gl)`} />
+        </>
+      )}
+    </>
+  )
 }
 
 // Muestra para el selector de acabados

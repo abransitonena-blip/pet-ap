@@ -14,16 +14,27 @@ import { FinishSwatch } from '../components/Finish'
 import { wallStyle } from '../lib/walls'
 import {
   ANIMATIONS, BOARDS, BOARD_MATERIALS, COLOR_MIXES, FINISHES, MOUNTS, SCENES, SHAPES, DOT_STYLES, LED_COLORS, LED_SIZES, MAX_DOTS, POWER,
-  boardById, boardMaterialById, defaultLedDesign, ledColorById, newLedLine, normalizeLedDesign, planPower
+  boardById, boardMaterialById, defaultLedDesign, dotColorId, ledColorById, newLedLine, normalizeLedDesign, planPower
 } from '../lib/ledSign'
 import { computeLedDots } from '../lib/ledText'
 import { money, quote } from '../lib/pricing'
 import { usePublicSettings } from '../lib/settings'
 import { api } from '../lib/api'
 import { photoUrl } from '../lib/image'
+import { downloadMockup } from '../lib/mockup'
 import { ReviewsSection, Stars } from '../components/Reviews'
 
 const DRAFT_KEY = 'letreros_led_draft'
+const VARIANTS_KEY = 'ap_variants'
+const MAX_VARIANTS = 4
+const readVariants = () => {
+  try {
+    const list = JSON.parse(localStorage.getItem(VARIANTS_KEY) || '[]')
+    return Array.isArray(list) ? list.map((v) => ({ ...v, design: normalizeLedDesign(v.design) })) : []
+  } catch {
+    return []
+  }
+}
 const SCENE_KEY = 'ap_scene'
 
 function loadScene() {
@@ -37,7 +48,7 @@ function loadScene() {
 
 // Tamaños por ancho final: el cliente piensa en el letrero completo, no en milímetros de letra
 const DARK_BOARDS = ['negro', 'humo', 'azulnoche', 'madera', 'gris']
-const DARK_FINISHES = ['nogal', 'roble']
+const DARK_FINISHES = ['nogal', 'roble', 'pizarra', 'carbono']
 
 const SIZES = [
   { id: 's', name: 'Chico', widthCm: 40 },
@@ -92,6 +103,17 @@ export default function LedEditor() {
   const [copied, setCopied] = useState(false)
   const [view3d, setView3d] = useState(true)
   const [scenesOpen, setScenesOpen] = useState(false)
+  const [variants, setVariants] = useState(readVariants)
+  const [saving, setSaving] = useState('')
+  const wallRef = useRef(null)
+  const storeVariants = (list) => {
+    setVariants(list)
+    try {
+      localStorage.setItem(VARIANTS_KEY, JSON.stringify(list))
+    } catch {
+      /* sin almacenamiento */
+    }
+  }
   // Foto del local del cliente (solo en su navegador, no se sube)
   const [photo, setPhoto] = useState('')
   const [place, setPlace] = useState({ x: 0, y: 0, scale: 0.6 })
@@ -166,6 +188,35 @@ export default function LedEditor() {
     } catch {}
   }, [design])
 
+  // Variantes: guarda hasta 4 versiones para compararlas lado a lado
+  const saveVariant = () => {
+    const v = { id: Date.now().toString(36), design, at: new Date().toISOString() }
+    storeVariants([v, ...variants].slice(0, MAX_VARIANTS))
+  }
+  const downloadImage = async () => {
+    const wall = wallRef.current
+    const svg = wall?.querySelector('.face svg') || wall?.querySelector('.wall-sign svg')
+    if (!svg) return
+    setSaving('Generando…')
+    try {
+      const style = photo ? {} : wallStyle(scene)
+      await downloadMockup({
+        wall,
+        signSvg: svg,
+        night,
+        glow: ledColorById(design.dots[0] ? dotColorId(design, design.dots[0]) : design.lines[0].color).hex,
+        photo,
+        background: { color: SCENES.find((x) => x.id === scene)?.hex, image: style.backgroundImage, size: style.backgroundSize },
+        caption: `${business.name} · ${design.widthCm}×${design.heightCm} cm · ${money(q.total)}`,
+        filename: `letrero-${(design.lines[0]?.text || 'ap').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`
+      })
+      setSaving('')
+    } catch (e) {
+      setSaving(e.message)
+      setTimeout(() => setSaving(''), 2500)
+    }
+  }
+
   const setScene = (id) => {
     setSceneState(id)
     try {
@@ -187,6 +238,7 @@ export default function LedEditor() {
       <div className="studio">
         <section className="studio-stage">
           <div
+            ref={wallRef}
             className={`wall ${night ? 'night' : ''} ${photo ? 'photo' : ''} ${!photo && SCENES.find((x) => x.id === scene)?.tex ? 'tex' : ''}`}
             data-scene={photo ? undefined : scene}
             style={photo ? { backgroundImage: `url(${photo})` } : wallStyle(scene)}
@@ -252,9 +304,21 @@ export default function LedEditor() {
             <div><strong>{plan.watts} W</strong><span>consumo</span></div>
             <div><strong>{business.deliveryDays} días</strong><span>entrega</span></div>
             <div className="stat-action">
-              <button className="btn ghost sm" onClick={share}>{copied ? '¡Enlace copiado!' : 'Compartir diseño'}</button>
+              <button className="btn ghost sm" onClick={downloadImage} disabled={busy || Boolean(saving)} title="Imagen de tu letrero en la pared o en tu local">{saving || 'Descargar imagen'}</button>
+              <button className="btn ghost sm" onClick={saveVariant} disabled={busy} title="Guarda esta versión para compararla">＋ Variante</button>
+              <button className="btn ghost sm" onClick={share}>{copied ? '¡Enlace copiado!' : 'Compartir'}</button>
             </div>
           </div>
+
+          {variants.length > 0 && (
+            <Variants
+              variants={variants}
+              prices={prices}
+              current={design}
+              onLoad={(v) => setDesign(normalizeLedDesign(v.design))}
+              onRemove={(id) => storeVariants(variants.filter((x) => x.id !== id))}
+            />
+          )}
 
           <TrustBar business={business} total={q.total} />
 
@@ -545,10 +609,10 @@ function MadeByAp({ onPick }) {
                 <>
                   <img className="made-photo" src={photoUrl(it.photos[0])} alt="Letrero terminado" loading="lazy" />
                   <span className="real-tag">Foto real{it.photos.length > 1 ? ` · ${it.photos.length}` : ''}</span>
-                  <span className="design-pip"><LedPreview design={it.design} night /></span>
+                  <span className="design-pip"><LedPreview design={it.design} night relief={false} /></span>
                 </>
               ) : (
-                <LedPreview design={it.design} night />
+                <LedPreview design={it.design} night relief={false} />
               )}
             </div>
             {it.review && (
@@ -589,6 +653,33 @@ function ColorMix({ value, onChange }) {
       </div>
       {value.mix !== 'arcoiris' && palette('color')}
       {value.mix === 'alternado' && palette('color2')}
+    </div>
+  )
+}
+
+// Versiones guardadas: el cliente compara medida, LED y precio y elige una
+function Variants({ variants, prices, current, onLoad, onRemove }) {
+  const rows = variants.map((v) => ({ ...v, price: quote({ ...v.design, quantity: 1 }, prices).total }))
+  const cheapest = Math.min(...rows.map((r) => r.price))
+  const same = (d) => JSON.stringify({ ...d, dots: 0 }) === JSON.stringify({ ...current, dots: 0 })
+  return (
+    <div className="variants">
+      <span className="label">Tus variantes</span>
+      <div className="variants-row">
+        {rows.map((v, i) => (
+          <article key={v.id} className={`variant ${same(v.design) ? 'active' : ''}`}>
+            <button className="variant-main" onClick={() => onLoad(v)} title="Cargar esta variante">
+              <span className="variant-thumb"><LedPreview design={v.design} night relief={false} /></span>
+              <span className="variant-info">
+                <strong>{String.fromCharCode(65 + i)} · {money(v.price)}</strong>
+                <em>{v.design.widthCm}×{v.design.heightCm} cm · {v.design.dots.length} LED</em>
+                {v.price === cheapest && rows.length > 1 && <b>Más económica</b>}
+              </span>
+            </button>
+            <button className="variant-x" onClick={() => onRemove(v.id)} aria-label="Quitar variante">✕</button>
+          </article>
+        ))}
+      </div>
     </div>
   )
 }
