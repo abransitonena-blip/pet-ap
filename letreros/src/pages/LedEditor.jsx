@@ -8,8 +8,10 @@ import { DotIcon, MountIcon, ShapeIcon } from '../components/LedIcons'
 import { LED_MODELS } from '../lib/ledModels'
 import { readSharedDesign, shareUrl } from '../lib/share'
 import FontSelect from '../components/FontSelect'
+import { FinishSwatch } from '../components/Finish'
+import { wallStyle } from '../lib/walls'
 import {
-  ANIMATIONS, BOARDS, BOARD_MATERIALS, MOUNTS, SCENES, SHAPES, DOT_STYLES, LED_COLORS, LED_SIZES, MAX_DOTS, POWER,
+  ANIMATIONS, BOARDS, BOARD_MATERIALS, COLOR_MIXES, FINISHES, MOUNTS, SCENES, SHAPES, DOT_STYLES, LED_COLORS, LED_SIZES, MAX_DOTS, POWER,
   boardById, boardMaterialById, defaultLedDesign, ledColorById, newLedLine, normalizeLedDesign, planPower
 } from '../lib/ledSign'
 import { computeLedDots } from '../lib/ledText'
@@ -31,6 +33,7 @@ function loadScene() {
 
 // Tamaños por ancho final: el cliente piensa en el letrero completo, no en milímetros de letra
 const DARK_BOARDS = ['negro', 'humo', 'azulnoche', 'madera', 'gris']
+const DARK_FINISHES = ['nogal', 'roble']
 
 const SIZES = [
   { id: 's', name: 'Chico', widthCm: 40 },
@@ -52,7 +55,11 @@ function loadDraft() {
 // Recalcula los puntos cuando cambia algo que afecta la forma (con pausa para no trabar al escribir)
 function useLedDots(design, setDesign) {
   const [busy, setBusy] = useState(false)
-  const shapeKey = JSON.stringify([design.lines, design.style, design.pitchMm, design.ledMm, design.marginMm, design.shape])
+  const shapeKey = JSON.stringify([
+    design.lines.map((l) => [l.text, l.font, l.heightMm, l.bold, l.icon, l.iconPos]),
+    design.style, design.pitchMm, design.ledMm, design.marginMm, design.shape, design.cornerMm,
+    design.frame.on, design.frame.double
+  ])
   const run = useRef(0)
   useEffect(() => {
     const id = ++run.current
@@ -80,6 +87,7 @@ export default function LedEditor() {
   const [picker, setPicker] = useState(-1)
   const [copied, setCopied] = useState(false)
   const [view3d, setView3d] = useState(true)
+  const [scenesOpen, setScenesOpen] = useState(false)
   // Foto del local del cliente (solo en su navegador, no se sube)
   const [photo, setPhoto] = useState('')
   const [place, setPlace] = useState({ x: 0, y: 0, scale: 0.6 })
@@ -175,9 +183,9 @@ export default function LedEditor() {
       <div className="studio">
         <section className="studio-stage">
           <div
-            className={`wall ${night ? 'night' : ''} ${photo ? 'photo' : ''}`}
+            className={`wall ${night ? 'night' : ''} ${photo ? 'photo' : ''} ${!photo && SCENES.find((x) => x.id === scene)?.tex ? 'tex' : ''}`}
             data-scene={photo ? undefined : scene}
-            style={photo ? { backgroundImage: `url(${photo})` } : { '--scene': SCENES.find((x) => x.id === scene)?.hex }}
+            style={photo ? { backgroundImage: `url(${photo})` } : wallStyle(scene)}
           >
             <div className="wall-tools">
               <label className={`tool-btn ${photo ? 'on' : ''}`} title="Sube una foto de tu local y coloca el letrero">
@@ -186,11 +194,23 @@ export default function LedEditor() {
               </label>
               {photo && <button className="tool-btn" onClick={() => { URL.revokeObjectURL(photo); setPhoto('') }}>Quitar foto</button>}
               {!photo && <button className={`tool-btn ${view3d ? 'on' : ''}`} onClick={() => setView3d((v) => !v)}>3D</button>}
-              {!photo && <div className="scenes" title="Fondo de la pared">
-                {SCENES.map((x) => (
-                  <button key={x.id} className={scene === x.id ? 'active' : ''} style={{ background: x.hex }} onClick={() => setScene(x.id)} title={x.name} />
-                ))}
-              </div>}
+              {!photo && (
+                <div className="scene-menu">
+                  <button className={`tool-btn ${scenesOpen ? 'on' : ''}`} onClick={() => setScenesOpen((v) => !v)}>
+                    <i className="scene-dot" style={wallStyle(scene)} /> Fondo
+                  </button>
+                  {scenesOpen && (
+                    <div className="scene-pop">
+                      {SCENES.map((x) => (
+                        <button key={x.id} className={scene === x.id ? 'active' : ''} onClick={() => { setScene(x.id); setScenesOpen(false) }}>
+                          <i style={{ background: x.hex, ...wallStyle(x.id), backgroundSize: x.tex ? '160%' : undefined }} />
+                          <span>{x.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="switch">
                 <button className={!night ? 'active' : ''} onClick={() => setNight(false)}>☀ Apagado</button>
                 <button className={night ? 'active' : ''} onClick={() => setNight(true)}>☾ Encendido</button>
@@ -208,7 +228,8 @@ export default function LedEditor() {
               className="wall-sign"
               style={{
                 aspectRatio: `${box.w} / ${box.h}`,
-                width: `min(100%, ${((box.w / box.h) * 50).toFixed(2)}vh)`,
+                // Cabe en la pared a lo ancho y a lo alto (100cqh = alto disponible de la pared)
+                width: `min(100%, calc(${(box.w / box.h).toFixed(3)} * (100cqh - 150px)))`,
                 ...(photo ? { transform: `translate(${place.x}px, ${place.y}px) scale(${place.scale})` } : {})
               }}
               onPointerDown={startDrag}
@@ -240,8 +261,8 @@ export default function LedEditor() {
                 return (
                   <button
                     key={t.name}
-                    className={`style-card text ${DARK_BOARDS.includes(t.d.board) ? 'dark' : ''}`}
-                    style={{ background: boardById(t.d.board || 'blanco').hex }}
+                    className={`style-card text ${DARK_BOARDS.includes(t.d.board) || DARK_FINISHES.includes(t.d.finish) ? 'dark' : ''}`}
+                    style={{ background: FINISHES.find((f) => f.id === t.d.finish)?.base || boardById(t.d.board || 'blanco').hex }}
                     onClick={() => setDesign(normalizeLedDesign({ ...defaultLedDesign(), ...t.d, dots: [] }))}
                   >
                     <span className="model-line" style={{ color }}>
@@ -254,7 +275,6 @@ export default function LedEditor() {
               })}
             </div>
           </div>
-          <MadeByAp onPick={(d) => { setDesign(normalizeLedDesign(d)); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
         </section>
 
         <aside className="studio-panel">
@@ -284,14 +304,7 @@ export default function LedEditor() {
                 {picker === i && (
                   <IconPicker value={line.icon} onChange={(icon) => { setLine(i, { icon }); setPicker(-1) }} onClose={() => setPicker(-1)} />
                 )}
-                <div className="led-colors">
-                  {LED_COLORS.map((c) => (
-                    <button key={c.id} className={line.color === c.id ? 'active' : ''} onClick={() => setLine(i, { color: c.id })} title={c.name}>
-                      <span className="led" style={{ '--led': c.hex }} />
-                    </button>
-                  ))}
-                  <span className="muted small">{ledColorById(line.color).name}</span>
-                </div>
+                <ColorMix value={line} onChange={(patch) => setLine(i, patch)} />
                 <label className="range">
                   <span>Altura</span>
                   <input type="range" min="30" max="400" step="5" value={line.heightMm} onChange={(e) => setLine(i, { heightMm: +e.target.value })} />
@@ -327,14 +340,25 @@ export default function LedEditor() {
                 </button>
               ))}
             </div>
-            <div className="board-colors">
+            <span className="sub-label">Acabado</span>
+            <div className="finishes">
+              {FINISHES.map((f) => (
+                <button key={f.id} className={design.finish === f.id ? 'active' : ''} onClick={() => update({ finish: f.id })} title={f.group ? `${f.group} · ${f.name}` : 'Color liso'}>
+                  <FinishSwatch finish={f.id} fallback={boardById(design.board).hex} />
+                  <span>{f.name}</span>
+                  {prices.led.finishes?.[f.id] > 0 && <em>+{money(prices.led.finishes[f.id])}/m²</em>}
+                </button>
+              ))}
+            </div>
+            {design.finish === 'liso' && <span className="sub-label">Color</span>}
+            {design.finish === 'liso' && <div className="board-colors">
               {BOARDS.map((b) => (
                 <button key={b.id} className={design.board === b.id ? 'active' : ''} onClick={() => update({ board: b.id })}>
                   <i style={{ background: b.hex, opacity: b.id === 'transparente' ? 0.5 : 1 }} />
                   <span>{b.name}</span>
                 </button>
               ))}
-            </div>
+            </div>}
             <div className="chips">
               {BOARD_MATERIALS.map((m) => (
                 <button key={m.id} className={design.material === m.id ? 'active' : ''} onClick={() => update({ material: m.id })}>{m.name}</button>
@@ -351,7 +375,22 @@ export default function LedEditor() {
             </div>
           </Section>
 
-          <Section n="04" title="Efecto de luz">
+          <Section n="04" title="Luz y efectos" hint="Combina LED, marco y animación">
+            <div className="frame-box">
+              <label className="check-row">
+                <input type="checkbox" checked={design.frame.on} onChange={(e) => update({ frame: { ...design.frame, on: e.target.checked } })} />
+                <span><strong>Marco LED</strong> · una línea de luz siguiendo la forma de la placa</span>
+              </label>
+              {design.frame.on && (
+                <>
+                  <ColorMix value={design.frame} onChange={(patch) => update({ frame: { ...design.frame, ...patch } })} />
+                  <div className="switch small">
+                    <button className={!design.frame.double ? 'active' : ''} onClick={() => update({ frame: { ...design.frame, double: false } })}>Sencillo</button>
+                    <button className={design.frame.double ? 'active' : ''} onClick={() => update({ frame: { ...design.frame, double: true } })}>Doble</button>
+                  </div>
+                </>
+              )}
+            </div>
             <div className="switch full">
               {ANIMATIONS.map((a) => (
                 <button key={a.id} className={design.animation === a.id ? 'active' : ''} onClick={() => { update({ animation: a.id }); setNight(true) }}>{a.name}</button>
@@ -445,6 +484,8 @@ export default function LedEditor() {
         </aside>
       </div>
 
+      <MadeByAp onPick={(d) => { setDesign(normalizeLedDesign(d)); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
+
       {ordering && (
         <OrderModal
           design={design}
@@ -497,5 +538,33 @@ function MadeByAp({ onPick }) {
         ))}
       </div>
     </section>
+  )
+}
+
+// Colores de LED de una línea o del marco: uno, dos alternados o arcoíris
+function ColorMix({ value, onChange }) {
+  const palette = (key) => (
+    <div className="led-colors">
+      {LED_COLORS.map((c) => (
+        <button key={c.id} className={value[key] === c.id ? 'active' : ''} onClick={() => onChange({ [key]: c.id })} title={c.name}>
+          <span className="led" style={{ '--led': c.hex }} />
+        </button>
+      ))}
+      <span className="muted small">{ledColorById(value[key]).name}</span>
+    </div>
+  )
+  return (
+    <div className="color-mix">
+      <div className="switch small mix-switch">
+        {COLOR_MIXES.map((m) => (
+          <button key={m.id} className={value.mix === m.id ? 'active' : ''} onClick={() => onChange({ mix: m.id })}>
+            {m.id === 'arcoiris' && <span className="rainbow-dot" />}
+            {m.name}
+          </button>
+        ))}
+      </div>
+      {value.mix !== 'arcoiris' && palette('color')}
+      {value.mix === 'alternado' && palette('color2')}
+    </div>
   )
 }

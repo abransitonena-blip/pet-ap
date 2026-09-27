@@ -7,7 +7,7 @@
 // El orden de los puntos sigue el recorrido de la letra: es el orden de cableado en serie.
 import { fontsCssReady } from './fonts'
 import { iconById } from './icons'
-import { archRadius } from './ledSign'
+import { FRAME_LINE, archRadius, boardOutline } from './ledSign'
 
 // ---------- Fuente 5 × 7 ----------
 const M = {
@@ -320,6 +320,56 @@ async function lineWithIcon(line, design) {
   return [...ic.map(([x, y]) => [x + x0, y + iy, 0]), ...dots.map(([x, y, l]) => [x, y, l + 1])]
 }
 
+// Marco LED: distancia del borde (deja libres los separadores de pared) y separación entre anillos
+export const FRAME_INSET = 28
+const frameGap = (design) => Math.max(design.pitchMm, 10)
+export const frameReserve = (design) => (design.frame?.on ? FRAME_INSET + (design.frame.double ? frameGap(design) : 0) : 0)
+
+// Puntos repartidos a paso parejo sobre un polígono cerrado
+function resample(points, pitch) {
+  const segs = points.map((p, i) => {
+    const q = points[(i + 1) % points.length]
+    return { p, q, len: Math.hypot(q[0] - p[0], q[1] - p[1]) }
+  })
+  const total = segs.reduce((a, s) => a + s.len, 0)
+  const n = Math.max(3, Math.round(total / pitch))
+  const step = total / n
+  const out = []
+  let seg = 0
+  let acc = 0
+  for (let k = 0; k < n; k++) {
+    const t = k * step
+    while (seg < segs.length - 1 && acc + segs[seg].len < t) acc += segs[seg++].len
+    const s = segs[seg]
+    const f = s.len ? (t - acc) / s.len : 0
+    out.push([s.p[0] + (s.q[0] - s.p[0]) * f, s.p[1] + (s.q[1] - s.p[1]) * f])
+  }
+  return out
+}
+
+// Anillo(s) de LED siguiendo la forma de la placa, hacia adentro
+export function frameDots(design, widthCm, heightCm) {
+  if (!design.frame?.on) return []
+  const W = widthCm * 10
+  const H = heightCm * 10
+  const rings = design.frame.double ? [FRAME_INSET, FRAME_INSET + frameGap(design)] : [FRAME_INSET]
+  const pitch = Math.max(design.pitchMm, 8)
+  const out = []
+  let k = 0
+  for (const inset of rings) {
+    if (W - 2 * inset < 20 || H - 2 * inset < 20) continue
+    const inner = boardOutline({
+      widthCm: (W - 2 * inset) / 10,
+      heightCm: (H - 2 * inset) / 10,
+      shape: design.shape,
+      cornerMm: Math.max(0, (design.cornerMm || 0) - inset / 2)
+    })
+    // k % 6: alterna 2 colores, recorre el arcoíris y, en secuencial, corre en 3 canales
+    for (const [x, y] of resample(inner.points, pitch)) out.push([r1(x + inset), r1(y + inset), FRAME_LINE, k++ % 6])
+  }
+  return out
+}
+
 // Calcula todos los puntos del letrero y el tamaño de la placa según su forma
 export async function computeLedDots(design) {
   const laid = []
@@ -341,7 +391,7 @@ export async function computeLedDots(design) {
   const contentW = Math.max(...laid.map((l) => l.maxX - l.minX)) + led
   const gaps = laid.slice(1).reduce((a, l) => a + Math.max(design.pitchMm, l.height * 0.3), 0)
   const contentH = laid.reduce((a, l) => a + (l.maxY - l.minY) + led, 0) + gaps
-  const m = design.marginMm
+  const m = design.marginMm + frameReserve(design)
 
   // Tamaño de placa según la forma (el contenido debe quedar dentro del contorno)
   let W = contentW + 2 * m
@@ -373,5 +423,6 @@ export async function computeLedDots(design) {
     for (const [x, yy, letter] of l.dots) out.push([r1(x + x0), r1(yy + y0), l.li, l.letterBase + letter])
     y += l.maxY - l.minY + led
   }
+  out.push(...frameDots(design, widthCm, heightCm))
   return { dots: out, widthCm, heightCm }
 }

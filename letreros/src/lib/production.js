@@ -4,7 +4,7 @@
 //  - G-code GRBL (Arduino) para cortadora/grabadora láser casera
 //  - CSV con las coordenadas de los puntos
 import { holeMm, ledPointsMm, signGeometryMm } from './ledPoints.js'
-import { boardOutline, mountHoles, planPower } from './ledSign.js'
+import { FRAME_LINE, boardOutline, dotColorId, mountHoles, planPower } from './ledSign.js'
 
 export const PAPERS = [
   { id: 'carta', name: 'Carta', w: 215.9, h: 279.4 },
@@ -265,9 +265,10 @@ export function pointsCsv(design) {
   const g = signGeometryMm(design)
   if (design.kind === 'led') {
     const plan = planPower(design)
-    const rows = design.dots.map(([x, y, line], i) => {
+    const rows = design.dots.map((p, i) => {
+      const [x, y, line] = p
       const s = plan.strings[plan.dotString[i] - 1]
-      return `${i + 1},${f(x)},${f(g.h - y)},${f(y)},${line + 1},${design.lines[line]?.color || ''},S${s?.id ?? ''},${s?.output ?? ''}`
+      return `${i + 1},${f(x)},${f(g.h - y)},${f(y)},${line === FRAME_LINE ? 'marco' : line + 1},${dotColorId(design, p)},S${s?.id ?? ''},${s?.output ?? ''}`
     })
     return ['punto,x_mm,y_mm_desde_abajo,y_mm_desde_arriba,linea,color,cadena,salida', ...rows].join('\n') + '\n'
   }

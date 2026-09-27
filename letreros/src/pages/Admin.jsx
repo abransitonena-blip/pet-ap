@@ -6,7 +6,7 @@ import { Business, Clients, Prices, QuoteEditor, QuotePill, Quotes, Team } from 
 import StatusPill from '../components/StatusPill'
 import TechDiagram from '../components/TechDiagram'
 import LedDiagram from '../components/LedDiagram'
-import { ANIMATIONS, DOT_STYLES, POWER, boardMaterialById, ledColorById, planPower } from '../lib/ledSign'
+import { ANIMATIONS, DOT_STYLES, FRAME_LINE, POWER, boardMaterialById, finishById, ledColorById, planPower } from '../lib/ledSign'
 import { api, getToken, setToken } from '../lib/api'
 import { LED_MODES } from '../lib/design'
 import { materialById, extraById, ledSpec, money } from '../lib/pricing'
@@ -906,6 +906,8 @@ function LedSpecs({ order }) {
       <section className="spec-grid">
         <div><span>Placa</span><strong>{d.widthCm} × {d.heightCm} cm</strong></div>
         <div><span>Material</span><strong>{boardMaterialById(d.material).name}</strong></div>
+        <div><span>Acabado</span><strong>{finishById(d.finish).id === 'liso' ? 'Color liso' : `Vinil ${finishById(d.finish).name.toLowerCase()}`}</strong></div>
+        <div><span>Marco LED</span><strong>{d.frame?.on ? `${d.frame.double ? 'Doble' : 'Sencillo'} · ${d.dots.filter((p) => p[2] === FRAME_LINE).length} LED` : 'No'}</strong></div>
         <div><span>LED</span><strong>{d.dots.length} de {d.ledMm} mm</strong></div>
         <div><span>Cantidad</span><strong>{order.quote.quantity}</strong></div>
         <div><span>Puntos</span><strong>{DOT_STYLES.find((x) => x.id === d.style)?.name} · cada {d.pitchMm} mm</strong></div>
@@ -916,7 +918,11 @@ function LedSpecs({ order }) {
           <span>Textos</span>
           <strong>
             {d.lines.map((l, i) => (
-              <span key={i} className="hex"><i style={{ background: ledColorById(l.color).hex }} />“{l.text}” {l.font} {l.heightMm / 10} cm</span>
+              <span key={i} className="hex">
+                <i style={{ background: l.mix === 'arcoiris' ? 'conic-gradient(#ff3b30,#ffe14a,#2dff7a,#3d8bff,#a95cff,#ff3b30)' : ledColorById(l.color).hex }} />
+                {l.mix === 'alternado' && <i style={{ background: ledColorById(l.color2).hex }} />}
+                “{l.text}” {l.font} {l.heightMm / 10} cm
+              </span>
             ))}
           </strong>
         </div>

@@ -2,19 +2,22 @@
 // https://lucide.dev) más algunos propios (taco, figuras de baño). Todos en 24 × 24:
 // el trazo de cada ícono es justo donde van los LED.
 import {
-  Accessibility, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, Baby, Bed,
-  Beer, Bird, Bone, CakeSlice, Camera, Candy, Car, Cat,
-  Check, ChefHat, Cherry, Clock, Coffee, Croissant, Crown, CupSoda,
-  Diamond, Dog, Donut, DoorOpen, Drumstick, Dumbbell, Fish, Flame,
-  Flower2, Gem, Gift, Hamburger, Heart, House, IceCreamCone, Key,
-  Leaf, Lightbulb, Martini, Moon, Music, Palette, PartyPopper, PawPrint,
-  Phone, Pill, Pizza, Popcorn, Printer, Rabbit, Sandwich, Scissors,
-  Shirt, ShoppingBag, ShoppingCart, Smartphone, Smile, Soup, Sparkles, SquareParking,
-  Star, Stethoscope, Store, Sun, Toilet, TrafficCone, UtensilsCrossed, Wifi,
-  Wine, Wrench, Zap
+  Accessibility, Anchor, Apple, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, Baby, Ban,
+  Banknote, Bed, Beef, Beer, Bell, Bike, Bird, Bone, BookOpen, Cake, CakeSlice, Camera, Candy, Car,
+  Cat, Check, ChefHat, Cherry, Church, Cigarette, CigaretteOff, CircleAlert, Citrus, Clapperboard,
+  Clock, Coffee, Cookie, CreditCard, Croissant, Crown, CupSoda, Diamond, Dices, Dog, Donut,
+  DoorOpen, Drama, Drumstick, Dumbbell, EggFried, Feather, Fish, Flame, Flower2, Fuel, Gamepad2,
+  Gem, Gift, GlassWater, Glasses, GraduationCap, Guitar, Hamburger, Hammer, Hand, Headphones,
+  Heart, Hospital, House, IceCreamCone, Info, Key, Lamp, Laptop, Leaf, Lightbulb, Lock, Mail,
+  MapPin, Martini, Medal, MessageCircle, Mic, Milk, Moon, Mountain, Music, Paintbrush, Palette,
+  PartyPopper, PawPrint, Percent, Phone, Pill, Pizza, Plane, Plug, Popcorn, Printer, Rabbit,
+  Rainbow, Recycle, Rocket, Salad, Sandwich, Scissors, Shield, Shirt, ShoppingBag, ShoppingCart,
+  ShowerHead, Shrimp, Smartphone, Smile, Snowflake, Sofa, Soup, Sparkles, Sprout, SquareParking,
+  Squirrel, Star, Stethoscope, Store, Sun, Tag, ThumbsUp, Ticket, Toilet, TrafficCone, TreePalm,
+  Trophy, Truck, Turtle, Umbrella, UtensilsCrossed, Vegan, Watch, Wheat, Wifi, Wine, Wrench, Zap
 } from 'lucide-static'
 
-const L = { Accessibility, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, Baby, Bed, Beer, Bird, Bone, CakeSlice, Camera, Candy, Car, Cat, Check, ChefHat, Cherry, Clock, Coffee, Croissant, Crown, CupSoda, Diamond, Dog, Donut, DoorOpen, Drumstick, Dumbbell, Fish, Flame, Flower2, Gem, Gift, Hamburger, Heart, House, IceCreamCone, Key, Leaf, Lightbulb, Martini, Moon, Music, Palette, PartyPopper, PawPrint, Phone, Pill, Pizza, Popcorn, Printer, Rabbit, Sandwich, Scissors, Shirt, ShoppingBag, ShoppingCart, Smartphone, Smile, Soup, Sparkles, SquareParking, Star, Stethoscope, Store, Sun, Toilet, TrafficCone, UtensilsCrossed, Wifi, Wine, Wrench, Zap }
+const L = { Accessibility, Anchor, Apple, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, Baby, Ban, Banknote, Bed, Beef, Beer, Bell, Bike, Bird, Bone, BookOpen, Cake, CakeSlice, Camera, Candy, Car, Cat, Check, ChefHat, Cherry, Church, Cigarette, CigaretteOff, CircleAlert, Citrus, Clapperboard, Clock, Coffee, Cookie, CreditCard, Croissant, Crown, CupSoda, Diamond, Dices, Dog, Donut, DoorOpen, Drama, Drumstick, Dumbbell, EggFried, Feather, Fish, Flame, Flower2, Fuel, Gamepad2, Gem, Gift, GlassWater, Glasses, GraduationCap, Guitar, Hamburger, Hammer, Hand, Headphones, Heart, Hospital, House, IceCreamCone, Info, Key, Lamp, Laptop, Leaf, Lightbulb, Lock, Mail, MapPin, Martini, Medal, MessageCircle, Mic, Milk, Moon, Mountain, Music, Paintbrush, Palette, PartyPopper, PawPrint, Percent, Phone, Pill, Pizza, Plane, Plug, Popcorn, Printer, Rabbit, Rainbow, Recycle, Rocket, Salad, Sandwich, Scissors, Shield, Shirt, ShoppingBag, ShoppingCart, ShowerHead, Shrimp, Smartphone, Smile, Snowflake, Sofa, Soup, Sparkles, Sprout, SquareParking, Squirrel, Star, Stethoscope, Store, Sun, Tag, ThumbsUp, Ticket, Toilet, TrafficCone, TreePalm, Trophy, Truck, Turtle, Umbrella, UtensilsCrossed, Vegan, Watch, Wheat, Wifi, Wine, Wrench, Zap }
 
 const inner = (svg) => svg.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '').trim()
 
@@ -51,11 +54,13 @@ export const ICONS = [
     ['coctel', 'Coctel', 'Martini'], ['helado', 'Helado', 'IceCreamCone'], ['pastel', 'Pastel', 'CakeSlice'],
     ['dona', 'Dona', 'Donut'], ['pan', 'Pan', 'Croissant'], ['restaurante', 'Restaurante', 'UtensilsCrossed'],
     ['chef', 'Chef', 'ChefHat'], ['sopa', 'Sopa', 'Soup'], ['pollo', 'Pollo', 'Drumstick'],
-    ['palomitas', 'Palomitas', 'Popcorn'], ['cereza', 'Cereza', 'Cherry'], ['dulce', 'Dulce', 'Candy']
+    ['palomitas', 'Palomitas', 'Popcorn'], ['cereza', 'Cereza', 'Cherry'], ['dulce', 'Dulce', 'Candy'],
+    ['pastelentero', 'Pastel', 'Cake'], ['galleta', 'Galleta', 'Cookie'], ['huevo', 'Desayunos', 'EggFried'], ['ensalada', 'Ensalada', 'Salad'], ['carne', 'Carnes', 'Beef'], ['camaron', 'Mariscos', 'Shrimp'], ['leche', 'Lácteos', 'Milk'], ['agua', 'Agua', 'GlassWater'], ['manzana', 'Fruta', 'Apple'], ['citrico', 'Jugos', 'Citrus'], ['trigo', 'Panadería', 'Wheat'], ['vegano', 'Vegano', 'Vegan']
   ]),
   ...pick('Mascotas', [
     ['perro', 'Perro', 'Dog'], ['gato', 'Gato', 'Cat'], ['huella', 'Huella', 'PawPrint'],
-    ['hueso', 'Hueso', 'Bone'], ['conejo', 'Conejo', 'Rabbit'], ['ave', 'Ave', 'Bird'], ['pez', 'Pez', 'Fish']
+    ['hueso', 'Hueso', 'Bone'], ['conejo', 'Conejo', 'Rabbit'], ['ave', 'Ave', 'Bird'], ['pez', 'Pez', 'Fish'],
+    ['tortuga', 'Tortuga', 'Turtle'], ['ardilla', 'Ardilla', 'Squirrel']
   ]),
   ...pick('Negocios', [
     ['tijeras', 'Barbería', 'Scissors'], ['auto', 'Auto', 'Car'], ['taller', 'Taller', 'Wrench'],
@@ -64,7 +69,8 @@ export const ICONS = [
     ['bolsa', 'Boutique', 'ShoppingBag'], ['farmacia', 'Farmacia', 'Pill'], ['gym', 'Gym', 'Dumbbell'],
     ['flor', 'Florería', 'Flower2'], ['ropa', 'Ropa', 'Shirt'], ['joya', 'Joyería', 'Gem'],
     ['foto', 'Foto', 'Camera'], ['arte', 'Arte', 'Palette'], ['hotel', 'Hotel', 'Bed'],
-    ['consultorio', 'Consultorio', 'Stethoscope'], ['imprenta', 'Imprenta', 'Printer'], ['llave', 'Cerrajería', 'Key']
+    ['consultorio', 'Consultorio', 'Stethoscope'], ['imprenta', 'Imprenta', 'Printer'], ['llave', 'Cerrajería', 'Key'],
+    ['bici', 'Bicicletas', 'Bike'], ['libro', 'Librería', 'BookOpen'], ['escuela', 'Escuela', 'GraduationCap'], ['viajes', 'Viajes', 'Plane'], ['optica', 'Óptica', 'Glasses'], ['guitarra', 'Música en vivo', 'Guitar'], ['audifonos', 'Audio', 'Headphones'], ['laptop', 'Computación', 'Laptop'], ['karaoke', 'Karaoke', 'Mic'], ['mudanza', 'Fletes', 'Truck'], ['gasolina', 'Gasolina', 'Fuel'], ['ferreteria', 'Ferretería', 'Hammer'], ['pintura', 'Pintura', 'Paintbrush'], ['jardin', 'Jardinería', 'Sprout'], ['hospital', 'Hospital', 'Hospital'], ['iglesia', 'Iglesia', 'Church'], ['reloj', 'Relojería', 'Watch'], ['cine', 'Cine', 'Clapperboard'], ['videojuegos', 'Videojuegos', 'Gamepad2'], ['dados', 'Juegos', 'Dices'], ['muebles', 'Mueblería', 'Sofa'], ['lampara', 'Iluminación', 'Lamp'], ['electrico', 'Electricista', 'Plug'], ['seguridad', 'Seguridad', 'Shield'], ['boletos', 'Boletos', 'Ticket'], ['teatro', 'Teatro', 'Drama']
   ]),
   ...pick('Señalética', [
     ['hombre', 'Hombres', 'hombre'], ['mujer', 'Mujeres', 'mujer'], ['wc', 'WC', 'wc'],
@@ -72,14 +78,16 @@ export const ICONS = [
     ['derecha', 'Flecha →', 'ArrowRight'], ['izquierda', 'Flecha ←', 'ArrowLeft'], ['arriba', 'Flecha ↑', 'ArrowUp'],
     ['abajo', 'Flecha ↓', 'ArrowDown'], ['diagonal', 'Flecha ↗', 'ArrowUpRight'], ['salida', 'Salida', 'DoorOpen'],
     ['estacionamiento', 'Estacionamiento', 'SquareParking'], ['horario', 'Horario', 'Clock'],
-    ['ok', 'Listo', 'Check'], ['precaucion', 'Precaución', 'TrafficCone']
+    ['ok', 'Listo', 'Check'], ['precaucion', 'Precaución', 'TrafficCone'],
+    ['nofumar', 'No fumar', 'CigaretteOff'], ['fumar', 'Zona de fumar', 'Cigarette'], ['prohibido', 'Prohibido', 'Ban'], ['info', 'Información', 'Info'], ['atencion', 'Atención', 'CircleAlert'], ['tarjeta', 'Tarjeta', 'CreditCard'], ['efectivo', 'Efectivo', 'Banknote'], ['descuento', 'Descuento', 'Percent'], ['oferta', 'Oferta', 'Tag'], ['ubicacion', 'Ubicación', 'MapPin'], ['regadera', 'Regadera', 'ShowerHead'], ['timbre', 'Timbre', 'Bell'], ['candado', 'Privado', 'Lock'], ['reciclaje', 'Reciclaje', 'Recycle'], ['correo', 'Correo', 'Mail'], ['mensaje', 'Mensaje', 'MessageCircle']
   ]),
   ...pick('Decoración', [
     ['corazon', 'Corazón', 'Heart'], ['estrella', 'Estrella', 'Star'], ['brillos', 'Brillos', 'Sparkles'],
     ['rayo', 'Rayo', 'Zap'], ['fuego', 'Fuego', 'Flame'], ['luna', 'Luna', 'Moon'], ['sol', 'Sol', 'Sun'],
     ['musica', 'Música', 'Music'], ['regalo', 'Regalo', 'Gift'], ['corona', 'Corona', 'Crown'],
     ['fiesta', 'Fiesta', 'PartyPopper'], ['sonrisa', 'Sonrisa', 'Smile'], ['hoja', 'Hoja', 'Leaf'],
-    ['diamante', 'Diamante', 'Diamond'], ['foco', 'Foco', 'Lightbulb']
+    ['diamante', 'Diamante', 'Diamond'], ['foco', 'Foco', 'Lightbulb'],
+    ['arcoiris', 'Arcoíris', 'Rainbow'], ['copo', 'Copo de nieve', 'Snowflake'], ['palmera', 'Palmera', 'TreePalm'], ['montana', 'Montaña', 'Mountain'], ['cohete', 'Cohete', 'Rocket'], ['trofeo', 'Trofeo', 'Trophy'], ['medalla', 'Medalla', 'Medal'], ['pluma', 'Pluma', 'Feather'], ['like', 'Me gusta', 'ThumbsUp'], ['saludo', 'Hola', 'Hand'], ['ancla', 'Ancla', 'Anchor'], ['sombrilla', 'Sombrilla', 'Umbrella']
   ])
 ].filter((i) => i.body)
 

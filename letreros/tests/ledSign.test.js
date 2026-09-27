@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardOutline, defaultLedDesign, mountHoles, normalizeLedDesign, planPower } from '../src/lib/ledSign.js'
+import { boardOutline, defaultLedDesign, mountHoles, normalizeLedDesign, planPower, FRAME_LINE, dotColorId, ledQuoteParts } from '../src/lib/ledSign.js'
 
 const withDots = (n, color = 'rojo', extra = {}) =>
   normalizeLedDesign({
@@ -75,4 +75,26 @@ test('cada forma tiene contorno cerrado dentro de la placa y barrenos de montaje
     assert.equal(mountHoles(d).length, 2)
   }
   assert.equal(mountHoles({ ...defaultLedDesign(), mount: 'base' }).length, 0)
+})
+
+test('combinar colores: alternado, arcoíris y marco LED', () => {
+  const d = normalizeLedDesign({
+    lines: [{ text: 'AB', color: 'rojo', color2: 'azul', mix: 'alternado' }, { text: 'C', mix: 'arcoiris' }],
+    frame: { on: true, color: 'verde' },
+    dots: [[10, 10, 0, 0], [20, 10, 0, 1], [30, 10, 1, 2], [5, 5, FRAME_LINE, 3], [6, 6, 7, 0]]
+  })
+  assert.deepEqual(d.dots.map((p) => dotColorId(d, p)), ['rojo', 'azul', 'amarillo', 'verde', 'rojo'])
+  assert.equal(d.dots[3][2], FRAME_LINE, 'los puntos del marco conservan su índice')
+  const plan = planPower(d)
+  assert.equal(plan.colorCount.verde, 1)
+  assert.equal(Object.values(plan.colorCount).reduce((a, n) => a + n, 0), 5)
+})
+
+test('acabados: valida el id y suma su precio por m²', () => {
+  assert.equal(normalizeLedDesign({ finish: 'plastico' }).finish, 'liso')
+  const base = normalizeLedDesign({ widthCm: 100, heightCm: 50, dots: [[10, 10, 0, 0]] })
+  const wood = { ...base, finish: 'nogal' }
+  const part = ledQuoteParts(wood).parts.find((p) => p.label.startsWith('Acabado'))
+  assert.equal(part.amount, Math.round(0.5 * 350))
+  assert.equal(ledQuoteParts(base).parts.some((p) => p.label.startsWith('Acabado')), false)
 })

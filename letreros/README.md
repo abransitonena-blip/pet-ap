@@ -31,6 +31,17 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 - Separadores metálicos en el montaje de pared
 - **Pruébalo en tu local**: el cliente sube una foto de su fachada, arrastra el letrero y ajusta el tamaño
 
+**Acabados, fondos y combinaciones**
+- **10 acabados de placa** con textura realista a escala real: color liso, madera (pino, roble, nogal),
+  mármol, concreto, aluminio cepillado, espejo, oro y oro rosa; precio por m² editable en el panel
+- **12 fondos de pared**: rosa, blanco, arena, salvia, concreto, ladrillo, ladrillo blanco, duela de madera,
+  azulejo, mármol, terrazo y muro verde (texturas SVG, sin descargar imágenes)
+- **Combinar LED** por línea: un color, dos colores alternados por letra o arcoíris
+- **Marco LED** sencillo o doble siguiendo la forma de la placa, con su propio color / combinación;
+  en *secuencial* corre como marquesina. Se calcula en las cadenas, capacitores, diagrama y archivos
+- Efecto **Respirar** (desvanecido suave con controlador PWM)
+- **148 íconos** y modelos nuevos (Café madera, Bar, Boutique, Fiesta)
+
 **Hecho por AP (galería pública)**
 - En el panel marca un pedido con *Mostrar en “Hecho por AP”* y aparece en la página del cliente
 - Solo se publica el diseño (nunca nombre ni teléfono); el cliente toca **Lo quiero así** y lo usa de base
@@ -100,7 +111,7 @@ letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, dato
 
 ```bash
 cd letreros
-npm test        # 21 pruebas: precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
+npm test        # 23 pruebas: combinaciones de color, marco, acabados, precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
 npm run check   # pruebas + build
 ```
 

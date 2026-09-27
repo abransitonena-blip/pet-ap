@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import DesignPreview from '../components/DesignPreview'
 import { api } from '../lib/api'
 import { money, MATERIALS, EXTRAS } from '../lib/pricing'
-import { BOARD_MATERIALS, LED_COLORS, MOUNTS, SHAPES } from '../lib/ledSign'
+import { BOARD_MATERIALS, FINISHES, LED_COLORS, MOUNTS, SHAPES } from '../lib/ledSign'
 import { DEFAULT_PRICES, PERMISSIONS, ROLES, computeTotals } from '../lib/prices'
 
 const fmtDate = (iso) => new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
@@ -334,6 +334,8 @@ export function Prices({ settings, onSaved }) {
           <PriceField label="Placa B (fuente 127 V)" value={p.led.boardB} onChange={(v) => set(['led', 'boardB'], v)} />
           <PriceField label="Placa A (secuenciador)" value={p.led.boardA} onChange={(v) => set(['led', 'boardA'], v)} />
           <PriceField label="Intermitente" value={p.led.flasher} onChange={(v) => set(['led', 'flasher'], v)} />
+          <PriceField label="Efecto respirar (PWM)" value={p.led.fader} onChange={(v) => set(['led', 'fader'], v)} />
+          <PriceField label="Marco LED (trazo y armado)" value={p.led.frame} onChange={(v) => set(['led', 'frame'], v)} />
           <PriceField label="Controlador 12 V" value={p.led.controller12} onChange={(v) => set(['led', 'controller12'], v)} />
           <PriceField label="Resistencias" suffix="/cadena" value={p.led.resistor} onChange={(v) => set(['led', 'resistor'], v)} />
           {Object.keys(p.led.supply12).map((a) => (
@@ -350,6 +352,15 @@ export function Prices({ settings, onSaved }) {
           ))}
           {MOUNTS.map((x) => (
             <PriceField key={x.id} label={x.name} value={p.led.mounts[x.id]} onChange={(v) => set(['led', 'mounts', x.id], v)} />
+          ))}
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Letrero LED · acabados y texturas</h2>
+        <div className="price-grid">
+          {FINISHES.filter((f) => f.id !== 'liso').map((f) => (
+            <PriceField key={f.id} label={`${f.group} · ${f.name}`} suffix="/m²" value={p.led.finishes[f.id]} onChange={(v) => set(['led', 'finishes', f.id], v)} />
           ))}
         </div>
       </section>

@@ -1,5 +1,5 @@
 import LedPreview from './LedPreview'
-import { ANIMATIONS, BOARDS, DOT_STYLES, MOUNTS, POWER, SHAPES, boardMaterialById, boardOutline, ledColorById, mountHoles, planPower } from '../lib/ledSign'
+import { ANIMATIONS, BOARDS, DOT_STYLES, MOUNTS, POWER, SHAPES, boardMaterialById, boardOutline, finishById, ledColorById, mountHoles, planPower } from '../lib/ledSign'
 
 // Diagrama de conexión del letrero LED (A4 horizontal): recorrido de cada cadena
 // en serie, tabla de salidas (capacitor / resistencia), lista de materiales y advertencias.
@@ -38,7 +38,7 @@ export default function LedDiagram({ order }) {
       </text>
       <text x={PAGE_W - 60} y="80" fontSize="26" fontWeight="800" fill={INK} textAnchor="end">{order.folio}</text>
       <text x={PAGE_W - 60} y="108" fontSize="14" fill={MUTED} textAnchor="end">
-        Placa {d.widthCm} × {d.heightCm} cm · {SHAPES.find((x) => x.id === d.shape)?.name.toLowerCase()} · {boardMaterialById(d.material).name} {BOARDS.find((b) => b.id === d.board)?.name.toLowerCase()} · {MOUNTS.find((x) => x.id === d.mount)?.name.toLowerCase()}
+        Placa {d.widthCm} × {d.heightCm} cm · {SHAPES.find((x) => x.id === d.shape)?.name.toLowerCase()} · {boardMaterialById(d.material).name} {finishById(d.finish).id === 'liso' ? BOARDS.find((b) => b.id === d.board)?.name.toLowerCase() : `vinil ${finishById(d.finish).name.toLowerCase()}`}{d.frame?.on ? ` · marco LED ${d.frame.double ? 'doble' : 'sencillo'}` : ''} · {MOUNTS.find((x) => x.id === d.mount)?.name.toLowerCase()}
       </text>
       <line x1="30" y1="124" x2={PAGE_W - 30} y2="124" stroke={INK} strokeWidth="1.5" />
 

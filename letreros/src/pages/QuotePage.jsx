@@ -3,7 +3,7 @@ import DesignPreview from '../components/DesignPreview'
 import { Brand } from '../components/ApLogo'
 import { api } from '../lib/api'
 import { money } from '../lib/pricing'
-import { ANIMATIONS, MOUNTS, POWER, SHAPES, boardMaterialById } from '../lib/ledSign'
+import { ANIMATIONS, MOUNTS, POWER, SHAPES, boardMaterialById, finishById } from '../lib/ledSign'
 import { materialById } from '../lib/pricing'
 import { statusById } from '../lib/status'
 import { deliveryName } from '../lib/customer'
@@ -20,6 +20,8 @@ function specs(d) {
       ['Medida', `${d.widthCm} × ${d.heightCm} cm`],
       ['LED', `${d.dots.length} de ${d.ledMm} mm`],
       ['Placa', `${boardMaterialById(d.material).name} · ${SHAPES.find((s) => s.id === d.shape)?.name || ''}`],
+      ['Acabado', finishById(d.finish).id === 'liso' ? 'Color liso' : finishById(d.finish).name],
+      ...(d.frame?.on ? [['Marco LED', d.frame.double ? 'Doble' : 'Sencillo']] : []),
       ['Montaje', MOUNTS.find((m) => m.id === d.mount)?.name || '—'],
       ['Encendido', ANIMATIONS.find((a) => a.id === d.animation)?.name || '—'],
       ['Alimentación', POWER.find((p) => p.id === d.power)?.name || '—'],

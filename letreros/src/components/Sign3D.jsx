@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import LedPreview, { mix, previewBox } from './LedPreview'
-import { boardById, boardOutline, ledColorById } from '../lib/ledSign'
+import { boardBase, boardOutline, dotColorId, ledColorById } from '../lib/ledSign'
 
 const REST = { x: 3, y: -12 }
 
@@ -12,10 +12,9 @@ export default function Sign3D({ design, night, animate, enabled = true }) {
   const ref = useRef(null)
   const box = previewBox(design, true)
   const outline = boardOutline(design)
-  const board = boardById(design.board)
-  const glass = design.board === 'transparente'
-  const edge = glass ? '#e3eef2' : mix(board.hex, '#000000', 0.32)
-  const accent = ledColorById(design.lines[0]?.color).hex
+  const glass = design.board === 'transparente' && (design.finish || 'liso') === 'liso'
+  const edge = glass ? '#e3eef2' : mix(boardBase(design), '#000000', 0.32)
+  const accent = ledColorById(design.dots[0] ? dotColorId(design, design.dots[0]) : design.lines[0]?.color).hex
   // Grosor visual: acrílico delgado, PVC / MDF más gruesos (exagerado para que se aprecie)
   const layers = enabled ? (design.material === 'acrilico' ? 6 : 9) : 0
   const step = 1.3

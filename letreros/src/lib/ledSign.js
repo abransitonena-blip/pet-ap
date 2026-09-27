@@ -41,13 +41,45 @@ export const BOARDS = [
   { id: 'madera', name: 'Madera', hex: '#7a5134' }
 ]
 
-// Pared de la vista previa (solo visual)
+// Acabado / textura de la placa (vinil o lámina sobre la placa). `liso` usa el color elegido
+export const FINISHES = [
+  { id: 'liso', name: 'Liso', base: null, price: 0 },
+  { id: 'pino', name: 'Pino', base: '#dcb88e', group: 'Madera', price: 250 },
+  { id: 'roble', name: 'Roble', base: '#b88a5b', group: 'Madera', price: 300 },
+  { id: 'nogal', name: 'Nogal', base: '#6e4a31', group: 'Madera', price: 350 },
+  { id: 'marmol', name: 'Mármol', base: '#eeebe5', group: 'Piedra', price: 400 },
+  { id: 'concreto', name: 'Concreto', base: '#b6b2ab', group: 'Piedra', price: 250 },
+  { id: 'aluminio', name: 'Aluminio', base: '#c9cdd3', group: 'Metal', price: 450 },
+  { id: 'espejo', name: 'Espejo', base: '#d5dae0', group: 'Metal', price: 500 },
+  { id: 'oro', name: 'Oro', base: '#d8b867', group: 'Metal', price: 550 },
+  { id: 'rosaoro', name: 'Oro rosa', base: '#e2aa9f', group: 'Metal', price: 550 }
+]
+
+// Pared de la vista previa (solo visual). `tex`: pared con textura (ver lib/walls.js)
 export const SCENES = [
   { id: 'rosa', name: 'Rosa', hex: '#f2c4d4' },
   { id: 'blanco', name: 'Blanco', hex: '#efeeea' },
-  { id: 'concreto', name: 'Concreto', hex: '#a9a6a0' },
-  { id: 'arena', name: 'Arena', hex: '#dccfbb' }
+  { id: 'arena', name: 'Arena', hex: '#dccfbb' },
+  { id: 'salvia', name: 'Salvia', hex: '#c9d3c0' },
+  { id: 'concreto', name: 'Concreto', hex: '#a9a6a0', tex: true },
+  { id: 'ladrillo', name: 'Ladrillo', hex: '#a4563d', tex: true },
+  { id: 'ladrillob', name: 'Ladrillo blanco', hex: '#ebe7e1', tex: true },
+  { id: 'madera', name: 'Duela de madera', hex: '#b07f55', tex: true },
+  { id: 'azulejo', name: 'Azulejo', hex: '#f3f3f1', tex: true },
+  { id: 'marmol', name: 'Mármol', hex: '#ece9e4', tex: true },
+  { id: 'terrazo', name: 'Terrazo', hex: '#efe6df', tex: true },
+  { id: 'verde', name: 'Muro verde', hex: '#4d7a45', tex: true }
 ]
+
+// Cómo se combinan los colores de LED en una línea o en el marco
+export const COLOR_MIXES = [
+  { id: 'solido', name: 'Un color' },
+  { id: 'alternado', name: 'Dos colores' },
+  { id: 'arcoiris', name: 'Arcoíris' }
+]
+export const RAINBOW = ['rojo', 'ambar', 'amarillo', 'verde', 'azul', 'morado']
+// Índice de "línea" reservado para los LED del marco
+export const FRAME_LINE = 9
 
 export const BOARD_MATERIALS = [
   { id: 'acrilico', name: 'Acrílico 3 mm', pricePerM2: 950 },
@@ -58,7 +90,8 @@ export const BOARD_MATERIALS = [
 export const ANIMATIONS = [
   { id: 'fijo', name: 'Fijo', note: 'Siempre encendido' },
   { id: 'parpadeo', name: 'Parpadeo', note: 'Enciende y apaga' },
-  { id: 'secuencial', name: 'Secuencial', note: 'Letra por letra · 3 canales' }
+  { id: 'secuencial', name: 'Secuencial', note: 'Letra por letra · el marco corre como marquesina' },
+  { id: 'respirar', name: 'Respirar', note: 'Se enciende y apaga suave · controlador PWM' }
 ]
 
 export const POWER = [
@@ -88,10 +121,23 @@ export const SEQ_CHANNELS = 3
 
 export const ledColorById = (id) => LED_COLORS.find((c) => c.id === id) || LED_COLORS[0]
 export const boardById = (id) => BOARDS.find((b) => b.id === id) || BOARDS[0]
+export const finishById = (id) => FINISHES.find((f) => f.id === id) || FINISHES[0]
+// Color base visible de la placa (acabado o color liso)
+export const boardBase = (design) => finishById(design.finish).base || boardById(design.board).hex
+
+// Color de cada LED según su línea (o el marco) y la combinación elegida
+export function dotColorId(design, p) {
+  const src = p[2] === FRAME_LINE ? design.frame : design.lines[p[2]]
+  if (!src) return 'rojo'
+  if (src.mix === 'alternado' && src.color2) return p[3] % 2 ? src.color2 : src.color
+  if (src.mix === 'arcoiris') return RAINBOW[p[3] % RAINBOW.length]
+  return src.color
+}
+
 export const boardMaterialById = (id) => BOARD_MATERIALS.find((m) => m.id === id) || BOARD_MATERIALS[0]
 
 export function newLedLine(overrides = {}) {
-  return { text: 'TEXTO', font: 'Anton', heightMm: 100, color: 'rojo', bold: false, icon: '', iconPos: 'left', ...overrides }
+  return { text: 'TEXTO', font: 'Anton', heightMm: 100, color: 'rojo', color2: 'blanco', mix: 'solido', bold: false, icon: '', iconPos: 'left', ...overrides }
 }
 
 export function defaultLedDesign() {
@@ -101,6 +147,8 @@ export function defaultLedDesign() {
     heightCm: 25,
     material: 'acrilico',
     board: 'blanco',
+    finish: 'liso',
+    frame: { on: false, double: false, color: 'blanco', color2: 'rosa', mix: 'solido' },
     shape: 'round',
     mount: 'pared',
     cornerMm: 16,
@@ -128,13 +176,18 @@ export function normalizeLedDesign(input) {
   const d = input && typeof input === 'object' ? input : {}
   const def = defaultLedDesign()
   const fontIds = FONTS.map((f) => f.id)
+  const colorIds = LED_COLORS.map((c) => c.id)
+  const mixIds = COLOR_MIXES.map((m) => m.id)
+  const fr = d.frame && typeof d.frame === 'object' ? d.frame : {}
   const widthCm = Math.round(clamp(d.widthCm, 5, 1000, def.widthCm))
   const heightCm = Math.round(clamp(d.heightCm, 5, 1000, def.heightCm))
   const lines = (Array.isArray(d.lines) ? d.lines : def.lines).slice(0, 4).map((l) => ({
     text: typeof l?.text === 'string' ? l.text.slice(0, 40) : '',
     font: oneOf(l?.font, fontIds, 'Anton'),
     heightMm: Math.round(clamp(l?.heightMm, 20, 1000, 100)),
-    color: oneOf(l?.color, LED_COLORS.map((c) => c.id), 'rojo'),
+    color: oneOf(l?.color, colorIds, 'rojo'),
+    color2: oneOf(l?.color2, colorIds, 'blanco'),
+    mix: oneOf(l?.mix, mixIds, 'solido'),
     bold: Boolean(l?.bold),
     icon: typeof l?.icon === 'string' && /^[a-z0-9-]{1,40}$/.test(l.icon) ? l.icon : '',
     iconPos: oneOf(l?.iconPos, ['left', 'right'], 'left')
@@ -145,7 +198,7 @@ export function normalizeLedDesign(input) {
     .map((p) => [
       r1(clamp(p[0], 0, widthCm * 10, 0)),
       r1(clamp(p[1], 0, heightCm * 10, 0)),
-      Math.round(clamp(p[2], 0, lines.length - 1, 0)),
+      Number(p[2]) === FRAME_LINE ? FRAME_LINE : Math.round(clamp(p[2], 0, lines.length - 1, 0)),
       Math.round(clamp(p[3], 0, 999, 0))
     ])
   return {
@@ -154,6 +207,14 @@ export function normalizeLedDesign(input) {
     heightCm,
     material: oneOf(d.material, BOARD_MATERIALS.map((m) => m.id), def.material),
     board: oneOf(d.board, BOARDS.map((b) => b.id), def.board),
+    finish: oneOf(d.finish, FINISHES.map((f) => f.id), 'liso'),
+    frame: {
+      on: Boolean(fr.on),
+      double: Boolean(fr.double),
+      color: oneOf(fr.color, colorIds, 'blanco'),
+      color2: oneOf(fr.color2, colorIds, 'rosa'),
+      mix: oneOf(fr.mix, mixIds, 'solido')
+    },
     shape: oneOf(d.shape, SHAPES.map((x) => x.id), 'round'),
     mount: oneOf(d.mount, MOUNTS.map((x) => x.id), 'pared'),
     cornerMm: Math.round(clamp(d.cornerMm, 0, 200, def.cornerMm)),
@@ -263,7 +324,7 @@ export function planPower(design) {
   const seq = design.animation === 'secuencial'
   const groups = new Map()
   dots.forEach((p, i) => {
-    const color = design.lines[p[2]]?.color || 'rojo'
+    const color = dotColorId(design, p)
     const channel = seq ? p[3] % SEQ_CHANNELS : 0
     const key = `${channel}|${color}`
     if (!groups.has(key)) groups.set(key, { channel, color, idx: [] })
@@ -322,7 +383,7 @@ export function planPower(design) {
 
   const colorCount = {}
   for (const p of dots) {
-    const color = design.lines[p[2]]?.color || 'rojo'
+    const color = dotColorId(design, p)
     colorCount[color] = (colorCount[color] || 0) + 1
   }
 
@@ -340,6 +401,7 @@ export function planPower(design) {
     if (boardsB) bom.push({ qty: boardsB, item: 'Placa B (fuente capacitiva 3 salidas) + R 1 MΩ + clema' })
     if (boardsA) bom.push({ qty: boardsA, item: 'Placa A (NE555 + CD4017 + 3 SCR MCR100-6)' })
     if (design.animation === 'parpadeo') bom.push({ qty: 1, item: 'Módulo intermitente 127 V (o placa A con un solo canal)' })
+    if (design.animation === 'respirar') bom.push({ qty: 1, item: 'Atenuador PWM 127 V (triac + optoacoplador) para efecto respirar' })
   } else {
     const res = {}
     strings.forEach((s) => (res[s.resistor] = (res[s.resistor] || 0) + 1))
@@ -347,6 +409,7 @@ export function planPower(design) {
     bom.push({ qty: 1, item: `Eliminador 12 V ${supplyA} A` })
     if (seq) bom.push({ qty: 1, item: 'Arduino Nano o NE555 + CD4017, y 3 MOSFET IRLZ44N' })
     if (design.animation === 'parpadeo') bom.push({ qty: 1, item: 'Módulo intermitente 12 V (NE555 + MOSFET)' })
+    if (design.animation === 'respirar') bom.push({ qty: 1, item: 'Módulo PWM 12 V (NE555 o Arduino + MOSFET IRLZ44N)' })
   }
 
   return { strings, dotString, boardsA, boardsB, totalLeds: dots.length, totalMa: Math.round(totalMa), watts, supplyA, bom, colorCount }
@@ -372,6 +435,12 @@ export function ledQuoteParts(design, prices = DEFAULT_PRICES) {
     if (design.animation === 'secuencial') parts.push({ label: 'Controlador secuencial', amount: P.controller12 })
   }
   if (design.animation === 'parpadeo') parts.push({ label: 'Intermitente', amount: P.flasher })
+  if (design.animation === 'respirar') parts.push({ label: 'Controlador efecto respirar', amount: P.fader })
+  const finish = finishById(design.finish)
+  const finishM2 = P.finishes?.[finish.id] ?? finish.price
+  if (finishM2) parts.push({ label: `Acabado ${finish.name.toLowerCase()}`, amount: Math.max(80, Math.round(areaM2 * finishM2)) })
+  const frameDots = (design.dots || []).filter((p) => p[2] === FRAME_LINE).length
+  if (frameDots) parts.push({ label: `Marco LED (${frameDots} puntos)`, amount: P.frame })
   const shape = SHAPES.find((x) => x.id === design.shape)
   const shapePrice = P.shapes?.[design.shape] ?? shape?.price ?? 0
   if (shapePrice) parts.push({ label: `Corte en forma de ${shape.name.toLowerCase()}`, amount: shapePrice })
