@@ -162,6 +162,18 @@ test('prospectos: permisos y embudo; envío cobrado en el pedido', async () => {
   assert.equal(order.adjust.items[0]?.label, 'Envío a domicilio', 'pedido chico con envío paga envío')
 })
 
+test('pedido múltiple: un folio por letrero y descuento por volumen', async () => {
+  const items = ['Centro', 'Norte', 'Sur'].map((text) => ({ design: { ...ledOrder.design, lines: [{ text }] } }))
+  assert.equal((await call('POST', '/orders/batch', { customer: ledOrder.customer, items: items.slice(0, 1) })).status, 400)
+  const res = await call('POST', '/orders/batch', { customer: ledOrder.customer, items })
+  assert.equal(res.status, 201)
+  assert.equal(res.body.orders.length, 3)
+  const owner = await login('admin', 'clave-prueba')
+  const orders = (await call('GET', '/admin/orders', null, owner)).body.filter((o) => res.body.orders.some((x) => x.folio === o.folio))
+  assert.equal(new Set(orders.map((o) => o.group)).size, 1, 'comparten grupo')
+  assert.equal(orders.filter((o) => o.adjust.items.some((i) => i.label === 'Envío a domicilio')).length, 1, 'envío una sola vez')
+})
+
 test('límite de intentos de acceso', async () => {
   let last
   for (let i = 0; i < 12; i++) last = await call('POST', '/admin/login', { username: 'nadie', password: 'x' })

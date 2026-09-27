@@ -7,7 +7,7 @@ import { MATERIALS, EXTRAS, quote } from '../src/lib/pricing.js'
 import { STATUS_IDS, PRINTED_STATUSES } from '../src/lib/status.js'
 import { normalizeLedDesign } from '../src/lib/ledSign.js'
 import {
-  PERM_IDS, computeTotals, mergeBusiness, mergePrices, normalizeAdjust, normalizePayment, paymentSummary, publicBusiness, shippingFor
+  PERM_IDS, computeTotals, mergeBusiness, mergePrices, normalizeAdjust, normalizePayment, paymentSummary, publicBusiness, shippingFor, volumeDiscount
 } from '../src/lib/prices.js'
 import { normalizeCustomer } from '../src/lib/customer.js'
 import { GIRO_IDS, LEAD_STATE_IDS } from '../src/lib/prospects.js'
@@ -54,6 +54,7 @@ async function loadDb() {
     o.showcase = Boolean(o.showcase)
     o.photos = Array.isArray(o.photos) ? o.photos : []
     o.review = o.review || null
+    o.group = o.group || null
   }
   return db
 }
@@ -182,51 +183,90 @@ api.get('/public/settings', h(async (req, res) => {
 }))
 
 // Crear pedido (público)
+// Valida un diseño recibido del público
+function checkDesign(design) {
+  const clean = cleanDesign(design)
+  if (!clean.lines.some((l) => l.text.trim() || l.icon)) return { error: 'El letrero no tiene texto' }
+  if (clean.kind === 'led' && !clean.dots.length) return { error: 'El letrero no tiene puntos LED' }
+  return { clean }
+}
+
+// Crea un pedido dentro de mutate(): folio, presupuesto, envío y ajustes
+function buildOrder(db, { clean, quantity, customer, ship = true, discountPct = 0, group = null }) {
+  const q = quote({ ...clean, quantity }, db.settings.prices)
+  const now = new Date().toISOString()
+  db.seq = (db.seq || 0) + 1
+  // Envío a domicilio: gratis desde el monto configurado
+  const shipCost = ship ? shippingFor(customer.delivery, computeTotals(q, normalizeAdjust(), db.settings.business).total, db.settings.business) : 0
+  const adjust = normalizeAdjust({
+    items: shipCost ? [{ label: 'Envío a domicilio', amount: shipCost }] : [],
+    discountPct,
+    note: group ? `Pedido múltiple: ${group.size} letreros (${group.folios})` : ''
+  })
+  const o = {
+    id: crypto.randomUUID(),
+    folio: `LT-${String(db.seq).padStart(4, '0')}`,
+    publicToken: crypto.randomBytes(8).toString('hex'),
+    createdAt: now,
+    updatedAt: now,
+    status: 'nuevo',
+    quoteState: 'pendiente',
+    validUntil: addDays(now, db.settings.business.validityDays),
+    customer,
+    design: clean,
+    quote: q,
+    adjust,
+    totals: computeTotals(q, adjust, db.settings.business),
+    adminNotes: '',
+    payments: [],
+    showcase: false,
+    photos: [],
+    review: null,
+    group: group?.id || null,
+    history: [{ status: 'nuevo', at: now, by: 'Cliente (web)' }]
+  }
+  db.orders.unshift(o)
+  return o
+}
+
 api.post('/orders', orderLimit, h(async (req, res) => {
   const { design, quantity } = req.body || {}
   const checked = normalizeCustomer(req.body?.customer)
   if (checked.error) return res.status(400).json({ error: checked.error })
-
-  const clean = cleanDesign(design)
-  if (!clean.lines.some((l) => l.text.trim() || l.icon)) {
-    return res.status(400).json({ error: 'El letrero no tiene texto' })
-  }
-  if (clean.kind === 'led' && !clean.dots.length) {
-    return res.status(400).json({ error: 'El letrero no tiene puntos LED' })
-  }
-
-  const order = await mutate((db) => {
-    const q = quote({ ...clean, quantity }, db.settings.prices)
-    const now = new Date().toISOString()
-    db.seq = (db.seq || 0) + 1
-    // Envío a domicilio: gratis desde el monto configurado
-    const ship = shippingFor(checked.customer.delivery, computeTotals(q, normalizeAdjust(), db.settings.business).total, db.settings.business)
-    const adjust = normalizeAdjust(ship ? { items: [{ label: 'Envío a domicilio', amount: ship }] } : undefined)
-    const o = {
-      id: crypto.randomUUID(),
-      folio: `LT-${String(db.seq).padStart(4, '0')}`,
-      publicToken: crypto.randomBytes(8).toString('hex'),
-      createdAt: now,
-      updatedAt: now,
-      status: 'nuevo',
-      quoteState: 'pendiente',
-      validUntil: addDays(now, db.settings.business.validityDays),
-      customer: checked.customer,
-      design: clean,
-      quote: q,
-      adjust,
-      totals: computeTotals(q, adjust, db.settings.business),
-      adminNotes: '',
-      payments: [],
-      showcase: false,
-      photos: [],
-      review: null,
-      history: [{ status: 'nuevo', at: now, by: 'Cliente (web)' }]
-    }
-    db.orders.unshift(o)
-    return o
-  })
+  const d = checkDesign(design)
+  if (d.error) return res.status(400).json({ error: d.error })
+  const order = await mutate((db) => buildOrder(db, { clean: d.clean, quantity, customer: checked.customer }))
   res.status(201).json({ folio: order.folio, total: order.totals.total, status: order.status, token: order.publicToken })
+}))
+
+// Pedido múltiple (sucursales, mesas, puertas): un folio por letrero, descuento por volumen del total
+api.post('/orders/batch', orderLimit, h(async (req, res) => {
+  const items = Array.isArray(req.body?.items) ? req.body.items : []
+  if (items.length < 2 || items.length > 30) return res.status(400).json({ error: 'Manda de 2 a 30 letreros' })
+  const checked = normalizeCustomer(req.body?.customer)
+  if (checked.error) return res.status(400).json({ error: checked.error })
+  const cleans = []
+  for (const [i, it] of items.entries()) {
+    const d = checkDesign(it?.design)
+    if (d.error) return res.status(400).json({ error: `Letrero ${i + 1}: ${d.error}` })
+    cleans.push(d.clean)
+  }
+  const orders = await mutate((db) => {
+    const rate = volumeDiscount(cleans.length, db.settings.prices)
+    const first = String((db.seq || 0) + 1).padStart(4, '0')
+    const last = String((db.seq || 0) + cleans.length).padStart(4, '0')
+    const group = { id: crypto.randomUUID(), size: cleans.length, folios: `LT-${first} a LT-${last}` }
+    // El envío se cobra una sola vez (en el primero) y solo si el total no llega al envío gratis
+    const estimate = cleans.reduce((a, c) => a + quote({ ...c, quantity: 1 }, db.settings.prices).total, 0) * (1 - rate)
+    const ship = shippingFor(checked.customer.delivery, estimate, db.settings.business) > 0
+    return cleans.map((clean, i) =>
+      buildOrder(db, { clean, quantity: 1, customer: checked.customer, ship: ship && i === 0, discountPct: Math.round(rate * 100), group })
+    )
+  })
+  res.status(201).json({
+    orders: orders.map((o) => ({ folio: o.folio, total: o.totals.total, token: o.publicToken, text: o.design.lines.map((l) => l.text).join(' ') })),
+    total: orders.reduce((a, o) => a + o.totals.total, 0)
+  })
 }))
 
 // Seguimiento público por folio (solo datos no sensibles)

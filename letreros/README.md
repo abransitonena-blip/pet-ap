@@ -37,6 +37,13 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
   precio por m² editable en el panel
 - **Relieve con luz real** (mapa de alturas + luz difusa y especular): la veta de la madera, el poro del concreto,
   las capas de la pizarra y el cepillado del aluminio tienen sombra y brillo; barniz/pulido en nogal, mármol y carbono
+- **Día / Tarde / Noche** y **brillo regulable** en la vista previa (la tarde opaca un poco el LED y entibia la pared)
+- **Tu logo en LED**: el cliente sube su logo (PNG/JPG, fondo blanco o transparente); se convierte en puntos con el
+  mismo estilo que las letras (trazo, contorno o relleno) y viaja en el pedido como máscara comprimida
+- **Bandera doble cara**: montaje con ménsula que sale de la fachada; duplica placa, LED, cadenas y lista de materiales
+- **Varios letreros** (sucursales, mesas, puertas): mismo diseño con un texto por renglón, precio de cada uno,
+  descuento por volumen y un folio por letrero (`POST /api/orders/batch`, envío cobrado una sola vez)
+- **Catálogo imprimible** (panel → Prospectos → Imprimir catálogo): los modelos con medida y precio vigente, listo para PDF
 - **Variantes**: el cliente guarda hasta 4 versiones y las compara (medida, LED, precio, la más económica)
 - **Descargar imagen**: PNG del letrero sobre la pared elegida o sobre la foto de su local, con la luz de noche,
   medida y precio, para mandarlo por WhatsApp
@@ -138,7 +145,7 @@ letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, dato
 
 ```bash
 cd letreros
-npm test        # 26 pruebas: prospectos, envío, enlaces seguros, opiniones y fotos, combinaciones de color, marco, acabados, precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
+npm test        # 29 pruebas: bandera, logo, pedido múltiple, prospectos, envío, enlaces seguros, opiniones y fotos, combinaciones de color, marco, acabados, precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
 npm run check   # pruebas + build
 ```
 

@@ -17,11 +17,23 @@ const weekStart = () => {
 const EMPTY = { name: '', giro: 'taqueria', contact: '', phone: '', zone: '', note: '' }
 
 // Prospección: registra negocios visitados y mándales una muestra con su nombre
-export default function Prospects({ business }) {
+export default function Prospects({ business, prices }) {
   const [leads, setLeads] = useState([])
   const [form, setForm] = useState(EMPTY)
   const [filter, setFilter] = useState('todos')
   const [error, setError] = useState('')
+  const [printing, setPrinting] = useState('')
+  const catalog = async () => {
+    setPrinting('…')
+    try {
+      const { printCatalog } = await import('../lib/catalog')
+      await printCatalog({ prices, business, onProgress: setPrinting })
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setPrinting('')
+    }
+  }
   const load = () => api.leads().then(setLeads).catch((e) => setError(e.message))
   useEffect(() => {
     load()
@@ -59,7 +71,12 @@ export default function Prospects({ business }) {
       </div>
 
       <form className="card lead-form" onSubmit={add}>
-        <h2>Nuevo prospecto</h2>
+        <div className="row between full">
+          <h2>Nuevo prospecto</h2>
+          <button type="button" className="btn ghost sm" onClick={catalog} disabled={Boolean(printing) || !prices}>
+            {printing ? `Preparando ${printing}` : '🖨 Imprimir catálogo'}
+          </button>
+        </div>
         <div className="lead-grid">
           <input className="input" placeholder="Nombre del negocio *" value={form.name} onChange={set('name')} maxLength={60} />
           <select className="input" value={form.giro} onChange={set('giro')}>

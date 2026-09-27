@@ -19,6 +19,7 @@ async function request(path, { method = 'GET', body, auth = false } = {}) {
 
 export const api = {
   createOrder: (payload) => request('/orders', { method: 'POST', body: payload }),
+  createBatch: (payload) => request('/orders/batch', { method: 'POST', body: payload }),
   track: (folio) => request(`/track/${encodeURIComponent(folio)}`),
   login: (username, password) => request('/admin/login', { method: 'POST', body: { username, password } }),
   me: () => request('/admin/me', { auth: true }),

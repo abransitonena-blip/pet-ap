@@ -116,8 +116,49 @@ export const SHAPES = [
 export const MOUNTS = [
   { id: 'pared', name: 'Pared', note: '2 barrenos para taquete', price: 0 },
   { id: 'colgante', name: 'Colgante', note: 'Cable de acero y gancho', price: 90 },
-  { id: 'base', name: 'Base LED de mesa', note: 'Placa sobre base con ranura', price: 280 }
+  { id: 'base', name: 'Base LED de mesa', note: 'Placa sobre base con ranura', price: 280 },
+  { id: 'bandera', name: 'Bandera doble cara', note: 'Sale de la fachada · se ve de ambos lados', price: 450 }
 ]
+
+// Letrero de bandera: dos caras con LED (se ve al caminar por la banqueta en ambos sentidos)
+export const faceCount = (design) => (design.mount === 'bandera' ? 2 : 1)
+
+// Logo del cliente: máscara binaria comprimida (corridas alternas 0/1 en base 36)
+export const LOGO_MAX = 160
+export function normalizeLogo(logo) {
+  if (!logo || typeof logo !== 'object') return null
+  const w = Math.round(Number(logo.w))
+  const h = Math.round(Number(logo.h))
+  const rle = typeof logo.rle === 'string' ? logo.rle : ''
+  if (!(w >= 4 && w <= LOGO_MAX && h >= 4 && h <= LOGO_MAX) || !/^[0-9a-z.]{1,12000}$/.test(rle)) return null
+  const total = rle.split('.').reduce((a, n) => a + (parseInt(n, 36) || 0), 0)
+  return total === w * h ? { w, h, rle } : null
+}
+export function logoMask(logo) {
+  const mask = new Uint8Array(logo.w * logo.h)
+  let i = 0
+  logo.rle.split('.').forEach((n, k) => {
+    const run = parseInt(n, 36) || 0
+    if (k % 2) mask.fill(1, i, i + run)
+    i += run
+  })
+  return mask
+}
+export function encodeMask(mask) {
+  const runs = []
+  let cur = 0
+  let run = 0
+  for (const v of mask) {
+    if (v === cur) run++
+    else {
+      runs.push(run)
+      cur = v
+      run = 1
+    }
+  }
+  runs.push(run)
+  return runs.map((n) => n.toString(36)).join('.')
+}
 
 export const LED_SIZES = [3, 5, 8]
 export const MAX_DOTS = 4000
@@ -212,6 +253,7 @@ export function normalizeLedDesign(input) {
     material: oneOf(d.material, BOARD_MATERIALS.map((m) => m.id), def.material),
     board: oneOf(d.board, BOARDS.map((b) => b.id), def.board),
     finish: oneOf(d.finish, FINISHES.map((f) => f.id), 'liso'),
+    logo: normalizeLogo(d.logo),
     frame: {
       on: Boolean(fr.on),
       double: Boolean(fr.double),
@@ -360,6 +402,14 @@ export function planPower(design) {
     }
   }
 
+  // Bandera: la segunda cara lleva las mismas cadenas
+  const faces = faceCount(design)
+  if (faces === 2) {
+    const n = strings.length
+    strings.forEach((s) => (s.face = 1))
+    for (const s of strings.slice(0, n)) strings.push({ ...s, id: s.id + n, face: 2 })
+  }
+
   // Salidas: 127 V → placa B de 3 salidas; secuencial → placa A (3 canales) por cada juego de cadenas
   const perChannel = [0, 1, 2].map((ch) => strings.filter((s) => s.channel === ch).length)
   let boardsA = 0
@@ -388,7 +438,7 @@ export function planPower(design) {
   const colorCount = {}
   for (const p of dots) {
     const color = dotColorId(design, p)
-    colorCount[color] = (colorCount[color] || 0) + 1
+    colorCount[color] = (colorCount[color] || 0) + faces
   }
 
   // Lista de materiales
@@ -416,7 +466,9 @@ export function planPower(design) {
     if (design.animation === 'respirar') bom.push({ qty: 1, item: 'Módulo PWM 12 V (NE555 o Arduino + MOSFET IRLZ44N)' })
   }
 
-  return { strings, dotString, boardsA, boardsB, totalLeds: dots.length, totalMa: Math.round(totalMa), watts, supplyA, bom, colorCount }
+  if (faces === 2) bom.push({ qty: 1, item: 'Brazo de bandera (ménsula) con tornillería y caja de 2 caras' })
+
+  return { strings, dotString, boardsA, boardsB, faces, totalLeds: dots.length * faces, totalMa: Math.round(totalMa), watts, supplyA, bom, colorCount }
 }
 
 // Precio del letrero LED (lo recalcula el servidor con la tabla de precios vigente)
@@ -426,7 +478,8 @@ export function ledQuoteParts(design, prices = DEFAULT_PRICES) {
   const plan = planPower(design)
   const mat = boardMaterialById(design.material)
   const perM2 = P.boards?.[mat.id] ?? mat.pricePerM2
-  const parts = [{ label: `Placa ${mat.name} (${areaM2} m²)`, amount: Math.max(P.minBoard, areaM2 * perM2) }]
+  const faces = faceCount(design)
+  const parts = [{ label: `Placa ${mat.name} (${areaM2} m²)${faces === 2 ? ' × 2 caras' : ''}`, amount: Math.max(P.minBoard, areaM2 * perM2) * faces }]
   const ledCost = Object.entries(plan.colorCount).reduce((a, [id, n]) => a + n * (P.colors?.[id] ?? ledColorById(id).price), 0)
   parts.push({ label: `${plan.totalLeds} LED ${design.ledMm} mm`, amount: ledCost })
   parts.push({ label: 'Perforado y armado', amount: plan.totalLeds * P.assembly })
@@ -442,7 +495,7 @@ export function ledQuoteParts(design, prices = DEFAULT_PRICES) {
   if (design.animation === 'respirar') parts.push({ label: 'Controlador efecto respirar', amount: P.fader })
   const finish = finishById(design.finish)
   const finishM2 = P.finishes?.[finish.id] ?? finish.price
-  if (finishM2) parts.push({ label: `Acabado ${finish.name.toLowerCase()}`, amount: Math.max(80, Math.round(areaM2 * finishM2)) })
+  if (finishM2) parts.push({ label: `Acabado ${finish.name.toLowerCase()}`, amount: Math.max(80, Math.round(areaM2 * finishM2)) * faces })
   const frameDots = (design.dots || []).filter((p) => p[2] === FRAME_LINE).length
   if (frameDots) parts.push({ label: `Marco LED (${frameDots} puntos)`, amount: P.frame })
   const shape = SHAPES.find((x) => x.id === design.shape)

@@ -25,7 +25,7 @@ export const waLink = (phone, text) => {
 
 // Formulario de pedido compartido por los dos editores.
 // `preview`: vista del letrero · `summary`: renglones cortos (medida, material…)
-export default function OrderModal({ design, quantity, total, preview, summary = [], onClose }) {
+export default function OrderModal({ design, batch, quantity, total, preview, summary = [], onClose }) {
   const { business } = usePublicSettings()
   const saved = loadCustomer()
   const [form, setForm] = useState({
@@ -53,7 +53,9 @@ export default function OrderModal({ design, quantity, total, preview, summary =
     setError('')
     setSending(true)
     try {
-      const res = await api.createOrder({ customer: form, design, quantity })
+      const res = batch
+        ? await api.createBatch({ customer: form, items: batch.map((d) => ({ design: d })) })
+        : await api.createOrder({ customer: form, design, quantity })
       try {
         const { name, phone, email, delivery } = form
         localStorage.setItem(SAVED_KEY, JSON.stringify({ name, phone, email, delivery }))
@@ -64,6 +66,36 @@ export default function OrderModal({ design, quantity, total, preview, summary =
     } finally {
       setSending(false)
     }
+  }
+
+  if (result?.orders) {
+    const lines = result.orders.map((o) => `${o.folio} (${o.text}): ${window.location.origin}${window.location.pathname}#/presupuesto/${o.folio}/${o.token}`)
+    const confirm = business.whatsapp
+      ? waLink(business.whatsapp, `Hola, acabo de pedir ${result.orders.length} letreros por ${money(result.total)}:\n${lines.join('\n')}`)
+      : ''
+    return (
+      <div className="modal-backdrop" onClick={onClose}>
+        <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <button className="modal-close" onClick={onClose} aria-label="Cerrar">✕</button>
+          <div className="success">
+            <span className="led big" style={{ '--led': '#22c55e' }} />
+            <h2>¡{result.orders.length} letreros pedidos!</h2>
+            <p className="muted">Cada uno tiene su folio y su presupuesto · total {money(result.total)}</p>
+            <ul className="batch-folios">
+              {result.orders.map((o) => (
+                <li key={o.folio}>
+                  <strong>{o.folio}</strong>
+                  <span className="grow">{o.text}</span>
+                  <span>{money(o.total)}</span>
+                  <a href={`#/presupuesto/${o.folio}/${o.token}`} target="_blank" rel="noreferrer">Ver</a>
+                </li>
+              ))}
+            </ul>
+            {confirm && <a className="btn wa-btn" href={confirm} target="_blank" rel="noreferrer">Confirmar por WhatsApp</a>}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (result) {
@@ -106,7 +138,7 @@ export default function OrderModal({ design, quantity, total, preview, summary =
             <div className="modal-sign">{preview}</div>
             <div>
               {summary.map((s, i) => <span key={i} className={i ? 'muted' : ''}>{s}</span>)}
-              <span className="muted">{quantity} pieza{quantity > 1 ? 's' : ''}</span>
+              <span className="muted">{batch ? `${batch.length} letreros distintos` : `${quantity} pieza${quantity > 1 ? 's' : ''}`}</span>
               <strong className="modal-total">{money(total + ship)}</strong>
               {ship > 0 && <span className="muted small">incluye envío {money(ship)}{business.freeShippingFrom > 0 && ` · gratis desde ${money(business.freeShippingFrom)}`}</span>}
             </div>

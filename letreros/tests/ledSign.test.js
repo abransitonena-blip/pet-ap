@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardOutline, defaultLedDesign, mountHoles, normalizeLedDesign, planPower, FRAME_LINE, dotColorId, ledQuoteParts } from '../src/lib/ledSign.js'
+import { boardOutline, defaultLedDesign, mountHoles, normalizeLedDesign, planPower, FRAME_LINE, dotColorId, ledQuoteParts, encodeMask, logoMask, normalizeLogo } from '../src/lib/ledSign.js'
 
 const withDots = (n, color = 'rojo', extra = {}) =>
   normalizeLedDesign({
@@ -97,4 +97,24 @@ test('acabados: valida el id y suma su precio por m²', () => {
   const part = ledQuoteParts(wood).parts.find((p) => p.label.startsWith('Acabado'))
   assert.equal(part.amount, Math.round(0.5 * 350))
   assert.equal(ledQuoteParts(base).parts.some((p) => p.label.startsWith('Acabado')), false)
+})
+
+test('bandera: dos caras duplican cadenas, LED y placa', () => {
+  const one = withDots(120)
+  const flag = { ...one, mount: 'bandera' }
+  const a = planPower(one)
+  const b = planPower(flag)
+  assert.equal(b.strings.length, a.strings.length * 2)
+  assert.equal(b.totalLeds, 240)
+  assert.equal(b.colorCount.rojo, 240)
+  const board = (d) => ledQuoteParts(d).parts[0].amount
+  assert.equal(board(flag), board(one) * 2)
+})
+
+test('logo: la máscara comprimida se valida y se recupera igual', () => {
+  const mask = new Uint8Array(8 * 6).map((_, i) => (i % 3 === 0 ? 1 : 0))
+  const logo = { w: 8, h: 6, rle: encodeMask(mask) }
+  assert.deepEqual([...logoMask(normalizeLogo(logo))], [...mask])
+  assert.equal(normalizeLogo({ ...logo, w: 9 }), null, 'tamaño que no cuadra con las corridas')
+  assert.equal(normalizeLogo({ w: 8, h: 6, rle: '<script>' }), null)
 })

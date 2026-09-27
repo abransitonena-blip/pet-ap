@@ -24,7 +24,7 @@ export const DEFAULT_PRICES = {
     resistor: 2, // por cadena a 12 V
     controller12: 260,
     shapes: { rect: 0, round: 0, pill: 60, circle: 120, arch: 120, hex: 120 },
-    mounts: { pared: 0, colgante: 90, base: 280 },
+    mounts: { pared: 0, colgante: 90, base: 280, bandera: 450 },
     installation: 450
   },
   print: {

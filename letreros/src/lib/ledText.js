@@ -7,7 +7,7 @@
 // El orden de los puntos sigue el recorrido de la letra: es el orden de cableado en serie.
 import { fontsCssReady } from './fonts'
 import { iconById } from './icons'
-import { FRAME_LINE, archRadius, boardOutline } from './ledSign'
+import { FRAME_LINE, archRadius, boardOutline, logoMask } from './ledSign'
 
 // ---------- Fuente 5 × 7 ----------
 const M = {
@@ -293,6 +293,26 @@ const r1 = (n) => Math.round(n * 10) / 10
 // Letras chicas necesitan puntos más juntos para leerse: máx. altura / 9 (nunca menos de 5 mm)
 const linePitch = (line, design) => Math.min(design.pitchMm, Math.max(5, line.heightMm / 9))
 
+// Logo del cliente → puntos con el mismo estilo que las letras (trazo, contorno o relleno)
+function logoDots(logo, sizeMm, design) {
+  if (!logo) return []
+  const pitch = Math.max(5, Math.min(design.pitchMm, sizeMm / 9))
+  const ppm = Math.min(4, Math.max(0.8, 14 / pitch))
+  const hPx = Math.max(8, Math.round(sizeMm * ppm))
+  const wPx = Math.max(8, Math.round((hPx * logo.w) / logo.h))
+  const src = logoMask(logo)
+  const pad = 3
+  const W = wPx + pad * 2
+  const H = hPx + pad * 2
+  const mask = new Uint8Array(W * H)
+  for (let y = 0; y < hPx; y++) {
+    const sy = Math.min(logo.h - 1, Math.floor((y * logo.h) / hPx))
+    for (let x = 0; x < wPx; x++) mask[(y + pad) * W + x + pad] = src[sy * logo.w + Math.min(logo.w - 1, Math.floor((x * logo.w) / wPx))]
+  }
+  const style = design.style === 'matriz' ? 'relleno' : design.style
+  return dotsFromMask(mask, W, H, style, pitch * ppm, design.ledMm * ppm, ppm).map(([x, y]) => [(x - pad) / ppm, (y - pad) / ppm])
+}
+
 // Texto + ícono de una línea, en mm con y relativa a la línea base
 async function lineWithIcon(line, design) {
   let dots = []
@@ -305,8 +325,9 @@ async function lineWithIcon(line, design) {
   if (!line.icon) return dots
   const size = line.heightMm * (line.text.trim() ? 1.25 : 1.6)
   const pitch = design.style === 'matriz' ? line.heightMm / 6 : design.pitchMm
-  const ic = iconDots(line.icon, size, pitch)
+  const ic = line.icon === 'logo' ? logoDots(design.logo, size, design) : iconDots(line.icon, size, pitch)
   if (!ic.length) return dots
+  const icW = line.icon === 'logo' ? Math.max(...ic.map((p) => p[0])) : size
   const iy = -line.heightMm / 2 - size / 2
   if (!dots.length) return ic.map(([x, y]) => [x, y + iy, 0])
   const xs = dots.map((d) => d[0])
@@ -316,7 +337,7 @@ async function lineWithIcon(line, design) {
     const x0 = Math.max(...xs) + gap
     return [...dots, ...ic.map(([x, y]) => [x + x0, y + iy, letters])]
   }
-  const x0 = Math.min(...xs) - gap - size
+  const x0 = Math.min(...xs) - gap - icW
   return [...ic.map(([x, y]) => [x + x0, y + iy, 0]), ...dots.map(([x, y, l]) => [x, y, l + 1])]
 }
 

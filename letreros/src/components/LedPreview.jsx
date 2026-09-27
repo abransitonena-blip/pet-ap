@@ -14,6 +14,10 @@ export function previewBox(design, withMount = true) {
   const W = design.widthCm * 10
   const H = design.heightCm * 10
   if (!withMount) return { x: 0, y: 0, w: W, h: H }
+  if (design.mount === 'bandera') {
+    const t = Math.max(60, H * 0.32)
+    return { x: -W * 0.14, y: -t, w: W * 1.16, h: H + t }
+  }
   if (design.mount === 'colgante') {
     const t = Math.max(50, H * 0.28)
     return { x: 0, y: -t, w: W, h: H + t }
@@ -27,7 +31,7 @@ export function previewBox(design, withMount = true) {
 
 // Vista del letrero de puntos LED en mm reales.
 // `night`: LED encendidos con brillo · `animate`: parpadeo / secuencial en vivo
-export default function LedPreview({ design, night = false, animate = false, withMount = false, relief = true, className = '', svgProps = {} }) {
+export default function LedPreview({ design, night = false, animate = false, withMount = false, relief = true, brightness = 1, dusk = false, className = '', svgProps = {} }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
   const W = design.widthCm * 10
   const H = design.heightCm * 10
@@ -46,6 +50,8 @@ export default function LedPreview({ design, night = false, animate = false, wit
   const box = previewBox(design, withMount)
   const holes = withMount ? mountHoles(design) : []
   const accent = hexOf(dotIds[0] || design.lines[0]?.color)
+  // Intensidad del brillo: control del cliente y, al atardecer, la luz ambiente lo opaca un poco
+  const glowK = Math.max(0.15, Math.min(1, brightness)) * (dusk ? 0.6 : 1)
 
   const groups = seq ? [0, 1, 2] : [0]
   const items = design.dots.map((d, i) => ({ d, c: dotIds[i] }))
@@ -118,6 +124,17 @@ export default function LedPreview({ design, night = false, animate = false, wit
         </linearGradient>
         {(seq || blink || breathe) && <style>{css}</style>}
       </defs>
+      {withMount && design.mount === 'bandera' && (
+        // Ménsula de bandera: placa a la pared, brazo y dos cadenas
+        <g>
+          <rect x={box.x + 4} y={box.y + 4} width={Math.max(10, W * 0.025)} height={-box.y + H * 0.35} rx={3} fill="#2a2b30" />
+          <rect x={box.x + 4} y={box.y + 14} width={W * 1.08} height={Math.max(6, W * 0.012)} rx={3} fill="#3a3b41" />
+          <path d={`M${box.x + 8} ${box.y + 20 + W * 0.012} L${box.x + W * 0.12} ${box.y + 14}`} stroke="#3a3b41" strokeWidth={Math.max(4, W * 0.008)} />
+          <g stroke="#6b6b70" strokeWidth={Math.max(1.2, W * 0.003)} strokeDasharray="4 3">
+            {holes.map(([hx, hy], i) => <line key={i} x1={hx} y1={box.y + 20} x2={hx} y2={hy} />)}
+          </g>
+        </g>
+      )}
       {withMount && design.mount === 'colgante' && (
         <g stroke="#6b6b70" strokeWidth={Math.max(1.2, W * 0.003)} fill="none">
           <path d={`M${holes[0][0]} ${holes[0][1]} L${W / 2} ${box.y + 14} L${holes[1][0]} ${holes[1][1]}`} />
@@ -155,7 +172,7 @@ export default function LedPreview({ design, night = false, animate = false, wit
       )}
       {/* Luz que se derrama sobre la placa */}
       {night && (
-        <g filter={`url(#sp-${uid})`} opacity="0.3">
+        <g filter={`url(#sp-${uid})`} opacity={0.3 * glowK}>
           {items.map(({ d, c }, i) => (i % 2 ? null : <circle key={i} cx={d[0]} cy={d[1]} r={r * 3.2} fill={hexOf(c)} />))}
         </g>
       )}
@@ -166,7 +183,7 @@ export default function LedPreview({ design, night = false, animate = false, wit
           style={seq ? { animationDelay: `${g * 0.66}s` } : undefined}
         >
           {night && (
-            <g filter={`url(#g-${uid})`} opacity="0.95">
+            <g filter={`url(#g-${uid})`} opacity={0.95 * glowK}>
               {dotsOf(g).map(({ d, c }, i) => (
                 <circle key={i} cx={d[0]} cy={d[1]} r={r * 1.5} fill={hexOf(c)} />
               ))}

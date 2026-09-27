@@ -20,6 +20,7 @@ export function MountIcon({ mount }) {
   const body = {
     pared: <><path d="M3 3v18" /><rect x="6" y="7" width="14" height="9" rx="1.5" /><circle cx="8.5" cy="9.5" r=".8" /><circle cx="17.5" cy="9.5" r=".8" /></>,
     colgante: <><path d="M12 2v2M12 4 6 10M12 4l6 6" /><rect x="4" y="10" width="16" height="9" rx="1.5" /></>,
+    bandera: <><path d="M3 2v20M3 5h18M9 5v4M19 5v4" /><rect x="7" y="9" width="14" height="9" rx="1.5" /></>,
     base: <><rect x="6" y="3" width="12" height="13" rx="1.5" /><path d="M3 20h18M5 20l1.5-4h11L19 20" /></>
   }[mount]
   return (

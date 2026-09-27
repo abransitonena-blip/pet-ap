@@ -6,7 +6,7 @@ const REST = { x: 3, y: -12 }
 
 // Letrero en 3D: la placa tiene grosor (capas del contorno hacia atrás), sombra en la pared
 // y gira con el mouse / dedo. De noche proyecta su luz sobre la pared.
-export default function Sign3D({ design, night, animate, enabled = true }) {
+export default function Sign3D({ design, night, animate, enabled = true, brightness = 1, dusk = false }) {
   const [rot, setRot] = useState(REST)
   const [live, setLive] = useState(false)
   const ref = useRef(null)
@@ -36,7 +36,7 @@ export default function Sign3D({ design, night, animate, enabled = true }) {
   const transform = enabled ? `rotateX(${rot.x}deg) rotateY(${rot.y}deg)` : 'none'
   return (
     <div className={`sign3d ${enabled ? 'on' : ''}`} ref={ref} onPointerMove={move} onPointerLeave={leave} onPointerUp={leave}>
-      {night && <div className="wall-spill" style={{ background: `radial-gradient(closest-side, ${accent}99, ${accent}33 55%, transparent)` }} />}
+      {night && !dusk && <div className="wall-spill" style={{ opacity: 0.35 + 0.4 * brightness, background: `radial-gradient(closest-side, ${accent}99, ${accent}33 55%, transparent)` }} />}
       <div className={`rig ${live ? 'live' : ''}`} style={{ transform }}>
         {enabled && (
           <svg className="layer shadow-layer" viewBox={viewBox} style={{ transform: `translateZ(${-(layers + 10) * step}px) translate(2.5%, 4%)` }}>
@@ -49,7 +49,7 @@ export default function Sign3D({ design, night, animate, enabled = true }) {
           </svg>
         ))}
         <div className="layer face">
-          <LedPreview design={design} night={night} animate={animate} withMount />
+          <LedPreview design={design} night={night} animate={animate} brightness={brightness} dusk={dusk} withMount />
         </div>
       </div>
     </div>

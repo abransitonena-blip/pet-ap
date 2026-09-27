@@ -351,7 +351,7 @@ function Dashboard({ onLogout }) {
             {active.id === 'archivos' && <Files orders={orders} onOpen={open} />}
             {active.id === 'opiniones' && <ReviewsAdmin orders={orders} onOpen={open} onUpdate={updateOrder} />}
             {active.id === 'mercado' && <Market settings={settings} orders={orders} />}
-            {active.id === 'prospectos' && <Prospects business={settings?.business} />}
+            {active.id === 'prospectos' && <Prospects business={settings?.business} prices={settings?.prices} />}
             {active.id === 'clientes' && <Clients orders={orders} onOpen={open} showMoney={can('ventas')} />}
             {active.id === 'precios' && <Prices settings={settings} onSaved={setSettings} />}
             {active.id === 'equipo' && <Team me={me} />}

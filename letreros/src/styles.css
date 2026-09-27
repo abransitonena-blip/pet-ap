@@ -870,3 +870,20 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .led-stats .stat-action .btn { white-space: nowrap; }
 @media (max-width: 1000px) { .led-stats { grid-template-columns: repeat(4, 1fr); } .led-stats .stat-action { grid-column: 1 / -1; border-top: 1px solid var(--line); justify-content: center; flex-wrap: wrap; } }
 @media (max-width: 700px) { .led-stats { grid-template-columns: repeat(2, 1fr); } }
+
+/* Atardecer, brillo y logo */
+.wall.dusk::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, #ff9a5a33, #6b3a6b55); mix-blend-mode: multiply; }
+.wall.dusk .wall-sign { z-index: 1; }
+.brightness { position: absolute; right: 16px; bottom: 14px; z-index: 4; display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: #ffffffcc; backdrop-filter: blur(6px); font-size: 13px; }
+.brightness input { width: 110px; accent-color: var(--brand); }
+.logo-chip { cursor: pointer; }
+.logo-chip input { display: none; }
+.batch-folios { list-style: none; width: 100%; display: flex; flex-direction: column; gap: 4px; margin: 10px 0; font-size: 13px; text-align: left; }
+.batch-folios li { display: flex; gap: 10px; padding: 6px 10px; background: var(--soft); border-radius: 8px; }
+.batch-box { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 12px; }
+.batch-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.batch-table td { padding: 5px 4px; border-bottom: 1px solid var(--line); }
+.batch-total { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.batch-total strong { font-size: 18px; }
+.advanced.batch { border-top: 1px solid var(--line); }
+.row.full { width: 100%; }

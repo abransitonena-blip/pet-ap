@@ -18,10 +18,12 @@ import {
 } from '../lib/ledSign'
 import { computeLedDots } from '../lib/ledText'
 import { money, quote } from '../lib/pricing'
+import { volumeDiscount } from '../lib/prices'
 import { usePublicSettings } from '../lib/settings'
 import { api } from '../lib/api'
 import { photoUrl } from '../lib/image'
 import { downloadMockup } from '../lib/mockup'
+import { imageToLogo } from '../lib/logo'
 import { ReviewsSection, Stars } from '../components/Reviews'
 
 const DRAFT_KEY = 'letreros_led_draft'
@@ -73,7 +75,7 @@ function useLedDots(design, setDesign) {
   const shapeKey = JSON.stringify([
     design.lines.map((l) => [l.text, l.font, l.heightMm, l.bold, l.icon, l.iconPos]),
     design.style, design.pitchMm, design.ledMm, design.marginMm, design.shape, design.cornerMm,
-    design.frame.on, design.frame.double
+    design.frame.on, design.frame.double, design.logo?.rle
   ])
   const run = useRef(0)
   useEffect(() => {
@@ -97,12 +99,28 @@ export default function LedEditor() {
   const [design, setDesign] = useState(loadDraft)
   const [quantity, setQuantity] = useState(1)
   const [night, setNight] = useState(true)
+  const [dusk, setDusk] = useState(false)
+  const [brightness, setBrightness] = useState(1)
+  const [logoError, setLogoError] = useState('')
+  const uploadLogo = (i) => async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setLogoError('')
+    try {
+      const logo = await imageToLogo(file)
+      setDesign((d) => ({ ...d, logo, lines: d.lines.map((l, j) => (j === i ? { ...l, icon: 'logo' } : l)) }))
+    } catch (err) {
+      setLogoError(err.message)
+    }
+  }
   const [scene, setSceneState] = useState(loadScene)
   const [ordering, setOrdering] = useState(false)
   const [picker, setPicker] = useState(-1)
   const [copied, setCopied] = useState(false)
   const [view3d, setView3d] = useState(true)
   const [scenesOpen, setScenesOpen] = useState(false)
+  const [batchOrder, setBatchOrder] = useState(null)
   const [variants, setVariants] = useState(readVariants)
   const [saving, setSaving] = useState('')
   const wallRef = useRef(null)
@@ -203,7 +221,7 @@ export default function LedEditor() {
       await downloadMockup({
         wall,
         signSvg: svg,
-        night,
+        night: night && !dusk,
         glow: ledColorById(design.dots[0] ? dotColorId(design, design.dots[0]) : design.lines[0].color).hex,
         photo,
         background: { color: SCENES.find((x) => x.id === scene)?.hex, image: style.backgroundImage, size: style.backgroundSize },
@@ -239,7 +257,7 @@ export default function LedEditor() {
         <section className="studio-stage">
           <div
             ref={wallRef}
-            className={`wall ${night ? 'night' : ''} ${photo ? 'photo' : ''} ${!photo && SCENES.find((x) => x.id === scene)?.tex ? 'tex' : ''}`}
+            className={`wall ${night && !dusk ? 'night' : ''} ${dusk ? 'dusk' : ''} ${photo ? 'photo' : ''} ${!photo && SCENES.find((x) => x.id === scene)?.tex ? 'tex' : ''}`}
             data-scene={photo ? undefined : scene}
             style={photo ? { backgroundImage: `url(${photo})` } : wallStyle(scene)}
           >
@@ -268,8 +286,9 @@ export default function LedEditor() {
                 </div>
               )}
               <div className="switch">
-                <button className={!night ? 'active' : ''} onClick={() => setNight(false)}>☀ Apagado</button>
-                <button className={night ? 'active' : ''} onClick={() => setNight(true)}>☾ Encendido</button>
+                <button className={!night ? 'active' : ''} onClick={() => { setNight(false); setDusk(false) }} title="De día, apagado">☀ Día</button>
+                <button className={night && dusk ? 'active' : ''} onClick={() => { setNight(true); setDusk(true) }} title="Atardecer, encendido">◐ Tarde</button>
+                <button className={night && !dusk ? 'active' : ''} onClick={() => { setNight(true); setDusk(false) }} title="De noche, encendido">☾ Noche</button>
               </div>
             </div>
             {photo && (
@@ -277,6 +296,12 @@ export default function LedEditor() {
                 Tamaño
                 <input type="range" min="0.15" max="1.4" step="0.01" value={place.scale} onChange={(e) => setPlace((p) => ({ ...p, scale: +e.target.value }))} />
                 <span className="muted">Arrastra el letrero</span>
+              </label>
+            )}
+            {night && (
+              <label className="brightness" title="Intensidad del LED (el taller puede agregar un regulador)">
+                <span>☼</span>
+                <input type="range" min="0.25" max="1" step="0.05" value={brightness} onChange={(e) => setBrightness(+e.target.value)} />
               </label>
             )}
             {busy && <span className="calc"><span className="led blink" style={{ '--led': '#22c55e' }} /> Calculando puntos…</span>}
@@ -294,7 +319,7 @@ export default function LedEditor() {
             >
               {!photo && <span className="dim dim-w">{design.widthCm} cm</span>}
               {!photo && <span className="dim dim-h">{design.heightCm} cm</span>}
-              <Sign3D design={design} night={night} animate={night} enabled={view3d && !photo} />
+              <Sign3D design={design} night={night} animate={night} brightness={brightness} dusk={dusk} enabled={view3d && !photo} />
             </div>
           </div>
 
@@ -361,9 +386,14 @@ export default function LedEditor() {
                 </div>
                 <div className="row">
                   <button className={`icon-chip ${line.icon ? 'on' : ''}`} onClick={() => setPicker(picker === i ? -1 : i)}>
-                    {line.icon ? <IconGlyph id={line.icon} size={18} /> : <span className="plus">＋</span>}
-                    <span>{line.icon ? 'Cambiar ícono' : 'Agregar ícono'}</span>
+                    {line.icon === 'logo' ? <span className="plus">🖼</span> : line.icon ? <IconGlyph id={line.icon} size={18} /> : <span className="plus">＋</span>}
+                    <span>{line.icon === 'logo' ? 'Tu logo' : line.icon ? 'Cambiar ícono' : 'Agregar ícono'}</span>
                   </button>
+                  <label className="icon-chip logo-chip" title="Sube tu logo (PNG o JPG, mejor con fondo blanco o transparente)">
+                    <input type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadLogo(i)} />
+                    <span>{line.icon === 'logo' ? 'Cambiar logo' : 'Subir mi logo'}</span>
+                  </label>
+                  {line.icon === 'logo' && <button className="link-btn" onClick={() => setLine(i, { icon: '' })}>Quitar</button>}
                   {line.icon && line.text.trim() && (
                     <div className="switch small">
                       <button className={line.iconPos === 'left' ? 'active' : ''} onClick={() => setLine(i, { iconPos: 'left' })}>Izq.</button>
@@ -371,6 +401,7 @@ export default function LedEditor() {
                     </div>
                   )}
                 </div>
+                {logoError && <p className="error small">{logoError}</p>}
                 {picker === i && (
                   <IconPicker value={line.icon} onChange={(icon) => { setLine(i, { icon }); setPicker(-1) }} onClose={() => setPicker(-1)} />
                 )}
@@ -473,6 +504,14 @@ export default function LedEditor() {
             </label>
           </Section>
 
+          <details className="advanced batch">
+            <summary>
+              <span>¿Varios letreros?</span>
+              <em>Sucursales, mesas, puertas o consultorios: mismo diseño, distinto texto y descuento por volumen</em>
+            </summary>
+            <BatchSection design={design} prices={prices} onOrder={setBatchOrder} />
+          </details>
+
           <details className="advanced">
             <summary>
               <span>Opciones avanzadas</span>
@@ -560,6 +599,16 @@ export default function LedEditor() {
       <ReviewsSection />
       <MadeByAp onPick={(d) => { setDesign(normalizeLedDesign(d)); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
       <SiteFooter business={business} />
+
+      {batchOrder && (
+        <OrderModal
+          batch={batchOrder.designs}
+          total={batchOrder.total}
+          preview={<LedPreview design={batchOrder.designs[0]} night withMount />}
+          summary={[`${batchOrder.designs.length} letreros LED`, `con ${Math.round(batchOrder.rate * 100)} % de descuento por volumen`]}
+          onClose={() => setBatchOrder(null)}
+        />
+      )}
 
       {ordering && (
         <OrderModal
@@ -680,6 +729,58 @@ function Variants({ variants, prices, current, onLoad, onRemove }) {
           </article>
         ))}
       </div>
+    </div>
+  )
+}
+
+// Pedido múltiple: el mismo diseño con un texto distinto por letrero
+function BatchSection({ design, prices, onOrder }) {
+  const [texts, setTexts] = useState('')
+  const [rows, setRows] = useState([])
+  const [busy, setBusy] = useState(false)
+  const list = texts.split('\n').map((t) => t.trim()).filter(Boolean).slice(0, 30)
+  const calc = async () => {
+    setBusy(true)
+    const out = []
+    for (const text of list) {
+      const base = { ...design, lines: design.lines.map((l, i) => (i === 0 ? { ...l, text: text.slice(0, 40) } : l)) }
+      const res = await computeLedDots(base)
+      const d = normalizeLedDesign({ ...base, dots: res.dots.slice(0, MAX_DOTS), widthCm: res.widthCm, heightCm: res.heightCm })
+      out.push({ text, design: d, price: quote({ ...d, quantity: 1 }, prices).total })
+    }
+    setRows(out)
+    setBusy(false)
+  }
+  const rate = volumeDiscount(rows.length, prices)
+  const subtotal = rows.reduce((a, r) => a + r.price, 0)
+  const total = Math.round(subtotal * (1 - rate))
+  return (
+    <div className="batch-box">
+      <textarea className="input" rows="4" value={texts} onChange={(e) => { setTexts(e.target.value); setRows([]) }} placeholder={'Un texto por renglón, por ejemplo:\nSucursal Centro\nSucursal Norte\nSucursal Sur'} />
+      <button className="btn ghost sm" disabled={list.length < 2 || busy} onClick={calc}>
+        {busy ? 'Calculando…' : list.length < 2 ? 'Escribe al menos 2 textos' : `Calcular ${list.length} letreros`}
+      </button>
+      {rows.length > 0 && (
+        <>
+          <table className="batch-table">
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.text}>
+                  <td>{r.text}</td>
+                  <td className="muted">{r.design.widthCm}×{r.design.heightCm} cm</td>
+                  <td className="muted">{r.design.dots.length} LED</td>
+                  <td>{money(r.price)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="batch-total">
+            {rate > 0 && <span className="muted small">Subtotal {money(subtotal)} · −{Math.round(rate * 100)} % por volumen</span>}
+            <strong>{money(total)}</strong>
+            <button className="btn primary sm" onClick={() => onOrder({ designs: rows.map((r) => r.design), total, rate })}>Pedir los {rows.length}</button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
