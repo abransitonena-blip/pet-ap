@@ -7,7 +7,9 @@ import { LED_MODES } from '../lib/design'
 import { materialById, extraById, ledSpec, money } from '../lib/pricing'
 import { PRINTED_STATUSES, STATUSES, statusById } from '../lib/status'
 import { downloadPng } from '../lib/render'
-import { downloadDiagramSvg, downloadSignSvg, printDiagram } from '../lib/files'
+import { downloadDiagramSvg, downloadDxf, downloadGcode, downloadPointsCsv, downloadSignSvg, printDiagram, printSheets } from '../lib/files'
+import { PAPERS, planTiles } from '../lib/production'
+import { ledPointsMm } from '../lib/ledPoints'
 
 const fmtDate = (iso) =>
   new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -349,8 +351,29 @@ function PrintedGallery({ orders, onOpen }) {
   )
 }
 
+const PAPER_KEY = 'letreros_paper'
+function usePaper() {
+  const [paper, setPaper] = useState(() => {
+    try {
+      return localStorage.getItem(PAPER_KEY) || 'carta'
+    } catch {
+      return 'carta'
+    }
+  })
+  const change = (id) => {
+    setPaper(id)
+    try {
+      localStorage.setItem(PAPER_KEY, id)
+    } catch {}
+  }
+  return [paper, change]
+}
+
 function FileButtons({ order }) {
   const [busy, setBusy] = useState('')
+  const [paper, setPaper] = usePaper()
+  const plan = planTiles(order.design, paper)
+  const points = ledPointsMm(order.design).length
   const run = (key, fn) => async () => {
     setBusy(key)
     try {
@@ -360,19 +383,44 @@ function FileButtons({ order }) {
     }
   }
   return (
-    <div className="file-buttons">
-      <button className="file" onClick={run('png', () => downloadPng(order.design, `${order.folio}.png`, 6000))} disabled={!!busy}>
-        <b>PNG</b><span>{busy === 'png' ? 'Generando…' : 'Impresión 6000 px'}</span>
-      </button>
-      <button className="file" onClick={run('svg', () => downloadSignSvg(order.design, `${order.folio}.svg`))} disabled={!!busy}>
-        <b>SVG</b><span>Vector a escala</span>
-      </button>
-      <button className="file" onClick={run('dia', () => downloadDiagramSvg(order))} disabled={!!busy}>
-        <b>DIAGRAMA</b><span>Plano técnico SVG</span>
-      </button>
-      <button className="file" onClick={() => printDiagram(order)}>
-        <b>PDF</b><span>Imprimir diagrama</span>
-      </button>
+    <div className="file-groups">
+      <div className="file-buttons">
+        <button className="file" onClick={run('png', () => downloadPng(order.design, `${order.folio}.png`, 6000))} disabled={!!busy}>
+          <b>PNG</b><span>{busy === 'png' ? 'Generando…' : 'Impresión 6000 px'}</span>
+        </button>
+        <button className="file" onClick={run('svg', () => downloadSignSvg(order.design, `${order.folio}.svg`))} disabled={!!busy}>
+          <b>SVG</b><span>Vector a escala</span>
+        </button>
+        <button className="file" onClick={run('dia', () => downloadDiagramSvg(order))} disabled={!!busy}>
+          <b>DIAGRAMA</b><span>Plano técnico SVG</span>
+        </button>
+        <button className="file" onClick={() => printDiagram(order)}>
+          <b>PDF</b><span>Imprimir diagrama</span>
+        </button>
+      </div>
+      <div className="file-buttons production">
+        <label className="file paper">
+          <b>HOJAS 1:1</b>
+          <select value={paper} onChange={(e) => setPaper(e.target.value)} onClick={(e) => e.stopPropagation()}>
+            {PAPERS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+        <button className="file accent" onClick={run('hojas', () => printSheets(order, paper))} disabled={!!busy}>
+          <b>IMPRIMIR {plan.count} HOJA{plan.count > 1 ? 'S' : ''}</b>
+          <span>{plan.cols}×{plan.rows} · {points ? `${points} puntos LED` : 'con marcas'}</span>
+        </button>
+        <button className="file" onClick={() => downloadDxf(order)}>
+          <b>DXF</b><span>Contorno + puntos</span>
+        </button>
+        <button className="file" onClick={() => downloadGcode(order)}>
+          <b>G-CODE</b><span>Láser GRBL · Arduino</span>
+        </button>
+        {points > 0 && (
+          <button className="file" onClick={() => downloadPointsCsv(order)}>
+            <b>PUNTOS</b><span>Coordenadas CSV</span>
+          </button>
+        )}
+      </div>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { createElement } from 'react'
 import SignPreview from '../components/SignPreview'
 import TechDiagram from '../components/TechDiagram'
 import { downloadBlob } from './render'
+import { dxf, gcode, pointsCsv, sheetsHtml } from './production'
 
 const FONTS_CSS =
   "@import url('https://fonts.googleapis.com/css2?family=Anton&amp;family=Bebas+Neue&amp;family=Inter:wght@400;600;700;800&amp;family=Lobster&amp;family=Monoton&amp;family=Montserrat:ital,wght@0,400;0,800;1,400;1,800&amp;family=Pacifico&amp;family=Permanent+Marker&amp;family=Playfair+Display:ital,wght@0,400;0,800;1,400;1,800&amp;family=Righteous&amp;display=swap');"
@@ -48,4 +49,38 @@ export async function printDiagram(order) {
 </head><body>${markup}</body></html>`)
   win.document.close()
   win.document.fonts.ready.then(() => setTimeout(() => win.print(), 300))
+}
+
+// ---------- Producción: hojas 1:1, DXF, G-code, CSV ----------
+const FONTS_HREF = FONTS_CSS.match(/url\('([^']+)'\)/)[1].replace(/&amp;/g, '&')
+
+async function rawSignMarkup(design) {
+  const { renderToStaticMarkup } = await import('react-dom/server')
+  return renderToStaticMarkup(createElement(SignPreview, { design, svgProps: { className: undefined } }))
+}
+
+// Abre las hojas a tamaño real en una ventana nueva (con barra para elegir plantilla/color e imprimir)
+export async function printSheets(order, paperId) {
+  const win = window.open('', '_blank')
+  if (!win) return alert('Permite las ventanas emergentes para ver las hojas.')
+  const html = sheetsHtml(order, paperId, await rawSignMarkup(order.design)).replace(
+    '<head>',
+    `<head><link rel="stylesheet" href="${FONTS_HREF}">`
+  )
+  win.document.write(html)
+  win.document.close()
+}
+
+const textBlob = (text, type = 'text/plain') => new Blob([text], { type })
+
+export function downloadDxf(order) {
+  downloadBlob(textBlob(dxf(order.design), 'application/dxf'), `${order.folio}.dxf`)
+}
+
+export function downloadGcode(order) {
+  downloadBlob(textBlob(gcode(order)), `${order.folio}.gcode`)
+}
+
+export function downloadPointsCsv(order) {
+  downloadBlob(textBlob(pointsCsv(order.design), 'text/csv'), `${order.folio}-puntos.csv`)
 }

@@ -310,6 +310,12 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .file { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 8px 12px; border: 1px solid var(--line-2); border-radius: 10px; min-width: 104px; text-align: left; }
 .file:hover:not(:disabled) { border-color: var(--ink); }
 .file b { font-size: 11px; letter-spacing: .08em; }
+.file-groups { display: flex; flex-direction: column; gap: 6px; }
+.file-buttons.production .file { border-style: dashed; }
+.file.accent { background: var(--ink); color: #fff; border: 1px solid var(--ink) !important; }
+.file.accent span { color: #bbb; }
+.file.paper { cursor: default; }
+.file.paper select { border: none; background: none; font-size: 12px; padding: 0; color: var(--ink); cursor: pointer; outline: none; }
 .file span { font-size: 11px; color: var(--muted); }
 
 .drawer-backdrop { place-items: stretch end; padding: 0; }

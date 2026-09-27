@@ -1,6 +1,7 @@
 // Calcula la composición del letrero una sola vez; el SVG (vista previa,
 // archivo vectorial y diagrama) y el canvas (PNG) dibujan las mismas primitivas.
 import { lineColor } from './design'
+import { ledPointsMm } from './ledPoints'
 
 const LINE_HEIGHT = 1.15
 let measureCtx = null
@@ -19,41 +20,6 @@ function measureText(text, style, spacingPx) {
   return chars * style.px * 0.6 + spacingPx * chars
 }
 
-// Puntos de la tira LED a lo largo del contorno (esquinas redondeadas incluidas)
-function perimeterDots(W, H, inset, radius, step) {
-  const r = Math.max(0, Math.min(radius - inset, (Math.min(W, H) - inset * 2) / 2))
-  const x0 = inset, y0 = inset, x1 = W - inset, y1 = H - inset
-  const segs = [
-    { len: x1 - x0 - 2 * r, at: (t) => [x0 + r + t, y0] },
-    { len: (Math.PI * r) / 2, at: (t) => arc(x1 - r, y0 + r, -90 + (t / r) * (180 / Math.PI)) },
-    { len: y1 - y0 - 2 * r, at: (t) => [x1, y0 + r + t] },
-    { len: (Math.PI * r) / 2, at: (t) => arc(x1 - r, y1 - r, (t / r) * (180 / Math.PI)) },
-    { len: x1 - x0 - 2 * r, at: (t) => [x1 - r - t, y1] },
-    { len: (Math.PI * r) / 2, at: (t) => arc(x0 + r, y1 - r, 90 + (t / r) * (180 / Math.PI)) },
-    { len: y1 - y0 - 2 * r, at: (t) => [x0, y1 - r - t] },
-    { len: (Math.PI * r) / 2, at: (t) => arc(x0 + r, y0 + r, 180 + (t / r) * (180 / Math.PI)) }
-  ]
-  function arc(cx, cy, deg) {
-    const a = (deg * Math.PI) / 180
-    return [cx + r * Math.cos(a), cy + r * Math.sin(a)]
-  }
-  const total = segs.reduce((s, g) => s + g.len, 0)
-  const count = Math.max(8, Math.round(total / step))
-  const gap = total / count
-  const dots = []
-  for (let i = 0; i < count; i++) {
-    let d = i * gap
-    for (const g of segs) {
-      if (d <= g.len) {
-        dots.push(g.at(d))
-        break
-      }
-      d -= g.len
-    }
-  }
-  return dots
-}
-
 export function layoutSign(design) {
   const { widthCm, heightCm, colors } = design
   const W = widthCm >= heightCm ? 1000 : Math.round((1000 * widthCm) / heightCm)
@@ -64,7 +30,6 @@ export function layoutSign(design) {
 
   const borderPx = design.border.width * s
   const radiusPx = Math.min(design.border.radius * s, base / 2)
-  const ledInset = Math.max(borderPx, base * 0.025) + base * 0.025
   const pad = base * 0.08 + borderPx + (mode === 'perimeter' ? base * 0.04 : 0)
   const availW = W - pad * 2
   const availH = H - pad * 2
@@ -106,7 +71,9 @@ export function layoutSign(design) {
     y += h
   }
 
-  const dots = mode === 'perimeter' ? perimeterDots(W, H, ledInset, radiusPx, base * 0.05) : []
+  // Mismos puntos físicos que en las hojas y archivos de corte, escalados a la vista
+  const k = W / (widthCm * 10)
+  const dots = mode === 'perimeter' ? ledPointsMm(design).map(([px, py]) => [px * k, py * k]) : []
   return { W, H, s, base, borderPx, radiusPx, items, colors, mode, dots, dotR: base * 0.009 }
 }
 

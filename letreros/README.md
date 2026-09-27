@@ -25,6 +25,13 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
   - **Diagrama técnico** SVG: plano con cotas, escala, 3 colores en HEX, tipografías, material,
     cantidad de LED, consumo en watts y fuente de poder recomendada
   - **PDF**: abre el diagrama listo para "Imprimir → Guardar como PDF" (A4 horizontal)
+- **Producción** (escala real, en mm)
+  - **Hojas 1:1** en Carta, Oficio, A4 o Tabloide: el letrero se divide en hojas con mapa de armado,
+    10 mm para encimar, marcas de registro ⊕, línea de corte, **puntos LED numerados** y barra de 10 cm
+    para verificar la escala. Modo *plantilla* (ahorra tinta) o *color completo*
+  - **DXF** (capas `CORTE` y `LED`) para LightBurn, LaserGRBL, Inkscape o CAD
+  - **G-code GRBL 1.1** (Arduino): marca los puntos LED y corta el contorno. Origen = esquina inferior izquierda
+  - **CSV** con las coordenadas de cada punto
 
 ## 🚀 Uso local
 
@@ -60,17 +67,38 @@ El servidor Express sirve el frontend compilado (`dist/`) y la API en `/api`. Si
 Los pedidos se guardan en `server/data/orders.json`. En hosts con disco efímero (p. ej. Render gratis)
 agrega un disco persistente o cambia `loadDb/saveDb` en `server/index.js` por una base de datos.
 
+## ▲ Vercel
+
+El proyecto ya incluye `vercel.json` y `api/index.js` (función serverless con la API).
+En Vercel los pedidos se guardan en **Vercel Blob privado** (`letreros/orders.json`), porque el disco
+de las funciones no es persistente.
+
+1. Proyecto con *Root Directory* = `letreros`
+2. Conecta un Blob store al proyecto (crea `BLOB_READ_WRITE_TOKEN`)
+3. Variables: `ADMIN_PASSWORD` y `ADMIN_SECRET`
+
+## 🔧 Láser con Arduino (GRBL)
+
+El G-code usa `$32=1` (modo láser), `M3/M4` con potencia `S` y velocidad `F`.
+Los valores por defecto (`S1000` corte, `S300` marcado, `F600`) son de ejemplo: ajústalos en
+`gcode()` de `src/lib/production.js` o en tu programa emisor según tu láser y material.
+
 ## 🗂️ Estructura
 
 ```
 letreros/
-├── server/index.js          API: pedidos, login admin, estadísticas
+├── api/index.js             función de Vercel
+├── server/app.js            API: pedidos, login admin, estadísticas
+├── server/store.js          almacenamiento: archivo JSON o Vercel Blob
+├── server/index.js          servidor Node local / VPS
 └── src/
     ├── lib/design.js        modelo del letrero, plantillas, validación
     ├── lib/pricing.js       materiales, extras y cotizador (compartido con el servidor)
     ├── lib/status.js        estados de producción
     ├── lib/render.js        composición, efectos LED y exportación PNG
-    ├── lib/files.js         SVG vectorial y diagrama técnico (SVG/PDF)
+    ├── lib/files.js         descargas: SVG, diagrama, hojas, DXF, G-code, CSV
+    ├── lib/production.js    hojas 1:1, DXF, G-code GRBL, CSV
+    ├── lib/ledPoints.js     posición real (mm) de cada punto LED
     ├── components/          SignPreview (SVG), TechDiagram, StatusPill, SiteHeader
     └── pages/               Editor, Track, Admin
 ```

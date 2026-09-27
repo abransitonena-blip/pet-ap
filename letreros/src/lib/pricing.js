@@ -1,3 +1,5 @@
+import { LED_PITCH_MM, ledPointsMm } from './ledPoints.js'
+
 // Catálogo y cotizador. Compartido entre navegador y servidor
 // (el servidor siempre recalcula el precio, nunca confía en el cliente).
 
@@ -43,22 +45,21 @@ export function quantityDiscount(qty) {
 const round2 = (n) => Math.round(n * 100) / 100
 
 // Especificación técnica de la iluminación (para cotizar y para el diagrama)
-export function ledSpec({ widthCm, heightCm, led }) {
+export function ledSpec({ widthCm, heightCm, led, border }) {
   const mode = led?.mode || 'none'
   const areaM2 = (widthCm / 100) * (heightCm / 100)
-  const perimeterM = (2 * (widthCm + heightCm)) / 100
   if (mode === 'none') return null
   let spec
   if (mode === 'neon') {
     const meters = Math.max(1, round2(areaM2 * 6))
     spec = { mode, label: 'Neón LED flex 6×12 mm', quantity: `${meters} m aprox.`, watts: meters * 10 }
   } else if (mode === 'backlit') {
-    const modules = Math.max(6, Math.ceil(areaM2 * 60))
+    const modules = ledPointsMm({ widthCm, heightCm, led, border: { width: 0, radius: 0 } }).length
     spec = { mode, label: 'Módulos LED 3 × 2835', quantity: `${modules} módulos`, watts: modules * 0.72 }
   } else {
-    const meters = round2(perimeterM)
-    const bulbs = Math.round(meters * 30)
-    spec = { mode, label: 'Tira LED 2835 · 60 led/m', quantity: `${meters} m · ${bulbs} puntos`, watts: meters * 14.4 }
+    const count = ledPointsMm({ widthCm, heightCm, led, border: border || { width: 0, radius: 0 } }).length
+    const meters = round2((count * LED_PITCH_MM) / 1000)
+    spec = { mode, label: 'Tira LED 2835 / focos', quantity: `${meters} m · ${count} puntos`, watts: meters * 14.4 }
   }
   spec.watts = Math.ceil(spec.watts)
   spec.supplyWatts = [30, 60, 100, 150, 200, 300, 400, 600].find((w) => w >= spec.watts * 1.2) || Math.ceil(spec.watts * 1.2)
