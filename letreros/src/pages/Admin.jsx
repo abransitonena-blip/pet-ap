@@ -17,6 +17,69 @@ const fmtDate = (iso) =>
   new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 const ledName = (d) =>
   d.kind === 'led' ? `Puntos LED · ${d.dots.length}` : LED_MODES.find((m) => m.id === d.led?.mode)?.name || 'Sin luz'
+const NEXT = { nuevo: 'en_diseno', en_diseno: 'aprobado', aprobado: 'imprimiendo', imprimiendo: 'impreso', impreso: 'entregado' }
+const waLink = (phone, text = '') => {
+  const digits = (phone || '').replace(/\D/g, '')
+  if (!digits) return ''
+  return `https://wa.me/${digits.length === 10 ? '52' + digits : digits}${text ? `?text=${encodeURIComponent(text)}` : ''}`
+}
+const kindName = (d) => (d.kind === 'led' ? 'LED' : 'Impreso')
+
+function exportCsv(orders) {
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const rows = [['folio', 'fecha', 'estado', 'tipo', 'cliente', 'telefono', 'correo', 'texto', 'medida_cm', 'cantidad', 'total']]
+  for (const o of orders) {
+    rows.push([
+      o.folio, o.createdAt.slice(0, 10), statusById(o.status).label, kindName(o.design), o.customer.name, o.customer.phone,
+      o.customer.email, o.design.lines.map((l) => l.text || (l.icon ? `[${l.icon}]` : '')).filter(Boolean).join(' / '), `${o.design.widthCm}x${o.design.heightCm}`, o.quote.quantity, o.quote.total
+    ])
+  }
+  const blob = new Blob(['\ufeff' + rows.map((r) => r.map(esc).join(',')).join('\n')], { type: 'text/csv' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `pedidos-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+}
+
+// Pedidos por día (últimos 14 días): barras con tooltip
+function Activity({ orders }) {
+  const [hover, setHover] = useState(-1)
+  const days = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() - 13 + i)
+    return d
+  })
+  const data = days.map((d) => {
+    const key = d.toDateString()
+    const list = orders.filter((o) => new Date(o.createdAt).toDateString() === key && o.status !== 'cancelado')
+    return { d, n: list.length, total: list.reduce((a, o) => a + o.quote.total, 0) }
+  })
+  const max = Math.max(1, ...data.map((x) => x.n))
+  const h = hover >= 0 ? data[hover] : null
+  const total = data.reduce((a, x) => a + x.n, 0)
+  return (
+    <div className="activity">
+      <div className="activity-head">
+        <span>{h ? h.d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' }) : 'Últimos 14 días'}</span>
+        <strong>{h ? `${h.n} pedido${h.n === 1 ? '' : 's'} · ${money(h.total)}` : `${total} pedidos · ${money(data.reduce((a, x) => a + x.total, 0))}`}</strong>
+      </div>
+      <div className="bars-chart" onMouseLeave={() => setHover(-1)} role="img" aria-label={`Pedidos por día, últimos 14 días: ${total} en total`}>
+        <span className="y-max">{max}</span>
+        {data.map((x, i) => (
+          <div key={i} className={`day ${hover === i ? 'on' : ''} ${hover >= 0 && hover !== i ? 'dim' : ''}`} onMouseEnter={() => setHover(i)}>
+            <div className="bar-col">
+              {x.n > 0 && <div className="bar" style={{ height: `${(x.n / max) * 100}%` }} />}
+            </div>
+            <span className="x">{i % 2 === 1 || i === 13 ? x.d.getDate() : ''}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const materialName = (d) => (d.kind === 'led' ? boardMaterialById(d.material).name : materialById(d.material).name)
 
 const SECTIONS = [
@@ -154,7 +217,7 @@ function Dashboard({ onLogout }) {
         ) : (
           <>
             {section === 'resumen' && <Overview stats={stats} orders={orders} onOpen={open} />}
-            {section === 'pedidos' && <OrdersList orders={orders} onOpen={open} />}
+            {section === 'pedidos' && <OrdersList orders={orders} onOpen={open} onUpdate={updateOrder} />}
             {section === 'produccion' && <Production orders={orders} onOpen={open} onUpdate={updateOrder} />}
             {section === 'impresos' && <PrintedGallery orders={orders} onOpen={open} />}
             {section === 'archivos' && <Files orders={orders} onOpen={open} />}
@@ -179,13 +242,17 @@ function Dashboard({ onLogout }) {
 
 function Overview({ stats, orders, onOpen }) {
   const pending = ['nuevo', 'en_diseno', 'aprobado'].reduce((n, s) => n + (stats.byStatus[s] || 0), 0)
-  const ledOrders = orders.filter((o) => o.design.kind === 'led' || (o.design.led?.mode && o.design.led.mode !== 'none')).length
+  const active = orders.filter((o) => o.status !== 'cancelado')
+  const ticket = active.length ? Math.round(stats.revenue / active.length) : 0
+  const ledToBuild = orders
+    .filter((o) => o.design.kind === 'led' && ['nuevo', 'en_diseno', 'aprobado', 'imprimiendo'].includes(o.status))
+    .reduce((a, o) => a + o.design.dots.length * o.quote.quantity, 0)
   const tiles = [
     { label: 'Pedidos', value: stats.total },
-    { label: 'Por imprimir', value: pending },
-    { label: 'Imprimiendo', value: stats.byStatus.imprimiendo || 0 },
-    { label: 'Piezas impresas', value: stats.printedPieces },
-    { label: 'Con LED', value: ledOrders },
+    { label: 'Por producir', value: pending },
+    { label: 'En producción', value: stats.byStatus.imprimiendo || 0 },
+    { label: 'LED por armar', value: ledToBuild.toLocaleString('es-MX') },
+    { label: 'Ticket promedio', value: money(ticket) },
     { label: 'Ventas', value: money(stats.revenue) }
   ]
 
@@ -199,6 +266,10 @@ function Overview({ stats, orders, onOpen }) {
           </div>
         ))}
       </div>
+      <section className="card activity-card">
+        <h2>Actividad</h2>
+        <Activity orders={orders} />
+      </section>
       <div className="admin-grid">
         <section className="card">
           <h2>Estados</h2>
@@ -236,26 +307,36 @@ function Overview({ stats, orders, onOpen }) {
   )
 }
 
-function OrdersList({ orders, onOpen }) {
+function OrdersList({ orders, onOpen, onUpdate }) {
   const [filter, setFilter] = useState('todos')
+  const [kind, setKind] = useState('todos')
   const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     return orders.filter((o) => {
       if (filter !== 'todos' && o.status !== filter) return false
+      if (kind !== 'todos' && (o.design.kind === 'led' ? 'led' : 'impreso') !== kind) return false
       if (!term) return true
       return [o.folio, o.customer.name, o.customer.phone, o.customer.email, ...o.design.lines.map((l) => l.text)]
         .join(' ')
         .toLowerCase()
         .includes(term)
     })
-  }, [orders, filter, search])
+  }, [orders, filter, kind, search])
 
   return (
     <>
       <div className="toolbar">
-        <input className="input" placeholder="Buscar folio, cliente o texto…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="row wrap">
+          <input className="input search" placeholder="Buscar folio, cliente o texto…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div className="switch small">
+            {[['todos', 'Todos'], ['led', 'LED'], ['impreso', 'Impreso']].map(([id, label]) => (
+              <button key={id} className={kind === id ? 'active' : ''} onClick={() => setKind(id)}>{label}</button>
+            ))}
+          </div>
+          <button className="btn ghost sm push" onClick={() => exportCsv(filtered)}>Exportar CSV</button>
+        </div>
         <div className="chips">
           <button className={filter === 'todos' ? 'active' : ''} onClick={() => setFilter('todos')}>Todos {orders.length}</button>
           {STATUSES.map((s) => (
@@ -268,7 +349,7 @@ function OrdersList({ orders, onOpen }) {
       <div className="table-wrap">
         <table className="orders-table">
           <thead>
-            <tr><th>Diseño</th><th>Folio</th><th>Cliente</th><th>Medida</th><th>LED</th><th>Cant.</th><th>Total</th><th>Estado</th></tr>
+            <tr><th>Diseño</th><th>Folio</th><th>Cliente</th><th>Medida</th><th>Tipo</th><th>Cant.</th><th>Total</th><th>Estado</th><th></th></tr>
           </thead>
           <tbody>
             {filtered.map((o) => (
@@ -277,10 +358,22 @@ function OrdersList({ orders, onOpen }) {
                 <td><strong>{o.folio}</strong><div className="muted small">{fmtDate(o.createdAt)}</div></td>
                 <td>{o.customer.name}<div className="muted small">{o.customer.phone || o.customer.email}</div></td>
                 <td>{o.design.widthCm}×{o.design.heightCm}<div className="muted small">{materialName(o.design)}</div></td>
-                <td className="small">{ledName(o.design)}</td>
+                <td className="small"><span className={`kind ${o.design.kind === 'led' ? 'led-kind' : ''}`}>{kindName(o.design)}</span><div className="muted small">{ledName(o.design)}</div></td>
                 <td>{o.quote.quantity}</td>
                 <td>{money(o.quote.total)}</td>
                 <td><StatusPill status={o.status} /></td>
+                <td className="actions" onClick={(e) => e.stopPropagation()}>
+                  {waLink(o.customer.phone) && (
+                    <a className="icon-btn wa" href={waLink(o.customer.phone, `Hola ${o.customer.name}, te escribimos de AP sobre tu pedido ${o.folio}.`)} target="_blank" rel="noreferrer" title="WhatsApp">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21l1.7-4.4A8.5 8.5 0 1 1 8 20z" /><path d="M9 9.5c.3 2 2.4 4.2 4.5 4.6l1.2-1.2 2 .9c-.2 1.3-1.3 2-2.4 1.9C10.8 15.3 8.4 12.8 8 9.6 8 8.5 8.7 7.4 10 7.2l.9 2z" /></svg>
+                    </a>
+                  )}
+                  {NEXT[o.status] && (
+                    <button className="btn ghost sm" onClick={() => onUpdate(o.id, { status: NEXT[o.status] })} title="Avanzar al siguiente estado">
+                      {statusById(NEXT[o.status]).label} →
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -484,8 +577,21 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onDelete }) {
           </>
         ) : (
           <>
-            <div className="drawer-preview"><DesignPreview design={d} night={d.kind === 'led' || d.led?.mode !== 'none'} animate /></div>
+            <div className="drawer-preview"><DesignPreview design={d} night={d.kind === 'led' || d.led?.mode !== 'none'} animate withMount /></div>
             <FileButtons order={order} />
+
+            <div className="drawer-actions">
+              {NEXT[order.status] && (
+                <button className="btn primary grow" onClick={() => onUpdate({ status: NEXT[order.status] })}>
+                  Avanzar a {statusById(NEXT[order.status]).label} →
+                </button>
+              )}
+              {waLink(order.customer.phone) && (
+                <a className="btn ghost" href={waLink(order.customer.phone, `Hola ${order.customer.name}, tu pedido ${order.folio} de AP está: ${statusById(order.status).label}.`)} target="_blank" rel="noreferrer">
+                  Avisar por WhatsApp
+                </a>
+              )}
+            </div>
 
             <section>
               <h3>Estado</h3>

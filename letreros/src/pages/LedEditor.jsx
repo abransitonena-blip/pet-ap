@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import SiteHeader from '../components/SiteHeader'
-import LedPreview from '../components/LedPreview'
+import LedPreview, { previewBox } from '../components/LedPreview'
+import IconPicker, { IconGlyph } from '../components/IconPicker'
 import FontSelect from '../components/FontSelect'
 import {
-  ANIMATIONS, BOARDS, BOARD_MATERIALS, SCENES, DOT_STYLES, LED_COLORS, LED_SIZES, MAX_DOTS, POWER,
+  ANIMATIONS, BOARDS, BOARD_MATERIALS, MOUNTS, SCENES, SHAPES, DOT_STYLES, LED_COLORS, LED_SIZES, MAX_DOTS, POWER,
   boardMaterialById, defaultLedDesign, ledColorById, newLedLine, normalizeLedDesign, planPower
 } from '../lib/ledSign'
 import { computeLedDots } from '../lib/ledText'
@@ -15,27 +16,27 @@ const SCENE_KEY = 'ap_scene'
 
 function loadScene() {
   try {
-    return localStorage.getItem(SCENE_KEY) || 'negro'
+    const id = localStorage.getItem(SCENE_KEY)
+    return SCENES.some((x) => x.id === id) ? id : 'rosa'
   } catch {
-    return 'negro'
+    return 'rosa'
   }
 }
 
-// Plantillas de inicio (sin puntos: se calculan al cargar)
+// Modelos de inicio (sin puntos: se calculan al cargar)
+const L = newLedLine
 const LED_TEMPLATES = [
-  { name: 'Abierto', d: { style: 'contorno', pitchMm: 12, lines: [newLedLine({ text: 'ABIERTO', font: 'Anton', heightMm: 120, color: 'rojo' })] } },
-  { name: 'Open', d: { style: 'trazo', pitchMm: 10, board: 'transparente', lines: [newLedLine({ text: 'Open', font: 'Pacifico', heightMm: 140, color: 'rosa' })] } },
-  { name: 'Matriz', d: { style: 'matriz', animation: 'secuencial', lines: [newLedLine({ text: 'CAFE', font: 'Anton', heightMm: 120, color: 'ambar' })] } },
-  {
-    name: 'Tacos', d: {
-      style: 'contorno', pitchMm: 12, lines: [
-        newLedLine({ text: 'TACOS', font: 'Alfa Slab One', heightMm: 130, color: 'ambar' }),
-        newLedLine({ text: 'al pastor', font: 'Kaushan Script', heightMm: 70, color: 'verde' })
-      ]
-    }
-  },
-  { name: 'Bienvenidos', d: { style: 'trazo', pitchMm: 10, board: 'madera', lines: [newLedLine({ text: 'Bienvenidos', font: 'Great Vibes', heightMm: 110, color: 'calido' })] } },
-  { name: 'Barber', d: { style: 'relleno', pitchMm: 11, board: 'humo', animation: 'parpadeo', lines: [newLedLine({ text: 'BARBER', font: 'Bebas Neue', heightMm: 150, color: 'azul' })] } }
+  { name: 'Abierto', d: { style: 'contorno', pitchMm: 12, shape: 'pill', board: 'blanco', lines: [L({ text: 'ABIERTO', font: 'Anton', heightMm: 120, color: 'rojo', icon: 'estrella' })] } },
+  { name: 'Taquería', d: { style: 'contorno', pitchMm: 12, board: 'arena', lines: [L({ text: 'TACOS', font: 'Alfa Slab One', heightMm: 130, color: 'ambar', icon: 'taco' }), L({ text: 'al pastor', font: 'Kaushan Script', heightMm: 70, color: 'verde' })] } },
+  { name: 'Café', d: { style: 'trazo', pitchMm: 10, shape: 'arch', board: 'rosapalo', lines: [L({ text: 'Café', font: 'Pacifico', heightMm: 130, color: 'calido', icon: 'cafe', iconPos: 'right' })] } },
+  { name: 'Pet shop', d: { style: 'trazo', pitchMm: 10, shape: 'circle', board: 'rosa', lines: [L({ text: '', icon: 'perro', heightMm: 150, color: 'blanco' }), L({ text: 'PET SHOP', font: 'Fredoka', heightMm: 60, color: 'blanco', bold: true })] } },
+  { name: 'Baños', d: { style: 'trazo', pitchMm: 9, shape: 'round', board: 'blanco', lines: [L({ text: 'BAÑOS', font: 'Poppins', heightMm: 80, color: 'azul', bold: true, icon: 'wc' })] } },
+  { name: 'Salida', d: { style: 'relleno', pitchMm: 10, shape: 'rect', board: 'salvia', lines: [L({ text: 'SALIDA', font: 'Archivo Black', heightMm: 90, color: 'verde', icon: 'derecha', iconPos: 'right' })] } },
+  { name: 'Open', d: { style: 'trazo', pitchMm: 10, board: 'transparente', mount: 'colgante', lines: [L({ text: 'Open', font: 'Pacifico', heightMm: 140, color: 'rosa', icon: 'corazon', iconPos: 'right' })] } },
+  { name: 'Pizza', d: { style: 'contorno', pitchMm: 12, shape: 'hex', board: 'arena', lines: [L({ text: 'PIZZA', font: 'Titan One', heightMm: 110, color: 'rojo', icon: 'pizza' })] } },
+  { name: 'Barber', d: { style: 'relleno', pitchMm: 11, board: 'gris', animation: 'parpadeo', lines: [L({ text: 'BARBER', font: 'Bebas Neue', heightMm: 150, color: 'azul', icon: 'tijeras' })] } },
+  { name: 'Matriz', d: { style: 'matriz', animation: 'secuencial', board: 'blanco', lines: [L({ text: 'CAFE', heightMm: 120, color: 'ambar' })] } },
+  { name: 'Mesa', d: { style: 'trazo', pitchMm: 9, board: 'transparente', mount: 'base', lines: [L({ text: 'Bienvenidos', font: 'Great Vibes', heightMm: 100, color: 'calido', icon: 'brillos' })] } }
 ]
 
 function loadDraft() {
@@ -49,7 +50,7 @@ function loadDraft() {
 // Recalcula los puntos cuando cambia algo que afecta la forma (con pausa para no trabar al escribir)
 function useLedDots(design, setDesign) {
   const [busy, setBusy] = useState(false)
-  const shapeKey = JSON.stringify([design.lines, design.style, design.pitchMm, design.ledMm, design.marginMm])
+  const shapeKey = JSON.stringify([design.lines, design.style, design.pitchMm, design.ledMm, design.marginMm, design.shape])
   const run = useRef(0)
   useEffect(() => {
     const id = ++run.current
@@ -74,6 +75,7 @@ export default function LedEditor() {
   const [night, setNight] = useState(true)
   const [scene, setSceneState] = useState(loadScene)
   const [ordering, setOrdering] = useState(false)
+  const [picker, setPicker] = useState(-1)
   const busy = useLedDots(design, setDesign)
 
   useEffect(() => {
@@ -93,6 +95,7 @@ export default function LedEditor() {
   const plan = useMemo(() => planPower(design), [design])
   const q = useMemo(() => quote({ ...design, quantity }), [design, quantity])
   const tooMany = design.dots.length >= MAX_DOTS
+  const box = previewBox(design)
 
   return (
     <div className="page">
@@ -116,13 +119,13 @@ export default function LedEditor() {
             <div
               className="wall-sign"
               style={{
-                aspectRatio: `${design.widthCm} / ${design.heightCm}`,
-                width: `min(100%, ${((design.widthCm / design.heightCm) * 50).toFixed(2)}vh)`
+                aspectRatio: `${box.w} / ${box.h}`,
+                width: `min(100%, ${((box.w / box.h) * 50).toFixed(2)}vh)`
               }}
             >
               <span className="dim dim-w">{design.widthCm} cm</span>
               <span className="dim dim-h">{design.heightCm} cm</span>
-              <LedPreview design={design} night={night} animate={night} />
+              <LedPreview design={design} night={night} animate={night} withMount />
             </div>
           </div>
 
@@ -135,14 +138,21 @@ export default function LedEditor() {
           </div>
 
           <div className="styles-row">
-            <span className="label">Estilos</span>
+            <span className="label">Modelos</span>
             <div className="styles-scroll">
-              {LED_TEMPLATES.map((t) => (
-                <button key={t.name} className="style-card text" onClick={() => setDesign(normalizeLedDesign({ ...defaultLedDesign(), ...t.d, dots: [] }))}>
-                  <span style={{ fontFamily: `"${t.d.lines[0].font}"`, color: ledColorById(t.d.lines[0].color).hex }}>{t.d.lines[0].text}</span>
-                  <em>{t.name}</em>
-                </button>
-              ))}
+              {LED_TEMPLATES.map((t) => {
+                const first = t.d.lines.find((l) => l.text) || t.d.lines[0]
+                const color = ledColorById(t.d.lines[0].color).hex
+                return (
+                  <button key={t.name} className="style-card text" onClick={() => setDesign(normalizeLedDesign({ ...defaultLedDesign(), ...t.d, dots: [] }))}>
+                    <span className="model-line" style={{ color }}>
+                      {t.d.lines[0].icon && <IconGlyph id={t.d.lines[0].icon} size={18} />}
+                      <span style={{ fontFamily: `"${first.font}"` }}>{first.text}</span>
+                    </span>
+                    <em>{t.name}</em>
+                  </button>
+                )
+              })}
             </div>
           </div>
         </section>
@@ -152,13 +162,28 @@ export default function LedEditor() {
             {design.lines.map((line, i) => (
               <div className="text-line" key={i}>
                 <div className="row">
-                  <input className="input grow led-text" value={line.text} maxLength={40} placeholder="Escribe aquí…" onChange={(e) => setLine(i, { text: e.target.value })} style={{ fontFamily: `"${line.font}"` }} />
+                  <input className="input grow led-text" value={line.text} maxLength={40} placeholder={line.icon ? 'Solo ícono (o escribe texto)' : 'Escribe aquí…'} onChange={(e) => setLine(i, { text: e.target.value })} style={{ fontFamily: `"${line.font}"` }} />
                   {design.lines.length > 1 && <button className="icon-btn" onClick={() => setDesign((d) => ({ ...d, lines: d.lines.filter((_, j) => j !== i) }))} title="Quitar línea">✕</button>}
                 </div>
                 <div className="row">
                   {design.style === 'matriz' ? <span className="muted small grow">Fuente de puntos 5×7</span> : <FontSelect value={line.font} onChange={(font) => setLine(i, { font })} />}
                   {design.style !== 'matriz' && <button className={`toggle ${line.bold ? 'on' : ''}`} onClick={() => setLine(i, { bold: !line.bold })}><b>B</b></button>}
                 </div>
+                <div className="row">
+                  <button className={`icon-chip ${line.icon ? 'on' : ''}`} onClick={() => setPicker(picker === i ? -1 : i)}>
+                    {line.icon ? <IconGlyph id={line.icon} size={18} /> : <span className="plus">＋</span>}
+                    <span>{line.icon ? 'Cambiar ícono' : 'Agregar ícono'}</span>
+                  </button>
+                  {line.icon && line.text.trim() && (
+                    <div className="switch small">
+                      <button className={line.iconPos === 'left' ? 'active' : ''} onClick={() => setLine(i, { iconPos: 'left' })}>Izq.</button>
+                      <button className={line.iconPos === 'right' ? 'active' : ''} onClick={() => setLine(i, { iconPos: 'right' })}>Der.</button>
+                    </div>
+                  )}
+                </div>
+                {picker === i && (
+                  <IconPicker value={line.icon} onChange={(icon) => { setLine(i, { icon }); setPicker(-1) }} onClose={() => setPicker(-1)} />
+                )}
                 <div className="led-colors">
                   {LED_COLORS.map((c) => (
                     <button key={c.id} className={line.color === c.id ? 'active' : ''} onClick={() => setLine(i, { color: c.id })} title={c.name}>
@@ -209,7 +234,15 @@ export default function LedEditor() {
             {tooMany && <p className="error">Demasiados LED ({MAX_DOTS} máx.). Aumenta la separación o reduce la altura.</p>}
           </Section>
 
-          <Section n="03" title="Placa">
+          <Section n="03" title="Placa" hint="Forma, color y montaje">
+            <div className="shapes">
+              {SHAPES.map((x) => (
+                <button key={x.id} className={design.shape === x.id ? 'active' : ''} onClick={() => update({ shape: x.id })} title={x.name}>
+                  <ShapeIcon shape={x.id} />
+                  <span>{x.name}</span>
+                </button>
+              ))}
+            </div>
             <div className="board-colors">
               {BOARDS.map((b) => (
                 <button key={b.id} className={design.board === b.id ? 'active' : ''} onClick={() => update({ board: b.id })}>
@@ -228,11 +261,22 @@ export default function LedEditor() {
               <input type="range" min="10" max="150" step="5" value={design.marginMm} onChange={(e) => update({ marginMm: +e.target.value })} />
               <output>{design.marginMm / 10}</output>
             </label>
-            <label className="range">
-              <span>Esquinas</span>
-              <input type="range" min="0" max="100" value={design.cornerMm} onChange={(e) => update({ cornerMm: +e.target.value })} />
-              <output>{design.cornerMm}</output>
-            </label>
+            {design.shape === 'round' && (
+              <label className="range">
+                <span>Esquinas</span>
+                <input type="range" min="0" max="100" value={design.cornerMm} onChange={(e) => update({ cornerMm: +e.target.value })} />
+                <output>{design.cornerMm}</output>
+              </label>
+            )}
+            <div className="mounts">
+              {MOUNTS.map((m) => (
+                <button key={m.id} className={`led-mode ${design.mount === m.id ? 'active' : ''}`} onClick={() => update({ mount: m.id })}>
+                  <MountIcon mount={m.id} />
+                  <strong>{m.name}</strong>
+                  <span>{m.note}{m.price ? ` · +${money(m.price)}` : ''}</span>
+                </button>
+              ))}
+            </div>
           </Section>
 
           <Section n="04" title="Encendido y fuente">
@@ -298,6 +342,35 @@ function Section({ n, title, hint, children }) {
   )
 }
 
+function ShapeIcon({ shape }) {
+  const d = {
+    rect: 'M3 6h18v12H3z',
+    round: 'M7 6h10a4 4 0 0 1 4 4v4a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4v-4a4 4 0 0 1 4-4z',
+    pill: 'M9 6h6a6 6 0 0 1 0 12H9A6 6 0 0 1 9 6z',
+    circle: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z',
+    arch: 'M4 20V11a8 8 0 0 1 16 0v9z',
+    hex: 'M7 5h10l5 7-5 7H7l-5-7z'
+  }[shape]
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
+      <path d={d} />
+    </svg>
+  )
+}
+
+function MountIcon({ mount }) {
+  const body = {
+    pared: <><path d="M3 3v18" /><rect x="6" y="7" width="14" height="9" rx="1.5" /><circle cx="8.5" cy="9.5" r=".8" /><circle cx="17.5" cy="9.5" r=".8" /></>,
+    colgante: <><path d="M12 2v2M12 4 6 10M12 4l6 6" /><rect x="4" y="10" width="16" height="9" rx="1.5" /></>,
+    base: <><rect x="6" y="3" width="12" height="13" rx="1.5" /><path d="M3 20h18M5 20l1.5-4h11L19 20" /></>
+  }[mount]
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      {body}
+    </svg>
+  )
+}
+
 function DotIcon({ style }) {
   const pts = {
     trazo: [[2, 12], [5, 8], [8, 4], [11, 8], [14, 12]],
@@ -349,7 +422,7 @@ function LedOrderModal({ design, quantity, total, onClose }) {
           <form onSubmit={submit}>
             <h2>Confirmar pedido</h2>
             <div className="modal-preview">
-              <div className="modal-sign"><LedPreview design={design} night /></div>
+              <div className="modal-sign"><LedPreview design={design} night withMount /></div>
               <div>
                 <strong>{design.widthCm} × {design.heightCm} cm</strong>
                 <span className="muted">{design.dots.length} LED · {boardMaterialById(design.material).name}</span>

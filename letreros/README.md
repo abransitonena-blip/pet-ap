@@ -6,7 +6,12 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 ## ✨ Qué incluye
 
 **Letrero LED de puntos (`#/`, tipo Radox)**
-- Escribe el texto (hasta 4 líneas), elige entre **30 fuentes** (bloque, moderna, display, script) y el color del LED por línea
+- Escribe el texto (hasta 4 líneas), elige entre **56 fuentes** (bloque, moderna, display, pixel, script, clásica) y el color del LED por línea
+- **80 íconos LED** por categoría (comida, mascotas, negocios, señalética, decoración): taco, perro, huella, restaurante,
+  café, baños, flechas, corazón… Se convierten en puntos siguiendo su trazo; van a la izquierda o derecha del texto o solos
+- **Modelos** listos (taquería, café, pet shop, baños, salida, open, pizza, barbería, mesa)
+- **Base**: forma (recto, redondeado, cápsula, círculo, arco, hexágono) y montaje (pared, colgante o base LED de mesa);
+  el contorno real y los barrenos de montaje salen en plantillas, DXF (capa `MONTAJE`) y G-code
 - La app **convierte cada letra en puntos LED** con la fuente real:
   *trazo* (una línea por el centro, ideal para cursivas), *contorno* (letras gruesas), *relleno* o *matriz 5×7* clásica
 - Separación entre LED, LED de 3/5/8 mm, placa (negro, humo, blanco, cristal, madera; acrílico, PVC o MDF)
@@ -98,6 +103,10 @@ El G-code usa `$32=1` (modo láser), `M3/M4` con potencia `S` y velocidad `F`.
 Los valores por defecto (`S1000` corte, `S300` marcado, `F600`) son de ejemplo: ajústalos en
 `gcode()` de `src/lib/production.js` o en tu programa emisor según tu láser y material.
 
+## Créditos
+
+Íconos de [Lucide](https://lucide.dev) (licencia ISC). Taco, figuras de baño, chile y WC: dibujos propios.
+
 ## 🗂️ Estructura
 
 ```
@@ -115,7 +124,8 @@ letreros/
     ├── lib/production.js    hojas 1:1, DXF, G-code GRBL, CSV
     ├── lib/ledPoints.js     posición real (mm) de cada punto LED
     ├── lib/ledSign.js       letrero LED: modelo, cadenas, capacitores, materiales, precio
-    ├── lib/ledText.js       texto → puntos LED (esqueleto, contorno, relleno, matriz 5×7)
+    ├── lib/ledText.js       texto e íconos → puntos LED (esqueleto, contorno, relleno, matriz 5×7)
+    ├── lib/icons.js         catálogo de íconos LED
     ├── components/          SignPreview (SVG), TechDiagram, StatusPill, SiteHeader
     └── pages/               LedEditor, Editor (impreso), Track, Admin
 ```

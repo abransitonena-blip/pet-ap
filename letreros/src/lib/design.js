@@ -15,6 +15,12 @@ export const FONTS = [
   { id: 'Rubik Mono One', label: 'Rubik Mono', group: 'Bloque' },
   { id: 'Bungee', label: 'Bungee', group: 'Bloque' },
   { id: 'Lilita One', label: 'Lilita One', group: 'Bloque' },
+  { id: 'Archivo Black', label: 'Archivo Black', group: 'Bloque' },
+  { id: 'Titan One', label: 'Titan One', group: 'Bloque' },
+  { id: 'Luckiest Guy', label: 'Luckiest Guy', group: 'Bloque' },
+  { id: 'Bangers', label: 'Bangers', group: 'Bloque' },
+  { id: 'Staatliches', label: 'Staatliches', group: 'Bloque' },
+  { id: 'Fugaz One', label: 'Fugaz One', group: 'Bloque' },
   // Moderna / redonda
   { id: 'Montserrat', label: 'Montserrat', group: 'Moderna', q: 'Montserrat:ital,wght@0,400;0,800;1,400;1,800' },
   { id: 'Poppins', label: 'Poppins', group: 'Moderna', q: 'Poppins:wght@400;800' },
@@ -22,12 +28,23 @@ export const FONTS = [
   { id: 'Fredoka', label: 'Fredoka', group: 'Moderna', q: 'Fredoka:wght@400;700' },
   { id: 'Baloo 2', label: 'Baloo', group: 'Moderna', q: 'Baloo+2:wght@400;800' },
   { id: 'Righteous', label: 'Righteous', group: 'Moderna' },
+  { id: 'Quicksand', label: 'Quicksand', group: 'Moderna', q: 'Quicksand:wght@400;700' },
+  { id: 'Comfortaa', label: 'Comfortaa', group: 'Moderna', q: 'Comfortaa:wght@400;700' },
+  { id: 'Raleway', label: 'Raleway', group: 'Moderna', q: 'Raleway:wght@400;800' },
   // Display / neón
   { id: 'Audiowide', label: 'Audiowide', group: 'Display' },
   { id: 'Orbitron', label: 'Orbitron', group: 'Display', q: 'Orbitron:wght@400;800' },
   { id: 'Monoton', label: 'Monoton', group: 'Display' },
   { id: 'Shrikhand', label: 'Shrikhand', group: 'Display' },
   { id: 'Permanent Marker', label: 'Marker', group: 'Display' },
+  { id: 'Tilt Neon', label: 'Tilt Neon', group: 'Display' },
+  { id: 'Zen Dots', label: 'Zen Dots', group: 'Display' },
+  { id: 'Rye', label: 'Rye (western)', group: 'Display' },
+  { id: 'Chewy', label: 'Chewy', group: 'Display' },
+  // Pixel: se ven como letrero de puntos
+  { id: 'Press Start 2P', label: 'Press Start', group: 'Pixel' },
+  { id: 'VT323', label: 'VT323', group: 'Pixel' },
+  { id: 'Silkscreen', label: 'Silkscreen', group: 'Pixel' },
   // Script: cursivas, lucen con trazo
   { id: 'Pacifico', label: 'Pacifico', group: 'Script' },
   { id: 'Lobster', label: 'Lobster', group: 'Script' },
@@ -38,11 +55,21 @@ export const FONTS = [
   { id: 'Great Vibes', label: 'Great Vibes', group: 'Script' },
   { id: 'Sacramento', label: 'Sacramento', group: 'Script' },
   { id: 'Caveat', label: 'Caveat', group: 'Script', q: 'Caveat:wght@400;700' },
+  { id: 'Neonderthaw', label: 'Neonderthaw', group: 'Script' },
+  { id: 'Allura', label: 'Allura', group: 'Script' },
+  { id: 'Parisienne', label: 'Parisienne', group: 'Script' },
+  { id: 'Pinyon Script', label: 'Pinyon', group: 'Script' },
+  { id: 'Courgette', label: 'Courgette', group: 'Script' },
+  { id: 'Sofia', label: 'Sofia', group: 'Script' },
+  { id: 'Gloria Hallelujah', label: 'Gloria', group: 'Script' },
   // Clásica
-  { id: 'Playfair Display', label: 'Playfair', group: 'Clásica', q: 'Playfair+Display:ital,wght@0,400;0,800;1,400;1,800' }
+  { id: 'Playfair Display', label: 'Playfair', group: 'Clásica', q: 'Playfair+Display:ital,wght@0,400;0,800;1,400;1,800' },
+  { id: 'Abril Fatface', label: 'Abril Fatface', group: 'Clásica' },
+  { id: 'Cinzel', label: 'Cinzel', group: 'Clásica', q: 'Cinzel:wght@400;800' },
+  { id: 'Merriweather', label: 'Merriweather', group: 'Clásica', q: 'Merriweather:wght@400;900' }
 ]
 
-export const FONT_GROUPS = ['Bloque', 'Moderna', 'Display', 'Script', 'Clásica']
+export const FONT_GROUPS = ['Bloque', 'Moderna', 'Display', 'Pixel', 'Script', 'Clásica']
 
 // Una sola URL de Google Fonts para la página y los archivos exportados
 export const GOOGLE_FONTS_URL =

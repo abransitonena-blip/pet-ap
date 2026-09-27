@@ -6,6 +6,8 @@
 //  - matriz:   fuente clásica de 5 × 7 puntos
 // El orden de los puntos sigue el recorrido de la letra: es el orden de cableado en serie.
 import { fontsCssReady } from './fonts'
+import { iconById } from './icons'
+import { archRadius } from './ledSign'
 
 // ---------- Fuente 5 × 7 ----------
 const M = {
@@ -243,19 +245,89 @@ async function fontLine(line, style, pitchMm, ledMm) {
   return dots
 }
 
+// ---------- Íconos: puntos a lo largo del trazo real ----------
+let svgHost = null
+const CLOSED = new Set(['circle', 'ellipse', 'rect', 'polygon'])
+
+// Devuelve puntos (mm) en un cuadro de `sizeMm` con origen arriba a la izquierda
+export function iconDots(iconId, sizeMm, pitchMm) {
+  const icon = iconById(iconId)
+  if (!icon || typeof document === 'undefined') return []
+  if (!svgHost) {
+    svgHost = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svgHost.setAttribute('viewBox', '0 0 24 24')
+    svgHost.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;visibility:hidden'
+    document.body.appendChild(svgHost)
+  }
+  svgHost.innerHTML = icon.body
+  const k = sizeMm / 24
+  const pts = []
+  const min2 = (pitchMm * 0.62) ** 2
+  const add = (x, y) => {
+    if (pts.some(([px, py]) => (px - x) ** 2 + (py - y) ** 2 < min2)) return
+    pts.push([x, y])
+  }
+  for (const el of svgHost.children) {
+    if (typeof el.getTotalLength !== 'function') continue
+    const len = el.getTotalLength()
+    const lenMm = len * k
+    if (!len) continue
+    if (lenMm < pitchMm * 0.7) {
+      const p = el.getPointAtLength(len / 2)
+      add(p.x * k, p.y * k)
+      continue
+    }
+    const closed = CLOSED.has(el.tagName) || /z\s*$/i.test(el.getAttribute('d') || '')
+    const n = Math.max(1, Math.round(lenMm / pitchMm))
+    const count = closed ? n : n + 1
+    for (let i = 0; i < count; i++) {
+      const p = el.getPointAtLength(Math.min(len, (i * len) / n))
+      add(p.x * k, p.y * k)
+    }
+  }
+  return pts
+}
+
 const r1 = (n) => Math.round(n * 10) / 10
 
-// Calcula todos los puntos del letrero y el tamaño de la placa
+// Letras chicas necesitan puntos más juntos para leerse: máx. altura / 9 (nunca menos de 5 mm)
+const linePitch = (line, design) => Math.min(design.pitchMm, Math.max(5, line.heightMm / 9))
+
+// Texto + ícono de una línea, en mm con y relativa a la línea base
+async function lineWithIcon(line, design) {
+  let dots = []
+  if (line.text.trim()) {
+    dots =
+      design.style === 'matriz'
+        ? matrixLine(line.text, line.heightMm)
+        : await fontLine(line, design.style, linePitch(line, design), design.ledMm)
+  }
+  if (!line.icon) return dots
+  const size = line.heightMm * (line.text.trim() ? 1.25 : 1.6)
+  const pitch = design.style === 'matriz' ? line.heightMm / 6 : design.pitchMm
+  const ic = iconDots(line.icon, size, pitch)
+  if (!ic.length) return dots
+  const iy = -line.heightMm / 2 - size / 2
+  if (!dots.length) return ic.map(([x, y]) => [x, y + iy, 0])
+  const xs = dots.map((d) => d[0])
+  const gap = Math.max(design.pitchMm * 1.5, line.heightMm * 0.3)
+  const letters = Math.max(...dots.map((d) => d[2])) + 1
+  if (line.iconPos === 'right') {
+    const x0 = Math.max(...xs) + gap
+    return [...dots, ...ic.map(([x, y]) => [x + x0, y + iy, letters])]
+  }
+  const x0 = Math.min(...xs) - gap - size
+  return [...ic.map(([x, y]) => [x + x0, y + iy, 0]), ...dots.map(([x, y, l]) => [x, y, l + 1])]
+}
+
+// Calcula todos los puntos del letrero y el tamaño de la placa según su forma
 export async function computeLedDots(design) {
   const laid = []
   let letterBase = 0
   for (let li = 0; li < design.lines.length; li++) {
     const line = design.lines[li]
-    if (!line.text.trim()) continue
-    const dots =
-      design.style === 'matriz'
-        ? matrixLine(line.text, line.heightMm)
-        : await fontLine(line, design.style, design.pitchMm, design.ledMm)
+    if (!line.text.trim() && !line.icon) continue
+    const dots = await lineWithIcon(line, design)
     if (!dots.length) continue
     const xs = dots.map((d) => d[0])
     const ys = dots.map((d) => d[1])
@@ -270,10 +342,27 @@ export async function computeLedDots(design) {
   const gaps = laid.slice(1).reduce((a, l) => a + Math.max(design.pitchMm, l.height * 0.3), 0)
   const contentH = laid.reduce((a, l) => a + (l.maxY - l.minY) + led, 0) + gaps
   const m = design.marginMm
-  const widthCm = Math.ceil((contentW + 2 * m) / 10)
-  const heightCm = Math.ceil((contentH + 2 * m) / 10)
+
+  // Tamaño de placa según la forma (el contenido debe quedar dentro del contorno)
+  let W = contentW + 2 * m
+  let H = contentH + 2 * m
+  let top = 0 // espacio reservado arriba (arco)
+  const shape = design.shape || 'round'
+  if (shape === 'circle') {
+    W = H = Math.hypot(contentW, contentH) + m * 1.2
+  } else if (shape === 'pill') {
+    W += H * 0.55
+  } else if (shape === 'hex') {
+    W += H * 0.6
+  } else if (shape === 'arch') {
+    top = Math.min(W / 2, (H + W * 0.35) * 0.6) * 0.55
+    H += top
+  }
+  const widthCm = Math.ceil(W / 10)
+  const heightCm = Math.ceil(H / 10)
+  if (shape === 'arch') top = archRadius(widthCm * 10, heightCm * 10) * 0.55
   const offX = (widthCm * 10 - contentW) / 2 + led / 2
-  let y = (heightCm * 10 - contentH) / 2 + led / 2
+  let y = top + (heightCm * 10 - top - contentH) / 2 + led / 2
 
   const out = []
   for (const [k, l] of laid.entries()) {

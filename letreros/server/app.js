@@ -97,7 +97,7 @@ api.post('/orders', h(async (req, res) => {
   if (!phone && !email) return res.status(400).json({ error: 'Deja un teléfono o correo de contacto' })
 
   const clean = cleanDesign(design)
-  if (!clean.lines.some((l) => l.text.trim())) {
+  if (!clean.lines.some((l) => l.text.trim() || l.icon)) {
     return res.status(400).json({ error: 'El letrero no tiene texto' })
   }
   if (clean.kind === 'led' && !clean.dots.length) {

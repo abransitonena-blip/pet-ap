@@ -42,8 +42,7 @@ export const BOARDS = [
 
 // Pared de la vista previa (solo visual)
 export const SCENES = [
-  { id: 'negro', name: 'Negro', hex: '#0d0d0f' },
-  { id: 'rosa', name: 'Rosa', hex: '#f2b8cd' },
+  { id: 'rosa', name: 'Rosa', hex: '#f2c4d4' },
   { id: 'blanco', name: 'Blanco', hex: '#efeeea' },
   { id: 'concreto', name: 'Concreto', hex: '#a9a6a0' },
   { id: 'arena', name: 'Arena', hex: '#dccfbb' }
@@ -66,6 +65,22 @@ export const POWER = [
   { id: '12v', name: '12 V eliminador', note: 'Más segura · resistencias' }
 ]
 
+// Modelos de placa (forma) y de montaje
+export const SHAPES = [
+  { id: 'rect', name: 'Recto', price: 0 },
+  { id: 'round', name: 'Redondeado', price: 0 },
+  { id: 'pill', name: 'Cápsula', price: 60 },
+  { id: 'circle', name: 'Círculo', price: 120 },
+  { id: 'arch', name: 'Arco', price: 120 },
+  { id: 'hex', name: 'Hexágono', price: 120 }
+]
+
+export const MOUNTS = [
+  { id: 'pared', name: 'Pared', note: '2 barrenos para taquete', price: 0 },
+  { id: 'colgante', name: 'Colgante', note: 'Cable de acero y gancho', price: 90 },
+  { id: 'base', name: 'Base LED de mesa', note: 'Placa sobre base con ranura', price: 280 }
+]
+
 export const LED_SIZES = [3, 5, 8]
 export const MAX_DOTS = 4000
 export const SEQ_CHANNELS = 3
@@ -75,7 +90,7 @@ export const boardById = (id) => BOARDS.find((b) => b.id === id) || BOARDS[0]
 export const boardMaterialById = (id) => BOARD_MATERIALS.find((m) => m.id === id) || BOARD_MATERIALS[0]
 
 export function newLedLine(overrides = {}) {
-  return { text: 'TEXTO', font: 'Anton', heightMm: 100, color: 'rojo', bold: false, ...overrides }
+  return { text: 'TEXTO', font: 'Anton', heightMm: 100, color: 'rojo', bold: false, icon: '', iconPos: 'left', ...overrides }
 }
 
 export function defaultLedDesign() {
@@ -84,8 +99,10 @@ export function defaultLedDesign() {
     widthCm: 60,
     heightCm: 25,
     material: 'acrilico',
-    board: 'negro',
-    cornerMm: 10,
+    board: 'blanco',
+    shape: 'round',
+    mount: 'pared',
+    cornerMm: 16,
     marginMm: 40,
     style: 'contorno',
     pitchMm: 12,
@@ -117,7 +134,9 @@ export function normalizeLedDesign(input) {
     font: oneOf(l?.font, fontIds, 'Anton'),
     heightMm: Math.round(clamp(l?.heightMm, 20, 1000, 100)),
     color: oneOf(l?.color, LED_COLORS.map((c) => c.id), 'rojo'),
-    bold: Boolean(l?.bold)
+    bold: Boolean(l?.bold),
+    icon: typeof l?.icon === 'string' && /^[a-z0-9-]{1,40}$/.test(l.icon) ? l.icon : '',
+    iconPos: oneOf(l?.iconPos, ['left', 'right'], 'left')
   }))
   const dots = (Array.isArray(d.dots) ? d.dots : [])
     .slice(0, MAX_DOTS)
@@ -134,6 +153,8 @@ export function normalizeLedDesign(input) {
     heightCm,
     material: oneOf(d.material, BOARD_MATERIALS.map((m) => m.id), def.material),
     board: oneOf(d.board, BOARDS.map((b) => b.id), def.board),
+    shape: oneOf(d.shape, SHAPES.map((x) => x.id), 'round'),
+    mount: oneOf(d.mount, MOUNTS.map((x) => x.id), 'pared'),
     cornerMm: Math.round(clamp(d.cornerMm, 0, 200, def.cornerMm)),
     marginMm: Math.round(clamp(d.marginMm, 10, 200, def.marginMm)),
     style: oneOf(d.style, DOT_STYLES.map((s) => s.id), def.style),
@@ -145,6 +166,58 @@ export function normalizeLedDesign(input) {
     lines,
     dots
   }
+}
+
+// ---------- Forma de la placa ----------
+const f2 = (n) => Math.round(n * 100) / 100
+
+// Radio del arco superior (forma "arco")
+export const archRadius = (W, H) => Math.min(W / 2, H * 0.6)
+
+// Contorno de corte en mm: `d` para SVG y `points` (polígono cerrado) para DXF / G-code
+export function boardOutline(design) {
+  const W = design.widthCm * 10
+  const H = design.heightCm * 10
+  const shape = design.shape || 'round'
+  const arc = (cx, cy, rx, ry, a0, a1, n) =>
+    Array.from({ length: n + 1 }, (_, i) => {
+      const a = ((a0 + ((a1 - a0) * i) / n) * Math.PI) / 180
+      return [f2(cx + rx * Math.cos(a)), f2(cy + ry * Math.sin(a))]
+    })
+  let points
+  if (shape === 'circle') {
+    points = arc(W / 2, H / 2, W / 2, H / 2, 0, 360, 96).slice(0, -1)
+  } else if (shape === 'pill') {
+    const r = Math.min(W, H) / 2
+    points = [...arc(W - r, H / 2, r, r, -90, 90, 24), ...arc(r, H / 2, r, r, 90, 270, 24)]
+  } else if (shape === 'arch') {
+    const ry = archRadius(W, H)
+    points = [[0, H], ...arc(W / 2, ry, W / 2, ry, 180, 360, 48), [W, H]]
+  } else if (shape === 'hex') {
+    const k = Math.min(H * 0.29, W / 4)
+    points = [[k, 0], [W - k, 0], [W, H / 2], [W - k, H], [k, H], [0, H / 2]]
+  } else {
+    const r = shape === 'rect' ? 0 : Math.min(design.cornerMm || 0, W / 2, H / 2)
+    points = r
+      ? [...arc(W - r, r, r, r, -90, 0, 8), ...arc(W - r, H - r, r, r, 0, 90, 8), ...arc(r, H - r, r, r, 90, 180, 8), ...arc(r, r, r, r, 180, 270, 8)]
+      : [[0, 0], [W, 0], [W, H], [0, H]]
+  }
+  const d = 'M' + points.map((p) => p.join(' ')).join(' L') + ' Z'
+  return { d, points, W, H }
+}
+
+// Barrenos de montaje (Ø 4 mm) para pared y colgante
+export function mountHoles(design) {
+  if (design.mount === 'base') return []
+  const W = design.widthCm * 10
+  const H = design.heightCm * 10
+  const shape = design.shape || 'round'
+  if (shape === 'circle' || shape === 'arch') {
+    const y = shape === 'arch' ? archRadius(W, H) * 0.45 : H * 0.14
+    return [[f2(W / 2 - W * 0.16), f2(y)], [f2(W / 2 + W * 0.16), f2(y)]]
+  }
+  const inset = shape === 'pill' ? Math.min(W, H) / 2 : shape === 'hex' ? Math.min(H * 0.29, W / 4) + 12 : 15
+  return [[f2(inset), 15], [f2(W - inset), 15]]
 }
 
 // ---------- Cálculo eléctrico ----------
@@ -295,5 +368,9 @@ export function ledQuoteParts(design) {
     if (design.animation === 'secuencial') parts.push({ label: 'Controlador secuencial', amount: 260 })
   }
   if (design.animation === 'parpadeo') parts.push({ label: 'Intermitente', amount: 120 })
+  const shape = SHAPES.find((x) => x.id === design.shape)
+  if (shape?.price) parts.push({ label: `Corte en forma de ${shape.name.toLowerCase()}`, amount: shape.price })
+  const mount = MOUNTS.find((x) => x.id === design.mount)
+  if (mount?.price) parts.push({ label: mount.name, amount: mount.price })
   return { areaM2, parts, plan }
 }

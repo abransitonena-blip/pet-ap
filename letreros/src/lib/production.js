@@ -4,7 +4,7 @@
 //  - G-code GRBL (Arduino) para cortadora/grabadora láser casera
 //  - CSV con las coordenadas de los puntos
 import { holeMm, ledPointsMm, signGeometryMm } from './ledPoints'
-import { planPower } from './ledSign'
+import { boardOutline, mountHoles, planPower } from './ledSign'
 
 export const PAPERS = [
   { id: 'carta', name: 'Carta', w: 215.9, h: 279.4 },
@@ -67,7 +67,13 @@ function ledMarks(points, hole) {
     .join('')
 }
 
-function cutOutline(g) {
+function cutOutline(g, design) {
+  if (design?.kind === 'led') {
+    const holes = mountHoles(design)
+      .map(([x, y]) => `<circle cx="${f(x)}" cy="${f(y)}" r="2" fill="none" stroke="#2563eb" stroke-width="0.3"/><text x="${f(x + 3)}" y="${f(y - 3)}" font-size="2.6" font-family="Arial" fill="#2563eb">montaje Ø4</text>`)
+      .join('')
+    return `<path d="${boardOutline(design).d}" fill="none" stroke="#000" stroke-width="0.35" stroke-dasharray="3 1.5"/>${holes}`
+  }
   return `<rect x="0" y="0" width="${f(g.w)}" height="${f(g.h)}" rx="${f(g.radius)}" fill="none" stroke="#000" stroke-width="0.35" stroke-dasharray="3 1.5"/>`
 }
 
@@ -83,7 +89,7 @@ export function sheetsHtml(order, paperId, signMarkup) {
   const g = signGeometryMm(d)
   const points = ledPointsMm(d)
   const marks = registrationMarks(plan)
-  const overlay = cutOutline(g) + ledMarks(points, holeMm(d)) + marks.map(regMark).join('')
+  const overlay = cutOutline(g, d) + ledMarks(points, holeMm(d)) + marks.map(regMark).join('')
   const nested = (w, h) =>
     signMarkup.replace(/^<svg/, `<svg class="art" x="0" y="0" width="${f(w)}" height="${f(h)}" preserveAspectRatio="none"`)
 
@@ -100,7 +106,7 @@ export function sheetsHtml(order, paperId, signMarkup) {
   const mapSvg =
     `<svg width="${f(g.w * k)}mm" height="${f(g.h * k)}mm" viewBox="0 0 ${f(g.w)} ${f(g.h)}" style="overflow:visible">` +
     nested(g.w, g.h) +
-    cutOutline(g) +
+    cutOutline(g, d) +
     tiles
       .map((t) => {
         const w = Math.min(plan.pw, g.w - t.x)
@@ -170,6 +176,17 @@ export function dxf(design) {
   const Y = (y) => g.h - y // DXF usa Y hacia arriba
   const out = ['0', 'SECTION', '2', 'HEADER', '9', '$INSUNITS', '70', '4', '0', 'ENDSEC', '0', 'SECTION', '2', 'ENTITIES']
   const line = (x1, y1, x2, y2) => out.push('0', 'LINE', '8', 'CORTE', '10', f(x1), '20', f(y1), '11', f(x2), '21', f(y2))
+  if (design.kind === 'led') {
+    const pts = boardOutline(design).points
+    pts.forEach(([x, y], i) => {
+      const [nx, ny] = pts[(i + 1) % pts.length]
+      line(x, Y(y), nx, Y(ny))
+    })
+    for (const [x, y] of mountHoles(design)) out.push('0', 'CIRCLE', '8', 'MONTAJE', '10', f(x), '20', f(Y(y)), '40', '2')
+    for (const [x, y] of ledPointsMm(design)) out.push('0', 'CIRCLE', '8', 'LED', '10', f(x), '20', f(Y(y)), '40', f(holeMm(design) / 2))
+    out.push('0', 'ENDSEC', '0', 'EOF')
+    return out.join('\n') + '\n'
+  }
   const arc = (cx, cy, a0, a1) => out.push('0', 'ARC', '8', 'CORTE', '10', f(cx), '20', f(cy), '40', f(r), '50', f(a0), '51', f(a1))
   line(r, 0, g.w - r, 0)
   line(g.w, r, g.w, g.h - r)
@@ -212,6 +229,21 @@ export function gcode(order, { power = 1000, markPower = 300, feed = 600, passes
     pts.forEach(([x, y], i) => {
       out.push(`G0 X${f(x)} Y${f(Y(y))} ; punto ${i + 1}`, `M3 S${markPower}`, 'G4 P0.3', 'M5')
     })
+  }
+  const holes = d.kind === 'led' ? mountHoles(d) : []
+  if (holes.length) {
+    out.push('; --- barrenos de montaje (marcado) ---')
+    holes.forEach(([x, y]) => out.push(`G0 X${f(x)} Y${f(Y(y))}`, `M3 S${markPower}`, 'G4 P0.3', 'M5'))
+  }
+  if (d.kind === 'led') {
+    const pts = boardOutline(d).points
+    for (let p = 1; p <= passes; p++) {
+      out.push(`; --- contorno de corte (pasada ${p}/${passes}) ---`, `G0 X${f(pts[0][0])} Y${f(Y(pts[0][1]))}`, `M4 S${power}`)
+      ;[...pts.slice(1), pts[0]].forEach(([x, y], i) => out.push(i ? `G1 X${f(x)} Y${f(Y(y))}` : `G1 F${feed} X${f(x)} Y${f(Y(y))}`))
+      out.push('M5')
+    }
+    out.push('G0 X0 Y0', 'M2')
+    return out.join('\n') + '\n'
   }
   for (let p = 1; p <= passes; p++) {
     out.push(`; --- contorno de corte (pasada ${p}/${passes}) ---`, `G0 X${f(r)} Y0`, `M4 S${power}`, `G1 F${feed} X${f(g.w - r)} Y0`)
