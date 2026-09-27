@@ -10,6 +10,7 @@ import {
 import { computeLedDots } from '../lib/ledText'
 import { money, quote } from '../lib/pricing'
 import { api } from '../lib/api'
+import { usePublicSettings } from '../lib/settings'
 
 const DRAFT_KEY = 'letreros_led_draft'
 const SCENE_KEY = 'ap_scene'
@@ -93,7 +94,8 @@ export default function LedEditor() {
   const update = (patch) => setDesign((d) => ({ ...d, ...patch }))
   const setLine = (i, patch) => setDesign((d) => ({ ...d, lines: d.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) }))
   const plan = useMemo(() => planPower(design), [design])
-  const q = useMemo(() => quote({ ...design, quantity }), [design, quantity])
+  const { prices, business } = usePublicSettings()
+  const q = useMemo(() => quote({ ...design, quantity }, prices), [design, quantity, prices])
   const tooMany = design.dots.length >= MAX_DOTS
   const box = previewBox(design)
 
@@ -273,7 +275,7 @@ export default function LedEditor() {
                 <button key={m.id} className={`led-mode ${design.mount === m.id ? 'active' : ''}`} onClick={() => update({ mount: m.id })}>
                   <MountIcon mount={m.id} />
                   <strong>{m.name}</strong>
-                  <span>{m.note}{m.price ? ` · +${money(m.price)}` : ''}</span>
+                  <span>{m.note}{prices.led.mounts?.[m.id] ? ` · +${money(prices.led.mounts[m.id])}` : ''}</span>
                 </button>
               ))}
             </div>
@@ -297,7 +299,7 @@ export default function LedEditor() {
             </div>
             <label className="check-row">
               <input type="checkbox" checked={design.extras.includes('instalacion')} onChange={(e) => update({ extras: e.target.checked ? ['instalacion'] : [] })} />
-              <span>Instalación (+$450)</span>
+              <span>Instalación (+{money(prices.led.installation)})</span>
             </label>
           </Section>
 
@@ -316,7 +318,7 @@ export default function LedEditor() {
               </div>
               <div className="grow price">
                 <strong>{money(q.total)}</strong>
-                <span className="muted small">{quantity > 1 ? `${money(q.unitPrice)} c/u` : 'IVA incluido'}</span>
+                <span className="muted small">{quantity > 1 ? `${money(q.unitPrice)} c/u` : (business.ivaIncluded ? 'IVA incluido' : `más IVA ${business.ivaRate} %`)}</span>
               </div>
               <button className="btn primary" onClick={() => setOrdering(true)} disabled={busy || !design.dots.length || tooMany}>Pedir</button>
             </div>
@@ -416,7 +418,10 @@ function LedOrderModal({ design, quantity, total, onClose }) {
             <p className="muted">Tu folio</p>
             <div className="folio">{result.folio}</div>
             <p className="muted small">Guárdalo para consultar el avance. Te contactaremos para confirmar pago y detalles.</p>
-            <a className="btn primary" href={`#/seguimiento/${result.folio}`}>Ver mi pedido</a>
+            <div className="row center-row">
+              <a className="btn primary" href={`#/presupuesto/${result.folio}/${result.token}`}>Ver mi presupuesto</a>
+              <a className="btn ghost" href={`#/seguimiento/${result.folio}`}>Seguimiento</a>
+            </div>
           </div>
         ) : (
           <form onSubmit={submit}>

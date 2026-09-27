@@ -1,5 +1,6 @@
 import { LED_PITCH_MM, ledPointsMm } from './ledPoints.js'
 import { ledQuoteParts } from './ledSign.js'
+import { DEFAULT_PRICES, volumeDiscount } from './prices.js'
 
 // Catálogo y cotizador. Compartido entre navegador y servidor
 // (el servidor siempre recalcula el precio, nunca confía en el cliente).
@@ -35,13 +36,11 @@ export const MIN_PRICE_PER_PIECE = 150
 export const materialById = (id) => MATERIALS.find((m) => m.id === id) || MATERIALS[0]
 export const extraById = (id) => EXTRAS.find((e) => e.id === id)
 
-export function quantityDiscount(qty) {
-  if (qty >= 50) return 0.2
-  if (qty >= 20) return 0.12
-  if (qty >= 10) return 0.08
-  if (qty >= 5) return 0.05
-  return 0
-}
+export const quantityDiscount = (qty, prices = DEFAULT_PRICES) => volumeDiscount(qty, prices)
+
+// Precio vigente de un material / extra (ajustes del panel o valor de catálogo)
+export const materialPrice = (id, prices = DEFAULT_PRICES) => prices.print?.materials?.[id] ?? materialById(id).pricePerM2
+export const extraPrice = (id, prices = DEFAULT_PRICES) => prices.print?.extras?.[id] ?? extraById(id)?.price ?? 0
 
 const round2 = (n) => Math.round(n * 100) / 100
 
@@ -67,9 +66,9 @@ export function ledSpec({ widthCm, heightCm, led, border }) {
   return spec
 }
 
-function finishQuote(qty, areaM2, perPiece, perOrder, lines) {
+function finishQuote(qty, areaM2, perPiece, perOrder, lines, prices) {
   const subtotal = perPiece * qty + perOrder
-  const discountRate = quantityDiscount(qty)
+  const discountRate = quantityDiscount(qty, prices)
   const discount = perPiece * qty * discountRate
   return {
     quantity: qty,
@@ -84,35 +83,37 @@ function finishQuote(qty, areaM2, perPiece, perOrder, lines) {
 }
 
 // Letrero de puntos LED
-function quoteLed(design, qty) {
-  const { areaM2, parts } = ledQuoteParts(design)
+function quoteLed(design, qty, prices) {
+  const { areaM2, parts } = ledQuoteParts(design, prices)
   const perPiece = parts.reduce((a, p) => a + p.amount, 0)
   const lines = parts.map((p) => ({ label: p.label, amount: round2(p.amount * qty) }))
   let perOrder = 0
   if (design.extras?.includes('instalacion')) {
-    perOrder = extraById('instalacion').price
+    perOrder = prices.led?.installation ?? extraPrice('instalacion', prices)
     lines.push({ label: 'Instalación', amount: perOrder })
   }
-  return finishQuote(qty, areaM2, perPiece, perOrder, lines)
+  return finishQuote(qty, areaM2, perPiece, perOrder, lines, prices)
 }
 
-export function quote(design) {
+// `prices`: tabla de precios editable desde el panel (por defecto, la de fábrica)
+export function quote(design, prices = DEFAULT_PRICES) {
   const qty = Math.max(1, Math.min(500, Math.round(Number(design.quantity) || 1)))
-  if (design.kind === 'led') return quoteLed(design, qty)
+  if (design.kind === 'led') return quoteLed(design, qty, prices)
   const { widthCm, heightCm, material, extras = [], led } = design
   const areaM2 = round2((widthCm / 100) * (heightCm / 100))
   const perimeterM = round2((2 * (widthCm + heightCm)) / 100)
   const mat = materialById(material)
 
-  const materialCost = Math.max(MIN_PRICE_PER_PIECE, areaM2 * mat.pricePerM2)
+  const materialCost = Math.max(prices.print?.minPiece ?? MIN_PRICE_PER_PIECE, areaM2 * materialPrice(mat.id, prices))
   let perPiece = materialCost
   let perOrder = 0
   const lines = [{ label: `${mat.name} (${areaM2} m²)`, amount: round2(materialCost * qty) }]
 
   const ledPrice = LED_PRICING[led?.mode]
   if (ledPrice) {
-    const ledCost = ledPrice.per === 'm2' ? Math.max(600, areaM2 * ledPrice.price) : perimeterM * ledPrice.price
-    const total = ledCost + LED_POWER_SUPPLY.price
+    const unit = prices.print?.light?.[led.mode] ?? ledPrice.price
+    const ledCost = ledPrice.per === 'm2' ? Math.max(600, areaM2 * unit) : perimeterM * unit
+    const total = ledCost + (prices.print?.powerSupply ?? LED_POWER_SUPPLY.price)
     perPiece += total
     lines.push({ label: `${ledPrice.name} + ${LED_POWER_SUPPLY.name}`, amount: round2(total * qty) })
   }
@@ -121,21 +122,22 @@ export function quote(design) {
     const ex = extraById(id)
     if (!ex) continue
     let amount
+    const price = extraPrice(ex.id, prices)
     if (ex.per === 'm2') {
-      amount = areaM2 * ex.price
+      amount = areaM2 * price
       perPiece += amount
       amount *= qty
     } else if (ex.per === 'pieza') {
-      perPiece += ex.price
-      amount = ex.price * qty
+      perPiece += price
+      amount = price * qty
     } else {
-      perOrder += ex.price
-      amount = ex.price
+      perOrder += price
+      amount = price
     }
     lines.push({ label: ex.name, amount: round2(amount) })
   }
 
-  return finishQuote(qty, areaM2, perPiece, perOrder, lines)
+  return finishQuote(qty, areaM2, perPiece, perOrder, lines, prices)
 }
 
 export const money = (n) =>

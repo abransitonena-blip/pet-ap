@@ -3,9 +3,10 @@ import SiteHeader from '../components/SiteHeader'
 import SignPreview from '../components/SignPreview'
 import FontSelect from '../components/FontSelect'
 import { ICONS, LED_MODES, PALETTES, SIZE_PRESETS, TEMPLATES, defaultDesign, newLine, normalizeDesign } from '../lib/design'
-import { EXTRAS, MATERIALS, materialById, money, quote } from '../lib/pricing'
+import { EXTRAS, MATERIALS, extraPrice, materialById, materialPrice, money, quote } from '../lib/pricing'
 import { downloadPng } from '../lib/render'
 import { api } from '../lib/api'
+import { usePublicSettings } from '../lib/settings'
 
 const DRAFT_KEY = 'letreros_draft_v2'
 const MATERIAL_IDS = MATERIALS.map((m) => m.id)
@@ -33,7 +34,8 @@ export default function Editor() {
     } catch {}
   }, [design])
 
-  const q = useMemo(() => quote({ ...design, quantity }), [design, quantity])
+  const { prices, business } = usePublicSettings()
+  const q = useMemo(() => quote({ ...design, quantity }, prices), [design, quantity, prices])
   const update = (patch) => setDesign((d) => ({ ...d, ...patch }))
 
   const exportPng = async () => {
@@ -175,7 +177,7 @@ export default function Editor() {
                 <button key={m.id} className={`list-item ${design.material === m.id ? 'active' : ''}`} onClick={() => update({ material: m.id })}>
                   <span className="radio" />
                   <span className="grow">{m.name} <em>{m.note}</em></span>
-                  <span className="muted">{money(m.pricePerM2)}/m²</span>
+                  <span className="muted">{money(materialPrice(m.id, prices))}/m²</span>
                 </button>
               ))}
             </div>
@@ -190,7 +192,7 @@ export default function Editor() {
                   >
                     <span className="checkbox" />
                     <span className="grow">{ex.name}</span>
-                    <span className="muted">+{money(ex.price)}/{ex.per === 'm2' ? 'm²' : ex.per}</span>
+                    <span className="muted">+{money(extraPrice(ex.id, prices))}/{ex.per === 'm2' ? 'm²' : ex.per}</span>
                   </button>
                 )
               })}
@@ -214,7 +216,7 @@ export default function Editor() {
               </div>
               <div className="grow price">
                 <strong>{money(q.total)}</strong>
-                <span className="muted small">{quantity > 1 ? `${money(q.unitPrice)} c/u` : 'IVA incluido'}</span>
+                <span className="muted small">{quantity > 1 ? `${money(q.unitPrice)} c/u` : (business.ivaIncluded ? 'IVA incluido' : `más IVA ${business.ivaRate} %`)}</span>
               </div>
               <button className="btn primary" onClick={() => setOrdering(true)}>Pedir</button>
             </div>
@@ -348,7 +350,10 @@ function OrderModal({ design, quantity, total, onClose }) {
             <p className="muted">Tu folio</p>
             <div className="folio">{result.folio}</div>
             <p className="muted small">Guárdalo para consultar el avance. Te contactaremos para confirmar pago y detalles.</p>
-            <a className="btn primary" href={`#/seguimiento/${result.folio}`}>Ver mi pedido</a>
+            <div className="row center-row">
+              <a className="btn primary" href={`#/presupuesto/${result.folio}/${result.token}`}>Ver mi presupuesto</a>
+              <a className="btn ghost" href={`#/seguimiento/${result.folio}`}>Seguimiento</a>
+            </div>
           </div>
         ) : (
           <form onSubmit={submit}>

@@ -25,6 +25,22 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
   DXF con barrenos del tamaño del LED, G-code y CSV con cadena y salida de cada punto
 
 
+**Presupuestos profesionales**
+- Cada pedido genera un presupuesto formal con tu marca: conceptos, descuento por volumen, subtotal, **IVA**
+  (incluido o aparte), **anticipo**, vigencia, entrega estimada, datos de pago y términos
+- El cliente lo abre en un **enlace privado** (`#/presupuesto/<folio>/<token>`), lo descarga en PDF y lo **acepta**
+  (el pedido pasa a *Aprobado*) o lo rechaza
+- En el panel se ajusta: cargos extra (flete, urgencia…), descuento % o $, nota; se envía por WhatsApp o se copia el enlace
+
+**Equipo y permisos (delegar)**
+- El dueño entra con usuario vacío o `admin` + `ADMIN_PASSWORD`; agrega personas con su propio usuario y contraseña
+- Roles rápidos (Gerente, Ventas, Producción, Precios) o permisos a la medida: ver pedidos y clientes, cambiar estado,
+  presupuestos, producción y archivos, ver montos, **editar precios**, datos del negocio, eliminar, administrar equipo
+- El servidor valida cada permiso; desactivar a alguien corta su acceso al instante; el historial dice quién hizo cada cambio
+
+**Precios y negocio editables** (sin tocar código): placas, LED por color, armado, fuentes, formas, montajes,
+letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, datos bancarios y términos
+
 **Letrero impreso (`#/impreso`), minimalista**
 - Vista previa en vivo sobre una pared, con medidas en cm y modo **☀ Día / ☾ Noche** para ver el LED encendido
 - **3 colores por letrero** (fondo · texto · acento): 8 paletas en tendencia o colores propios
@@ -126,8 +142,9 @@ letreros/
     ├── lib/ledSign.js       letrero LED: modelo, cadenas, capacitores, materiales, precio
     ├── lib/ledText.js       texto e íconos → puntos LED (esqueleto, contorno, relleno, matriz 5×7)
     ├── lib/icons.js         catálogo de íconos LED
+    ├── lib/prices.js        precios editables, datos del negocio, permisos, totales con IVA
     ├── components/          SignPreview (SVG), TechDiagram, StatusPill, SiteHeader
-    └── pages/               LedEditor, Editor (impreso), Track, Admin
+    └── pages/               LedEditor, Editor (impreso), Track, QuotePage, Admin, AdminSections
 ```
 
-Precios, materiales y LED se editan en `src/lib/pricing.js`; paletas en `src/lib/design.js`; el servidor siempre recalcula el total.
+Los precios se editan desde el panel (sección *Precios*); los valores de fábrica están en `src/lib/prices.js`. El servidor siempre recalcula el total.

@@ -5,6 +5,7 @@
 //  - 127 V: fuente capacitiva no aislada (placa B, 3 salidas). I = 240 × C(µF) × (180 V − Vtira) mA
 //  - 12 V: eliminador + LED en serie con resistencia (15 mA por cadena)
 import { FONTS } from './design.js'
+import { DEFAULT_PRICES } from './prices.js'
 
 export const LED_COLORS = [
   { id: 'rojo', name: 'Rojo', hex: '#ff3b30', vf: 2.0, price: 2.5 },
@@ -350,27 +351,31 @@ export function planPower(design) {
   return { strings, dotString, boardsA, boardsB, totalLeds: dots.length, totalMa: Math.round(totalMa), watts, supplyA, bom, colorCount }
 }
 
-// Precio del letrero LED (lo recalcula el servidor)
-export function ledQuoteParts(design) {
+// Precio del letrero LED (lo recalcula el servidor con la tabla de precios vigente)
+export function ledQuoteParts(design, prices = DEFAULT_PRICES) {
+  const P = { ...DEFAULT_PRICES.led, ...(prices?.led || {}) }
   const areaM2 = Math.round((design.widthCm / 100) * (design.heightCm / 100) * 100) / 100
   const plan = planPower(design)
   const mat = boardMaterialById(design.material)
-  const parts = [{ label: `Placa ${mat.name} (${areaM2} m²)`, amount: Math.max(200, areaM2 * mat.pricePerM2) }]
-  const ledCost = Object.entries(plan.colorCount).reduce((a, [id, n]) => a + n * ledColorById(id).price, 0)
+  const perM2 = P.boards?.[mat.id] ?? mat.pricePerM2
+  const parts = [{ label: `Placa ${mat.name} (${areaM2} m²)`, amount: Math.max(P.minBoard, areaM2 * perM2) }]
+  const ledCost = Object.entries(plan.colorCount).reduce((a, [id, n]) => a + n * (P.colors?.[id] ?? ledColorById(id).price), 0)
   parts.push({ label: `${plan.totalLeds} LED ${design.ledMm} mm`, amount: ledCost })
-  parts.push({ label: 'Perforado y armado', amount: plan.totalLeds * 2 })
+  parts.push({ label: 'Perforado y armado', amount: plan.totalLeds * P.assembly })
   if (design.power === '127v') {
-    if (plan.boardsB) parts.push({ label: `Fuente capacitiva × ${plan.boardsB} (placa B)`, amount: plan.boardsB * 180 })
-    if (plan.boardsA) parts.push({ label: `Secuenciador × ${plan.boardsA} (placa A)`, amount: plan.boardsA * 260 })
+    if (plan.boardsB) parts.push({ label: `Fuente capacitiva × ${plan.boardsB} (placa B)`, amount: plan.boardsB * P.boardB })
+    if (plan.boardsA) parts.push({ label: `Secuenciador × ${plan.boardsA} (placa A)`, amount: plan.boardsA * P.boardA })
   } else {
-    const price = { 1: 180, 2: 220, 3: 280, 5: 380, 10: 600, 20: 950 }[plan.supplyA] || 950
-    parts.push({ label: `Eliminador 12 V ${plan.supplyA} A + resistencias`, amount: price + plan.strings.length * 2 })
-    if (design.animation === 'secuencial') parts.push({ label: 'Controlador secuencial', amount: 260 })
+    const supply = P.supply12?.[plan.supplyA] ?? P.supply12?.[20] ?? 950
+    parts.push({ label: `Eliminador 12 V ${plan.supplyA} A + resistencias`, amount: supply + plan.strings.length * P.resistor })
+    if (design.animation === 'secuencial') parts.push({ label: 'Controlador secuencial', amount: P.controller12 })
   }
-  if (design.animation === 'parpadeo') parts.push({ label: 'Intermitente', amount: 120 })
+  if (design.animation === 'parpadeo') parts.push({ label: 'Intermitente', amount: P.flasher })
   const shape = SHAPES.find((x) => x.id === design.shape)
-  if (shape?.price) parts.push({ label: `Corte en forma de ${shape.name.toLowerCase()}`, amount: shape.price })
+  const shapePrice = P.shapes?.[design.shape] ?? shape?.price ?? 0
+  if (shapePrice) parts.push({ label: `Corte en forma de ${shape.name.toLowerCase()}`, amount: shapePrice })
   const mount = MOUNTS.find((x) => x.id === design.mount)
-  if (mount?.price) parts.push({ label: mount.name, amount: mount.price })
+  const mountPrice = P.mounts?.[design.mount] ?? mount?.price ?? 0
+  if (mountPrice) parts.push({ label: mount.name, amount: mountPrice })
   return { areaM2, parts, plan }
 }

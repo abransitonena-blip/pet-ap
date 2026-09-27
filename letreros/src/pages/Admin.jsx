@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import DesignPreview from '../components/DesignPreview'
 import { Brand } from '../components/ApLogo'
+import { Business, Clients, Prices, QuoteEditor, QuotePill, Quotes, Team } from './AdminSections'
 import StatusPill from '../components/StatusPill'
 import TechDiagram from '../components/TechDiagram'
 import LedDiagram from '../components/LedDiagram'
@@ -31,7 +32,7 @@ function exportCsv(orders) {
   for (const o of orders) {
     rows.push([
       o.folio, o.createdAt.slice(0, 10), statusById(o.status).label, kindName(o.design), o.customer.name, o.customer.phone,
-      o.customer.email, o.design.lines.map((l) => l.text || (l.icon ? `[${l.icon}]` : '')).filter(Boolean).join(' / '), `${o.design.widthCm}x${o.design.heightCm}`, o.quote.quantity, o.quote.total
+      o.customer.email, o.design.lines.map((l) => l.text || (l.icon ? `[${l.icon}]` : '')).filter(Boolean).join(' / '), `${o.design.widthCm}x${o.design.heightCm}`, o.quote.quantity, o.totals?.total ?? ''
     ])
   }
   const blob = new Blob(['\ufeff' + rows.map((r) => r.map(esc).join(',')).join('\n')], { type: 'text/csv' })
@@ -54,7 +55,7 @@ function Activity({ orders }) {
   const data = days.map((d) => {
     const key = d.toDateString()
     const list = orders.filter((o) => new Date(o.createdAt).toDateString() === key && o.status !== 'cancelado')
-    return { d, n: list.length, total: list.reduce((a, o) => a + o.quote.total, 0) }
+    return { d, n: list.length, total: list.reduce((a, o) => a + (o.totals?.total ?? o.quote.total), 0) }
   })
   const max = Math.max(1, ...data.map((x) => x.n))
   const h = hover >= 0 ? data[hover] : null
@@ -82,13 +83,20 @@ function Activity({ orders }) {
 
 const materialName = (d) => (d.kind === 'led' ? boardMaterialById(d.material).name : materialById(d.material).name)
 
+// Cada sección exige al menos uno de estos permisos
 const SECTIONS = [
-  { id: 'resumen', label: 'Resumen' },
-  { id: 'pedidos', label: 'Pedidos' },
-  { id: 'produccion', label: 'Producción' },
-  { id: 'impresos', label: 'Impresos' },
-  { id: 'archivos', label: 'Archivos' }
+  { id: 'resumen', label: 'Resumen', perms: [] },
+  { id: 'pedidos', label: 'Pedidos', perms: ['pedidos'] },
+  { id: 'presupuestos', label: 'Presupuestos', perms: ['presupuestos'] },
+  { id: 'produccion', label: 'Producción', perms: ['produccion', 'editar'] },
+  { id: 'impresos', label: 'Terminados', perms: ['pedidos', 'produccion'] },
+  { id: 'archivos', label: 'Archivos', perms: ['produccion'] },
+  { id: 'clientes', label: 'Clientes', perms: ['pedidos'] },
+  { id: 'precios', label: 'Precios', perms: ['precios'], group: 'Configuración' },
+  { id: 'equipo', label: 'Equipo', perms: ['equipo'] },
+  { id: 'ajustes', label: 'Negocio', perms: ['ajustes'] }
 ]
+const ORDER_PERMS = ['pedidos', 'produccion', 'presupuestos']
 
 export default function Admin() {
   const [token, setTok] = useState(getToken)
@@ -102,6 +110,7 @@ export default function Admin() {
 }
 
 function Login({ onLogin }) {
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -111,7 +120,7 @@ function Login({ onLogin }) {
     setLoading(true)
     setError('')
     try {
-      const { token } = await api.login(password)
+      const { token } = await api.login(username, password)
       onLogin(token)
     } catch (err) {
       setError(err.message)
@@ -124,8 +133,9 @@ function Login({ onLogin }) {
     <div className="admin-login">
       <form className="login-card" onSubmit={submit}>
         <Brand sub="admin" />
-        <h1>Admin</h1>
-        <input className="input" type="password" placeholder="Contraseña" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
+        <h1>Entrar al panel</h1>
+        <input className="input" placeholder="Usuario (vacío = dueño)" autoFocus autoCapitalize="none" value={username} onChange={(e) => setUsername(e.target.value)} />
+        <input className="input" type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} />
         {error && <p className="error">{error}</p>}
         <button className="btn primary block" disabled={loading || !password}>{loading ? 'Entrando…' : 'Entrar'}</button>
         <a href="#/" className="muted small center">← Volver al sitio</a>
@@ -141,12 +151,19 @@ function Dashboard({ onLogout }) {
   const [loading, setLoading] = useState(true)
   const [online, setOnline] = useState(true)
   const [selected, setSelected] = useState(null) // { id, tab }
+  const [me, setMe] = useState(null)
+  const [settings, setSettings] = useState(null)
+  const can = useCallback((...perms) => !!me && perms.some((p) => me.perms.includes(p)), [me])
 
   const load = useCallback(async () => {
     try {
-      const [o, s] = await Promise.all([api.orders(), api.stats()])
+      const user = await api.me()
+      const canOrders = ORDER_PERMS.some((p) => user.perms.includes(p))
+      const [o, s, st] = await Promise.all([canOrders ? api.orders() : [], api.stats(), api.settings()])
+      setMe(user)
       setOrders(o)
       setStats(s)
+      setSettings(st)
       setOnline(true)
     } catch (err) {
       if (err.status === 401) return onLogout()
@@ -182,19 +199,25 @@ function Dashboard({ onLogout }) {
   const current = selected && orders.find((o) => o.id === selected.id)
   const counts = {
     pedidos: orders.filter((o) => o.status === 'nuevo').length,
+    presupuestos: orders.filter((o) => o.quoteState === 'pendiente').length,
     produccion: orders.filter((o) => ['aprobado', 'imprimiendo'].includes(o.status)).length
   }
+  const sections = SECTIONS.filter((s) => !s.perms.length || can(...s.perms))
+  const active = sections.find((s) => s.id === section) || sections[0]
 
   return (
     <div className="admin">
       <aside className="admin-side">
         <Brand sub="admin" />
         <nav>
-          {SECTIONS.map((s) => (
-            <button key={s.id} className={section === s.id ? 'active' : ''} onClick={() => setSection(s.id)}>
-              {s.label}
-              {counts[s.id] > 0 && <span className="count">{counts[s.id]}</span>}
-            </button>
+          {sections.map((s) => (
+            <div key={s.id} className="nav-item">
+              {s.group && <span className="nav-group">{s.group}</span>}
+              <button className={active?.id === s.id ? 'active' : ''} onClick={() => setSection(s.id)}>
+                {s.label}
+                {counts[s.id] > 0 && <span className="count">{counts[s.id]}</span>}
+              </button>
+            </div>
           ))}
         </nav>
         <div className="admin-side-foot">
@@ -202,6 +225,7 @@ function Dashboard({ onLogout }) {
             <span className={`led ${online ? '' : 'blink'}`} style={{ '--led': online ? '#22c55e' : '#ef4444' }} />
             {online ? 'En línea' : 'Sin conexión'}
           </span>
+          {me && <span className="me-chip"><span className="avatar sm">{me.name.slice(0, 1)}</span>{me.name}</span>}
           <a href="#/" target="_blank" rel="noreferrer">Ver sitio ↗</a>
           <button onClick={onLogout}>Salir</button>
         </div>
@@ -209,18 +233,23 @@ function Dashboard({ onLogout }) {
 
       <main className="admin-main">
         <header className="admin-top">
-          <h1>{SECTIONS.find((s) => s.id === section).label}</h1>
+          <h1>{active?.label}</h1>
           <button className="btn ghost sm" onClick={load}>Actualizar</button>
         </header>
-        {loading ? (
+        {loading || !me ? (
           <p className="muted">Cargando…</p>
         ) : (
           <>
-            {section === 'resumen' && <Overview stats={stats} orders={orders} onOpen={open} />}
-            {section === 'pedidos' && <OrdersList orders={orders} onOpen={open} onUpdate={updateOrder} />}
-            {section === 'produccion' && <Production orders={orders} onOpen={open} onUpdate={updateOrder} />}
-            {section === 'impresos' && <PrintedGallery orders={orders} onOpen={open} />}
-            {section === 'archivos' && <Files orders={orders} onOpen={open} />}
+            {active.id === 'resumen' && <Overview stats={stats} orders={orders} onOpen={open} showMoney={can('ventas')} />}
+            {active.id === 'pedidos' && <OrdersList orders={orders} onOpen={open} onUpdate={updateOrder} can={can} />}
+            {active.id === 'presupuestos' && <Quotes orders={orders} onOpen={open} onUpdate={updateOrder} />}
+            {active.id === 'produccion' && <Production orders={orders} onOpen={open} onUpdate={updateOrder} />}
+            {active.id === 'impresos' && <PrintedGallery orders={orders} onOpen={open} />}
+            {active.id === 'archivos' && <Files orders={orders} onOpen={open} />}
+            {active.id === 'clientes' && <Clients orders={orders} onOpen={open} showMoney={can('ventas')} />}
+            {active.id === 'precios' && <Prices settings={settings} onSaved={setSettings} />}
+            {active.id === 'equipo' && <Team me={me} />}
+            {active.id === 'ajustes' && <Business settings={settings} onSaved={setSettings} />}
           </>
         )}
       </main>
@@ -233,14 +262,17 @@ function Dashboard({ onLogout }) {
           setTab={(tab) => setSelected((s) => ({ ...s, tab }))}
           onClose={() => setSelected(null)}
           onUpdate={(patch) => updateOrder(current.id, patch)}
+          onUpdateAny={updateOrder}
           onDelete={() => deleteOrder(current.id)}
+          can={can}
+          business={settings?.business}
         />
       )}
     </div>
   )
 }
 
-function Overview({ stats, orders, onOpen }) {
+function Overview({ stats, orders, onOpen, showMoney }) {
   const pending = ['nuevo', 'en_diseno', 'aprobado'].reduce((n, s) => n + (stats.byStatus[s] || 0), 0)
   const active = orders.filter((o) => o.status !== 'cancelado')
   const ticket = active.length ? Math.round(stats.revenue / active.length) : 0
@@ -252,8 +284,8 @@ function Overview({ stats, orders, onOpen }) {
     { label: 'Por producir', value: pending },
     { label: 'En producción', value: stats.byStatus.imprimiendo || 0 },
     { label: 'LED por armar', value: ledToBuild.toLocaleString('es-MX') },
-    { label: 'Ticket promedio', value: money(ticket) },
-    { label: 'Ventas', value: money(stats.revenue) }
+    ...(showMoney ? [{ label: 'Ticket promedio', value: money(ticket) }, { label: 'Ventas', value: money(stats.revenue) }] : []),
+    { label: 'Presupuestos aceptados', value: stats.quotes?.aceptada ?? 0 }
   ]
 
   return (
@@ -266,10 +298,12 @@ function Overview({ stats, orders, onOpen }) {
           </div>
         ))}
       </div>
-      <section className="card activity-card">
-        <h2>Actividad</h2>
-        <Activity orders={orders} />
-      </section>
+      {orders.length > 0 && (
+        <section className="card activity-card">
+          <h2>Actividad</h2>
+          <Activity orders={orders} />
+        </section>
+      )}
       <div className="admin-grid">
         <section className="card">
           <h2>Estados</h2>
@@ -307,7 +341,7 @@ function Overview({ stats, orders, onOpen }) {
   )
 }
 
-function OrdersList({ orders, onOpen, onUpdate }) {
+function OrdersList({ orders, onOpen, onUpdate, can }) {
   const [filter, setFilter] = useState('todos')
   const [kind, setKind] = useState('todos')
   const [search, setSearch] = useState('')
@@ -360,7 +394,7 @@ function OrdersList({ orders, onOpen, onUpdate }) {
                 <td>{o.design.widthCm}×{o.design.heightCm}<div className="muted small">{materialName(o.design)}</div></td>
                 <td className="small"><span className={`kind ${o.design.kind === 'led' ? 'led-kind' : ''}`}>{kindName(o.design)}</span><div className="muted small">{ledName(o.design)}</div></td>
                 <td>{o.quote.quantity}</td>
-                <td>{money(o.quote.total)}</td>
+                <td>{o.totals ? money(o.totals.total) : '—'}{o.quoteState === 'aceptada' && <div className="small ok-text">aceptado</div>}</td>
                 <td><StatusPill status={o.status} /></td>
                 <td className="actions" onClick={(e) => e.stopPropagation()}>
                   {waLink(o.customer.phone) && (
@@ -368,7 +402,7 @@ function OrdersList({ orders, onOpen, onUpdate }) {
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21l1.7-4.4A8.5 8.5 0 1 1 8 20z" /><path d="M9 9.5c.3 2 2.4 4.2 4.5 4.6l1.2-1.2 2 .9c-.2 1.3-1.3 2-2.4 1.9C10.8 15.3 8.4 12.8 8 9.6 8 8.5 8.7 7.4 10 7.2l.9 2z" /></svg>
                     </a>
                   )}
-                  {NEXT[o.status] && (
+                  {NEXT[o.status] && can('editar', 'produccion') && (
                     <button className="btn ghost sm" onClick={() => onUpdate(o.id, { status: NEXT[o.status] })} title="Avanzar al siguiente estado">
                       {statusById(NEXT[o.status]).label} →
                     </button>
@@ -549,7 +583,7 @@ function Files({ orders, onOpen }) {
   )
 }
 
-function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onDelete }) {
+function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDelete, can, business }) {
   const [notes, setNotes] = useState(order.adminNotes || '')
   const d = order.design
   const led = ledSpec(d)
@@ -565,23 +599,34 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onDelete }) {
           </div>
           <div className="switch small">
             <button className={tab === 'detalle' ? 'active' : ''} onClick={() => setTab('detalle')}>Detalle</button>
-            <button className={tab === 'diagrama' ? 'active' : ''} onClick={() => setTab('diagrama')}>Diagrama</button>
+            {can('presupuestos', 'ventas') && order.totals && (
+              <button className={tab === 'presupuesto' ? 'active' : ''} onClick={() => setTab('presupuesto')}>Presupuesto</button>
+            )}
+            {can('produccion') && <button className={tab === 'diagrama' ? 'active' : ''} onClick={() => setTab('diagrama')}>Diagrama</button>}
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>
         </header>
 
-        {tab === 'diagrama' ? (
+        {tab === 'diagrama' && can('produccion') ? (
           <>
             <div className="diagram-frame">{d.kind === 'led' ? <LedDiagram order={order} /> : <TechDiagram order={order} />}</div>
             <FileButtons order={order} />
           </>
+        ) : tab === 'presupuesto' && order.totals && business ? (
+          <>
+            <div className="row between">
+              <QuotePill state={order.quoteState} />
+              <span className="muted small">Válido hasta {new Date(order.validUntil).toLocaleDateString('es-MX')}</span>
+            </div>
+            <QuoteEditor order={order} business={business} onUpdate={onUpdateAny} canEdit={can('presupuestos')} />
+          </>
         ) : (
           <>
             <div className="drawer-preview"><DesignPreview design={d} night={d.kind === 'led' || d.led?.mode !== 'none'} animate withMount /></div>
-            <FileButtons order={order} />
+            {can('produccion') && <FileButtons order={order} />}
 
             <div className="drawer-actions">
-              {NEXT[order.status] && (
+              {NEXT[order.status] && can('editar', 'produccion') && (
                 <button className="btn primary grow" onClick={() => onUpdate({ status: NEXT[order.status] })}>
                   Avanzar a {statusById(NEXT[order.status]).label} →
                 </button>
@@ -597,7 +642,7 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onDelete }) {
               <h3>Estado</h3>
               <div className="status-steps">
                 {STATUSES.map((s) => (
-                  <button key={s.id} className={order.status === s.id ? 'active' : ''} onClick={() => onUpdate({ status: s.id })}>
+                  <button key={s.id} className={order.status === s.id ? 'active' : ''} disabled={!can('editar', 'produccion')} onClick={() => onUpdate({ status: s.id })}>
                     <span className="led sm" style={{ '--led': s.color }} data-off={order.status !== s.id || undefined} />
                     {s.label}
                   </button>
@@ -638,19 +683,21 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onDelete }) {
               {order.customer.notes && <p className="note">{order.customer.notes}</p>}
             </section>
 
-            <section>
-              <h3>Cotización</h3>
-              <ul className="quote-lines">
-                {order.quote.lines.map((l, i) => <li key={i}><span>{l.label}</span><span>{money(l.amount)}</span></li>)}
-                {order.quote.discount > 0 && <li><span>Descuento</span><span>−{money(order.quote.discount)}</span></li>}
-                <li className="total-line"><span>Total</span><span>{money(order.quote.total)}</span></li>
-              </ul>
-            </section>
+            {order.totals && (
+              <section>
+                <h3>Presupuesto · <QuotePill state={order.quoteState} /></h3>
+                <ul className="quote-lines">
+                  <li><span>Total ({order.totals.ivaIncluded ? 'IVA incluido' : `+ IVA ${order.totals.ivaRate} %`})</span><span>{money(order.totals.total)}</span></li>
+                  <li><span>Anticipo {order.totals.depositPct} %</span><span>{money(order.totals.deposit)}</span></li>
+                </ul>
+                {can('presupuestos', 'ventas') && <button className="link-btn" onClick={() => setTab('presupuesto')}>Ver y ajustar presupuesto →</button>}
+              </section>
+            )}
 
             <section>
               <h3>Notas internas</h3>
-              <textarea className="input" rows="3" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Solo visibles para el equipo…" />
-              <button className="btn ghost sm" disabled={notes === (order.adminNotes || '')} onClick={() => onUpdate({ adminNotes: notes })}>Guardar</button>
+              <textarea className="input" rows="3" value={notes} disabled={!can('editar', 'produccion')} onChange={(e) => setNotes(e.target.value)} placeholder="Solo visibles para el equipo…" />
+              {can('editar', 'produccion') && <button className="btn ghost sm" disabled={notes === (order.adminNotes || '')} onClick={() => onUpdate({ adminNotes: notes })}>Guardar</button>}
             </section>
 
             <section>
@@ -659,14 +706,16 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onDelete }) {
                 {[...order.history].reverse().map((h, i) => (
                   <li key={i}>
                     <span className="led sm" style={{ '--led': statusById(h.status).color }} />
-                    <span>{statusById(h.status).label}</span>
+                    <span>{h.note || statusById(h.status).label}{h.by && <em className="by"> · {h.by}</em>}</span>
                     <span className="muted small">{fmtDate(h.at)}</span>
                   </li>
                 ))}
               </ol>
             </section>
 
-            <button className="link-btn danger" onClick={() => confirm(`¿Eliminar el pedido ${order.folio}?`) && onDelete()}>Eliminar pedido</button>
+            {can('eliminar') && (
+              <button className="link-btn danger" onClick={() => confirm(`¿Eliminar el pedido ${order.folio}?`) && onDelete()}>Eliminar pedido</button>
+            )}
           </>
         )}
       </aside>
