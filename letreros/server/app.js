@@ -11,6 +11,8 @@ import {
 } from '../src/lib/prices.js'
 import { normalizeCustomer } from '../src/lib/customer.js'
 import { GIRO_IDS, LEAD_STATE_IDS } from '../src/lib/prospects.js'
+import { mergeCosts } from '../src/lib/costs.js'
+import { SUPPLIER_CATEGORIES } from '../src/lib/suppliers.js'
 import { store } from './store.js'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
@@ -38,9 +40,12 @@ async function loadDb() {
   db.orders = db.orders || []
   db.users = db.users || []
   db.leads = db.leads || []
+  db.suppliers = db.suppliers || []
   db.settings = {
     prices: mergePrices(db.settings?.prices),
-    business: mergeBusiness(db.settings?.business)
+    business: mergeBusiness(db.settings?.business),
+    costs: mergeCosts(db.settings?.costs),
+    pricesUpdated: db.settings?.pricesUpdated
   }
   // Pedidos de versiones anteriores: diseño válido, token público y totales
   for (const o of db.orders) {
@@ -648,7 +653,61 @@ api.delete('/admin/orders/:id', requireUser, need('eliminar'), h(async (req, res
 }))
 
 // Ajustes: precios y datos del negocio
-api.get('/admin/settings', requireUser, (req, res) => res.json(req.db.settings))
+// Los costos solo los ven quienes manejan precios o ventas
+api.get('/admin/settings', requireUser, (req, res) => {
+  const { costs, ...rest } = req.db.settings
+  res.json(can(req.user, 'precios', 'ventas') ? { ...rest, costs } : rest)
+})
+
+api.put('/admin/settings/costs', requireUser, need('precios'), h(async (req, res) => {
+  const settings = await mutate((db) => {
+    db.settings.costs = mergeCosts(req.body)
+    return db.settings
+  })
+  res.json(settings)
+}))
+
+// Proveedores propios (además del directorio de fábrica)
+const CATEGORY_IDS = SUPPLIER_CATEGORIES.map((c) => c.id)
+function cleanSupplier(b = {}) {
+  const t = (k, max) => String(b[k] || '').trim().slice(0, max)
+  const url = t('url', 300)
+  return {
+    name: t('name', 80),
+    category: CATEGORY_IDS.includes(b.category) ? b.category : 'otro',
+    contact: t('contact', 80),
+    phone: t('phone', 20).replace(/[^\d+ ]/g, ''),
+    url: /^https:\/\/[^\s"'<>]+$/.test(url) ? url : '',
+    what: t('what', 200),
+    price: t('price', 120),
+    note: t('note', 300)
+  }
+}
+
+api.get('/admin/suppliers', requireUser, need('precios', 'produccion'), (req, res) => res.json(req.db.suppliers))
+
+api.post('/admin/suppliers', requireUser, need('precios'), h(async (req, res) => {
+  const data = cleanSupplier(req.body)
+  if (!data.name) return res.status(400).json({ error: 'Escribe el nombre del proveedor' })
+  const sup = await mutate((db) => {
+    if (db.suppliers.length >= 300) return { save: false, full: true }
+    const x = { id: crypto.randomUUID(), ...data, createdAt: new Date().toISOString(), by: req.user.name }
+    db.suppliers.unshift(x)
+    return x
+  })
+  if (sup.full) return res.status(400).json({ error: 'Límite de proveedores alcanzado' })
+  res.status(201).json(sup)
+}))
+
+api.delete('/admin/suppliers/:id', requireUser, need('precios'), h(async (req, res) => {
+  const result = await mutate((db) => {
+    const before = db.suppliers.length
+    db.suppliers = db.suppliers.filter((x) => x.id !== req.params.id)
+    return db.suppliers.length === before ? { save: false, missing: true } : {}
+  })
+  if (result.missing) return res.status(404).json({ error: 'Proveedor no encontrado' })
+  res.status(204).end()
+}))
 
 api.put('/admin/settings/prices', requireUser, need('precios'), h(async (req, res) => {
   const settings = await mutate((db) => {

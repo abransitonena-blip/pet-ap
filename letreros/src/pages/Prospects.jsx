@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import LedIcon from '../components/LedIcon'
 import { api } from '../lib/api'
 import { GIROS, LEAD_STATES, WEEKLY_GOAL, sampleDesign } from '../lib/prospects'
 import { shareUrl } from '../lib/share'
@@ -74,7 +75,7 @@ export default function Prospects({ business, prices }) {
         <div className="row between full">
           <h2>Nuevo prospecto</h2>
           <button type="button" className="btn ghost sm" onClick={catalog} disabled={Boolean(printing) || !prices}>
-            {printing ? `Preparando ${printing}` : '🖨 Imprimir catálogo'}
+            <LedIcon name="printer" size={16} /> {printing ? `Preparando ${printing}` : 'Imprimir catálogo'}
           </button>
         </div>
         <div className="lead-grid">

@@ -171,7 +171,7 @@ export default function OrderModal({ design, batch, quantity, total, preview, su
           <label className="field"><span>Notas</span><textarea className="input" rows="2" value={form.notes} onChange={set('notes')} placeholder="Dirección, horario, dudas…" /></label>
           {error && <p className="error">{error}</p>}
           <button className="btn primary block" disabled={!canSend}>{sending ? 'Enviando…' : 'Enviar pedido y ver presupuesto'}</button>
-          <p className="muted small center">Sin pago en línea: primero revisas y aceptas tu presupuesto.</p>
+          <p className="muted small center">Sin pago en línea: primero revisas y aceptas tu presupuesto. Al enviar aceptas el <a href="#/privacidad" target="_blank" rel="noreferrer">aviso de privacidad</a>.</p>
         </form>
       </div>
     </div>

@@ -47,5 +47,9 @@ export const api = {
   addLead: (l) => request('/admin/leads', { method: 'POST', body: l, auth: true }),
   updateLead: (id, l) => request(`/admin/leads/${id}`, { method: 'PATCH', body: l, auth: true }),
   deleteLead: (id) => request(`/admin/leads/${id}`, { method: 'DELETE', auth: true }),
+  saveCosts: (costs) => request('/admin/settings/costs', { method: 'PUT', body: costs, auth: true }),
+  suppliers: () => request('/admin/suppliers', { auth: true }),
+  addSupplier: (x) => request('/admin/suppliers', { method: 'POST', body: x, auth: true }),
+  deleteSupplier: (id) => request(`/admin/suppliers/${id}`, { method: 'DELETE', auth: true }),
   deleteOrder: (id) => request(`/admin/orders/${id}`, { method: 'DELETE', auth: true })
 }

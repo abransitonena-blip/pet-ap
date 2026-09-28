@@ -16,6 +16,7 @@ export default function SiteFooter({ business }) {
       <nav>
         {links.map((l) => <a key={l.label} href={l.href} target="_blank" rel="noreferrer">{l.label}</a>)}
         <a href="#/seguimiento">Seguir mi pedido</a>
+        <a href="#/privacidad">Aviso de privacidad</a>
       </nav>
     </footer>
   )

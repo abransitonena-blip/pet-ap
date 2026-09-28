@@ -174,6 +174,20 @@ test('pedido múltiple: un folio por letrero y descuento por volumen', async () 
   assert.equal(orders.filter((o) => o.adjust.items.some((i) => i.label === 'Envío a domicilio')).length, 1, 'envío una sola vez')
 })
 
+test('proveedores y costos: permisos', async () => {
+  const owner = await login('admin', 'clave-prueba')
+  const made = await call('POST', '/admin/suppliers', { name: 'LED Centro', category: 'led', url: 'javascript:alert(1)' }, owner)
+  assert.equal(made.status, 201)
+  assert.equal(made.body.url, '', 'solo enlaces https')
+  const saved = await call('PUT', '/admin/settings/costs', { ledEach: 0.3 }, owner)
+  assert.equal(saved.body.costs.ledEach, 0.3)
+  await call('POST', '/admin/users', { name: 'Taller2', username: 'taller2', password: 'taller123', perms: ['produccion'] }, owner)
+  const t = await login('taller2', 'taller123')
+  assert.equal((await call('GET', '/admin/settings', null, t)).body.costs, undefined, 'producción no ve costos')
+  assert.equal((await call('POST', '/admin/suppliers', { name: 'X' }, t)).status, 403)
+  assert.equal((await call('GET', '/admin/suppliers', null, t)).status, 200)
+})
+
 test('límite de intentos de acceso', async () => {
   let last
   for (let i = 0; i < 12; i++) last = await call('POST', '/admin/login', { username: 'nadie', password: 'x' })

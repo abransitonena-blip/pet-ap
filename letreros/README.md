@@ -68,6 +68,15 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 - Pie de página con WhatsApp, Instagram, Facebook y seguimiento; SEO: descripción, vista previa para WhatsApp/Facebook (`public/og.jpg`) y datos estructurados
 - *Ficha MercadoLibre* en cada pedido LED: copia título (≤ 60 caracteres) y descripción con medidas, garantía y liga al editor
 
+**Proveedores, costos y margen (panel → Estrategia → Proveedores)**
+- Directorio de proveedores reales en México (LED, electrónica, acrílico, PVC, MDF, vinil de texturas, envíos) + los tuyos
+- Costos editables (LED, hojas, vinil, capacitores, placas, mano de obra…) → costo estimado y **margen** de cada letrero y
+  de cada pedido (en el pedido, solo para Ventas/Precios)
+- **Lista de compras** automática con los pedidos por fabricar (hojas, LED por color, capacitores, placas)
+- **Lo que falta** (en Mercado): lista priorizada que se marca sola con tus datos; documento `docs/analisis-faltantes.md`
+- Aviso de privacidad (`#/privacidad`) enlazado en el pie y en el formulario de pedido
+- Íconos de puntos LED en lugar de emojis; acción **WhatsApp** para mandar el diseño al negocio
+
 **Prospectos (panel → Estrategia)**
 - Registra los negocios que visitas (giro, contacto, zona, nota) y sigue el embudo: por visitar → visitado → muestra enviada → cotizado → cliente
 - Cada prospecto tiene una **muestra con su nombre** sobre el modelo de su giro; se manda por WhatsApp con un toque
@@ -145,7 +154,7 @@ letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, dato
 
 ```bash
 cd letreros
-npm test        # 29 pruebas: bandera, logo, pedido múltiple, prospectos, envío, enlaces seguros, opiniones y fotos, combinaciones de color, marco, acabados, precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
+npm test        # 32 pruebas: costos, proveedores, bandera, logo, pedido múltiple, prospectos, envío, enlaces seguros, opiniones y fotos, combinaciones de color, marco, acabados, precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
 npm run check   # pruebas + build
 ```
 

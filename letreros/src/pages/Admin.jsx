@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import LedIcon from '../components/LedIcon'
 import DesignPreview from '../components/DesignPreview'
 import { Brand } from '../components/ApLogo'
 import { deliveryName } from '../lib/customer'
 import { Business, Clients, Prices, QuoteEditor, QuotePill, Quotes, Team, quoteLink } from './AdminSections'
 import Market from './Market'
 import Prospects from './Prospects'
+import Suppliers from './Suppliers'
+import { costEstimate, margin } from '../lib/costs'
 import { marketListing } from '../lib/listing'
 import { shareUrl } from '../lib/share'
 import { Stars } from '../components/Reviews'
@@ -130,6 +133,7 @@ const SECTIONS = [
   { id: 'clientes', label: 'Clientes', perms: ['pedidos'] },
   { id: 'mercado', label: 'Mercado', perms: ['ventas', 'precios'], group: 'Estrategia' },
   { id: 'prospectos', label: 'Prospectos', perms: ['ventas'] },
+  { id: 'proveedores', label: 'Proveedores', perms: ['precios', 'produccion'] },
   { id: 'precios', label: 'Precios', perms: ['precios'], group: 'Configuración' },
   { id: 'equipo', label: 'Equipo', perms: ['equipo'] },
   { id: 'ajustes', label: 'Negocio', perms: ['ajustes'] }
@@ -352,6 +356,7 @@ function Dashboard({ onLogout }) {
             {active.id === 'opiniones' && <ReviewsAdmin orders={orders} onOpen={open} onUpdate={updateOrder} />}
             {active.id === 'mercado' && <Market settings={settings} orders={orders} />}
             {active.id === 'prospectos' && <Prospects business={settings?.business} prices={settings?.prices} />}
+            {active.id === 'proveedores' && <Suppliers settings={settings} orders={orders} onSaved={setSettings} canEdit={can('precios')} />}
             {active.id === 'clientes' && <Clients orders={orders} onOpen={open} showMoney={can('ventas')} />}
             {active.id === 'precios' && <Prices settings={settings} onSaved={setSettings} />}
             {active.id === 'equipo' && <Team me={me} />}
@@ -376,6 +381,7 @@ function Dashboard({ onLogout }) {
           onDeletePhoto={(pid) => deletePhoto(current.id, pid)}
           can={can}
           business={settings?.business}
+          costs={settings?.costs}
         />
       )}
 
@@ -763,6 +769,24 @@ function Payments({ order, onAdd, onDelete, canEdit }) {
   )
 }
 
+// Costo estimado del pedido y su margen (con los costos de Proveedores)
+function CostBox({ order, costs }) {
+  const c = costEstimate(order.design, costs)
+  const qty = order.quote.quantity || 1
+  const m = margin(order.totals.subtotal, c.total * qty)
+  return (
+    <details className="cost-box">
+      <summary>
+        <span>Costo estimado {money(c.total * qty)}</span>
+        <span className={`margin ${m.pct < 35 ? 'low' : m.pct < 55 ? 'mid' : 'ok'}`}>Margen {m.pct} % · {money(m.profit)}</span>
+      </summary>
+      <ul className="quote-lines">
+        {c.parts.map((p) => <li key={p.label}><span>{p.label}</span><span>{money(p.amount * qty)}</span></li>)}
+      </ul>
+    </details>
+  )
+}
+
 // Copia título y descripción para publicar este diseño en MercadoLibre / Marketplace
 function ListingButton({ order, business }) {
   const [copied, setCopied] = useState(false)
@@ -833,7 +857,7 @@ function FinishedWork({ order, onUpdate, onAddPhotos, onDeletePhoto, can }) {
           )}
         </div>
       ) : (
-        done && askReview && <a className="btn ghost sm" href={askReview} target="_blank" rel="noreferrer">⭐ Pedir opinión por WhatsApp</a>
+        done && askReview && <a className="btn ghost sm" href={askReview} target="_blank" rel="noreferrer"><LedIcon name="star" size={16} /> Pedir opinión por WhatsApp</a>
       )}
     </section>
   )
@@ -904,7 +928,7 @@ function ReviewsAdmin({ orders, onOpen, onUpdate }) {
   )
 }
 
-function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDelete, onAddPayment, onDeletePayment, onAddPhotos, onDeletePhoto, can, business }) {
+function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDelete, onAddPayment, onDeletePayment, onAddPhotos, onDeletePhoto, can, business, costs }) {
   const [notes, setNotes] = useState(order.adminNotes || '')
   const d = order.design
   const led = ledSpec(d)
@@ -1010,6 +1034,8 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDel
               )}
               {order.customer.notes && <p className="note">{order.customer.notes}</p>}
             </section>
+
+            {d.kind === 'led' && order.totals && costs && can('ventas', 'precios') && <CostBox order={order} costs={costs} />}
 
             {order.totals && order.pay && (
               <>

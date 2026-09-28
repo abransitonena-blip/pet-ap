@@ -4,6 +4,7 @@ import LedEditor from './pages/LedEditor'
 import Admin from './pages/Admin'
 import Track from './pages/Track'
 import QuotePage from './pages/QuotePage'
+import Privacy from './pages/Privacy'
 
 // Router mínimo por hash: #/ (letrero LED), #/impreso, #/seguimiento/<folio>, #/presupuesto/<folio>/<token>, #/admin
 function useHashRoute() {
@@ -26,5 +27,6 @@ export default function App() {
     return <QuotePage key={route} folio={folio} token={token || ''} />
   }
   if (route.startsWith('/impreso')) return <Editor />
+  if (route.startsWith('/privacidad')) return <Privacy />
   return <LedEditor />
 }

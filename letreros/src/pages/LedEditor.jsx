@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import LedIcon from '../components/LedIcon'
 import SiteHeader from '../components/SiteHeader'
 import LedPreview, { previewBox } from '../components/LedPreview'
 import IconPicker, { IconGlyph } from '../components/IconPicker'
@@ -211,6 +212,12 @@ export default function LedEditor() {
     const v = { id: Date.now().toString(36), design, at: new Date().toISOString() }
     storeVariants([v, ...variants].slice(0, MAX_VARIANTS))
   }
+  // Cotizar por WhatsApp: manda el enlace del diseño al negocio
+  const askWa = () => {
+    const d = (business.whatsapp || '').replace(/\D/g, '')
+    const text = `Hola, me interesa este letrero: "${design.lines.map((l) => l.text).filter(Boolean).join(' ')}" de ${design.widthCm}×${design.heightCm} cm (${money(q.total)}). ${shareUrl(design)}`
+    return `https://wa.me/${d.length === 10 ? '52' + d : d}?text=${encodeURIComponent(text)}`
+  }
   const downloadImage = async () => {
     const wall = wallRef.current
     const svg = wall?.querySelector('.face svg') || wall?.querySelector('.wall-sign svg')
@@ -329,9 +336,20 @@ export default function LedEditor() {
             <div><strong>{plan.watts} W</strong><span>consumo</span></div>
             <div><strong>{business.deliveryDays} días</strong><span>entrega</span></div>
             <div className="stat-action">
-              <button className="btn ghost sm" onClick={downloadImage} disabled={busy || Boolean(saving)} title="Imagen de tu letrero en la pared o en tu local">{saving || 'Descargar imagen'}</button>
-              <button className="btn ghost sm" onClick={saveVariant} disabled={busy} title="Guarda esta versión para compararla">＋ Variante</button>
-              <button className="btn ghost sm" onClick={share}>{copied ? '¡Enlace copiado!' : 'Compartir'}</button>
+              {business.whatsapp && (
+                <a className="btn ghost sm wa-action" href={askWa()} target="_blank" rel="noreferrer" title="Manda tu diseño por WhatsApp y te respondemos">
+                  <LedIcon name="chat" size={16} color="#22c55e" /> WhatsApp
+                </a>
+              )}
+              <button className="btn ghost sm" onClick={downloadImage} disabled={busy || Boolean(saving)} title="Imagen de tu letrero en la pared o en tu local">
+                <LedIcon name="download" size={16} /> {saving || 'Imagen'}
+              </button>
+              <button className="btn ghost sm" onClick={saveVariant} disabled={busy} title="Guarda esta versión para compararla">
+                <LedIcon name="plus" size={16} /> Variante
+              </button>
+              <button className="btn ghost sm" onClick={share}>
+                <LedIcon name="share" size={16} /> {copied ? '¡Copiado!' : 'Compartir'}
+              </button>
             </div>
           </div>
 
@@ -386,11 +404,12 @@ export default function LedEditor() {
                 </div>
                 <div className="row">
                   <button className={`icon-chip ${line.icon ? 'on' : ''}`} onClick={() => setPicker(picker === i ? -1 : i)}>
-                    {line.icon === 'logo' ? <span className="plus">🖼</span> : line.icon ? <IconGlyph id={line.icon} size={18} /> : <span className="plus">＋</span>}
+                    {line.icon === 'logo' ? <LedIcon name="logo" size={18} /> : line.icon ? <IconGlyph id={line.icon} size={18} /> : <span className="plus">＋</span>}
                     <span>{line.icon === 'logo' ? 'Tu logo' : line.icon ? 'Cambiar ícono' : 'Agregar ícono'}</span>
                   </button>
                   <label className="icon-chip logo-chip" title="Sube tu logo (PNG o JPG, mejor con fondo blanco o transparente)">
                     <input type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadLogo(i)} />
+                    <LedIcon name="image" size={16} lit={false} />
                     <span>{line.icon === 'logo' ? 'Cambiar logo' : 'Subir mi logo'}</span>
                   </label>
                   {line.icon === 'logo' && <button className="link-btn" onClick={() => setLine(i, { icon: '' })}>Quitar</button>}

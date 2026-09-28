@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import LedIcon from './LedIcon'
 import LedPreview from './LedPreview'
 import { api } from '../lib/api'
 import { fileToJpeg, photoUrl } from '../lib/image'
@@ -83,7 +84,7 @@ export function ReviewForm({ doc, token, onSaved }) {
       <div className="row">
         <label className="btn ghost sm file-btn">
           <input type="file" accept="image/*" onChange={pick} />
-          {image ? 'Cambiar foto' : '📷 Agregar foto de tu letrero'}
+          <LedIcon name="camera" size={16} /> {image ? 'Cambiar foto' : 'Agregar foto de tu letrero'}
         </label>
         {image && <img className="review-thumb" src={image} alt="Tu foto" />}
       </div>

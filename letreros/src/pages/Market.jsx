@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { ACTIONS, COMPETITORS, MARKET_FACTS, MARKET_UPDATED, REFERENCE_SIGNS, RISKS, SOURCES, STRENGTHS } from '../lib/market'
 import { FRAME_LINE, defaultLedDesign, normalizeLedDesign } from '../lib/ledSign'
 import { computeTotals } from '../lib/prices'
+import { gapAnalysis } from '../lib/gaps'
+import LedIcon from '../components/LedIcon'
 import { money, quote } from '../lib/pricing'
 
 const DONE_KEY = 'ap_market_done'
@@ -68,6 +70,8 @@ export default function Market({ settings, orders = [] }) {
   return (
     <div className="market">
       <p className="muted small">Investigación de {MARKET_UPDATED} con precios públicos en línea y datos oficiales. Los precios de la competencia cambian: revisa cada 3 meses.</p>
+
+      <Gaps settings={settings} orders={orders} />
 
       <div className="facts">
         {MARKET_FACTS.map((f) => (
@@ -160,5 +164,26 @@ export default function Market({ settings, orders = [] }) {
         </ul>
       </section>
     </div>
+  )
+}
+
+function Gaps({ settings, orders }) {
+  const items = gapAnalysis({ settings, orders })
+  const pending = items.filter((g) => !g.done)
+  const order = { alto: 0, medio: 1, bajo: 2 }
+  return (
+    <section className="card gaps">
+      <h2>Lo que falta <span className="muted small">{items.length - pending.length}/{items.length} listo</span></h2>
+      <div className="gap-bar"><i style={{ width: `${((items.length - pending.length) / items.length) * 100}%` }} /></div>
+      <ul>
+        {[...items].sort((a, b) => a.done - b.done || order[a.impact] - order[b.impact]).map((g) => (
+          <li key={g.title} className={g.done ? 'done' : ''}>
+            <LedIcon name={g.done ? 'check' : 'bolt'} size={18} color={g.done ? '#22c55e' : g.impact === 'alto' ? '#ef4444' : '#f59e0b'} />
+            <span className="grow"><strong>{g.title}</strong><em>{g.how}</em></span>
+            <span className={`impact ${g.impact}`}>{g.done ? 'listo' : `impacto ${g.impact}`}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

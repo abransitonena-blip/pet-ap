@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import LedIcon from '../components/LedIcon'
 import DesignPreview from '../components/DesignPreview'
 import { Brand } from '../components/ApLogo'
 import { api } from '../lib/api'
@@ -184,9 +185,9 @@ export default function QuotePage({ folio, token }) {
         <footer className="qd-foot">
           {b.bank && <p><strong>Datos para pago:</strong> {b.bank}</p>}
           <p className="qd-perks">
-            {b.warrantyMonths > 0 && <span>🛡️ Garantía de {b.warrantyMonths} meses en LED y fuente</span>}
-            {b.installments > 0 && <span>💳 Hasta {b.installments} meses sin intereses con tarjeta ({money(Math.ceil(t.total / b.installments))} al mes)</span>}
-            {b.freeShippingFrom > 0 && b.shippingCost > 0 && <span>📦 Envío gratis desde {money(b.freeShippingFrom)}</span>}
+            {b.warrantyMonths > 0 && <span><LedIcon name="shield" size={16} /> Garantía de {b.warrantyMonths} meses en LED y fuente</span>}
+            {b.installments > 0 && <span><LedIcon name="card" size={16} /> Hasta {b.installments} meses sin intereses con tarjeta ({money(Math.ceil(t.total / b.installments))} al mes)</span>}
+            {b.freeShippingFrom > 0 && b.shippingCost > 0 && <span><LedIcon name="box" size={16} /> Envío gratis desde {money(b.freeShippingFrom)}</span>}
           </p>
           <p className="terms">{b.terms}</p>
         </footer>
