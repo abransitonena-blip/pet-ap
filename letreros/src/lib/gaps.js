@@ -18,9 +18,10 @@ export function gapAnalysis({ settings, orders = [] }) {
     { area: 'Números', title: 'Costos reales de tus proveedores', done: Boolean(costsReviewed), impact: 'alto', how: 'Proveedores → Costos y margen: pon lo que realmente pagas por LED, hojas y mano de obra.' },
     { area: 'Números', title: 'Precios revisados', done: Boolean(settings?.pricesUpdated), impact: 'medio', how: 'Precios: ajusta y guarda al menos una vez con tus costos reales.' },
     { area: 'Ventas', title: 'Primeros 5 pedidos', done: real >= 5, impact: 'alto', how: `Llevas ${real}. Usa Prospectos: 20 visitas por semana con muestra por WhatsApp.` },
-    { area: 'Cobro', title: 'Pago en línea (tarjeta / meses)', done: b.installments > 0, impact: 'medio', how: 'Abre una cuenta de Mercado Pago o Clip y activa “meses sin intereses” en Negocio; después se puede conectar el cobro en la web.' },
+    { area: 'Cobro', title: 'Pago en línea (tarjeta / meses)', done: b.installments > 0, impact: 'medio', how: 'Mercado Pago (link ≈ 3.49 % + $4 + IVA) o Clip (3.6 % + IVA). Activa “meses sin intereses” en Negocio; detalles en Proveedores → Cobro con tarjeta.' },
     { area: 'Marca', title: 'Dominio propio (.mx)', done: !/vercel\.app$|^localhost$|^127\./.test(window.location.hostname), impact: 'medio', how: 'Compra por ejemplo ap-letreros.mx (≈ $300–$600 al año) y conéctalo en Vercel → Domains.' },
     { area: 'Legal', title: 'Facturación (CFDI)', done: false, impact: 'medio', how: 'Muchos negocios piden factura: da de alta tu RFC en RESICO y usa un facturador (Facturama, Alegra) o tu contador.' },
+    { area: 'Taller', title: 'Decidir cómo cortar (láser propio o servicio)', done: false, impact: 'medio', how: 'Proveedores → Equipo e inversión compara K40, CO2 60 W, diodo y corte por minuto con tu volumen.' },
     { area: 'Legal', title: 'Aviso de privacidad', done: true, impact: 'bajo', how: 'Listo en #/privacidad (se llena con los datos de Negocio).' }
   ]
 }

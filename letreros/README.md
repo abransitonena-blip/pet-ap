@@ -72,6 +72,11 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 - Directorio de proveedores reales en México (LED, electrónica, acrílico, PVC, MDF, vinil de texturas, envíos) + los tuyos
 - Costos editables (LED, hojas, vinil, capacitores, placas, mano de obra…) → costo estimado y **margen** de cada letrero y
   de cada pedido (en el pedido, solo para Ventas/Precios)
+- **Máquinas, corte por servicio, cobro con tarjeta y financiamiento**: láser CO2 (K40, 60–130 W), diodo 20 W, router CNC,
+  talleres de corte por minuto (CDMX, GDL), Mercado Pago / Clip y créditos NAFIN
+- **Equipo e inversión**: compara mandar a cortar ($15–$18/min) contra taladro, K40, diodo, CO2 60/100 W y CNC: tiempo por
+  letrero (placa + barrenos), costo, ahorro al mes y meses para recuperar la inversión; avisa si el letrero no cabe o si
+  el diodo no corta acrílico transparente
 - **Lista de compras** automática con los pedidos por fabricar (hojas, LED por color, capacitores, placas)
 - **Lo que falta** (en Mercado): lista priorizada que se marca sola con tus datos; documento `docs/analisis-faltantes.md`
 - Aviso de privacidad (`#/privacidad`) enlazado en el pie y en el formulario de pedido

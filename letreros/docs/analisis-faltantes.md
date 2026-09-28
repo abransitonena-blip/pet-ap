@@ -28,3 +28,16 @@ Aviso de privacidad (`#/privacidad`), garantía y entrega visibles, envío grati
 | MDF 6 mm | [Home Depot](https://www.homedepot.com.mx/b/materiales-de-construccion/paneles-de-madera/mdf), [Sodimac](https://www.sodimac.com.mx/sodimac-mx/category/cat11437/Hojas-de-MDF) | hoja 1.22 × 2.44 |
 | Vinil de texturas | [Proveedora de las Artes Gráficas](https://proveedoradelasartesgraficas.com.mx/products/vinil-de-corte-imitacion-madera-roble-61-cm-ancho), [Moritzu](https://moritzu.com.mx/tienda/vinil/vinil-autoadhesivo/autpadhesivo-de-rotulacion/vinil-autoadhesivo-efecto-marmol-60cm-ancho/), [DECOFILM](https://decopvc.mx/products/vinil-autoadherible-madera-en-rollo-0-60x5m-decofilm%C2%AE) | madera, mármol |
 | Envíos | [Envia.com](https://envia.com/en-US/carriers/estafeta-MX), [YoloEnvío](https://yoloenvio.com/) | peso volumétrico L×A×H / 5000 |
+
+## Máquinas, corte por servicio y dinero
+| Tema | Opción | Dato |
+| --- | --- | --- |
+| Láser CO2 40 W (K40) | [MercadoLibre](https://listado.mercadolibre.com.mx/cortadora-laser-k40) | la CO2 más barata; área ≈ 30 × 20 cm |
+| Láser CO2 40 × 40 cm 50 W | [Geek Factory](https://www.geekfactory.mx/producto/cortadora-y-grabadora-laser-40-x-40-50-w/) | escritorio |
+| Láser CO2 60–130 W | [Amazon](https://www.amazon.com.mx/M%C3%A1quina-grabado-l%C3%A1ser-cortadora-600mm/dp/B0892H6T51), [Stanser CRAFTER](https://www.stanser.com/cnc-laser/) | Stanser desde $102,586 + IVA |
+| Láser de diodo 20 W | [Sculpfun MX](https://mx.sculpfun.com/collections/laser-engraver), [Atomstack MX](https://mx.atomstack.com/) | desde ≈ $13,500; no corta acrílico transparente |
+| Router CNC 3018 | [Lowpi](https://lowpi.com/precio/router-cnc-3018-pro) | desde $1,299 (3018 Pro desde $5,200) |
+| Soldadura | [Kit Truper CAU-25ERK](https://mundotool.com/products/kit-soldadura-electronica-con-cautin-de-25-w-temp-regulable) | ≈ $565 |
+| Corte por servicio | [Color Make](https://colormake.com/blog/cuanto-cuesta-el-corte-laser-y-como-se-calcula/), [FIC](https://fic-cortelaser.mx/), [227](https://www.227.studio/cortelaser), [Acrivel](https://acrivel.jimdoweb.com/servicios/) | $15–$18 por minuto (centro, 2026) |
+| Cobro con tarjeta | [Mercado Pago](https://atempora.studio/blog/comisiones-mercado-pago-2026), [Clip](https://atempora.studio/blog/comisiones-clip-2026) | link ≈ 3.49 % + $4 + IVA · Clip 3.6 % + IVA |
+| Financiamiento | [NAFIN Micro](https://mundoejecutivocdmx.com/mundo-economico/creditos-pymes-nafin-2026/), [modernización de maquinaria](https://www.cronica.com.mx/nacional/bancomext-nafin-financiaran-programas-modernizacion-maquinaria-equipo-pymes.html) | hasta $500,000 a 3 años |
