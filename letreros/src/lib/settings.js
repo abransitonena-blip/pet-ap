@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { api } from './api'
 import { DEFAULT_BUSINESS, DEFAULT_PRICES } from './prices'
 
-const FALLBACK = { prices: DEFAULT_PRICES, business: DEFAULT_BUSINESS }
+const FALLBACK = { prices: DEFAULT_PRICES, business: DEFAULT_BUSINESS, textures: {} }
 let cache = null
 
 export function loadPublicSettings() {
@@ -22,4 +22,10 @@ export function usePublicSettings() {
     }
   }, [])
   return settings
+}
+
+// Recarga después de cambiar precios o texturas desde el panel
+export function refreshPublicSettings() {
+  cache = null
+  return loadPublicSettings()
 }

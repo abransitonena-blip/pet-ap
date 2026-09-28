@@ -188,6 +188,17 @@ test('proveedores y costos: permisos', async () => {
   assert.equal((await call('GET', '/admin/suppliers', null, t)).status, 200)
 })
 
+test('texturas reales: foto por acabado, visible al público y reemplazable', async () => {
+  const owner = await login('admin', 'clave-prueba')
+  assert.equal((await call('POST', '/admin/textures/plastico', { image: PNG }, owner)).status, 400)
+  assert.equal((await call('POST', '/admin/textures/nogal', { image: PNG, tileCm: 40, source: 'DECOFILM nogal' }, owner)).status, 201)
+  const t = (await call('GET', '/public/settings')).body.textures.nogal
+  assert.equal(t.tileCm, 40)
+  assert.equal((await fetch(base.replace('/api', '') + t.url)).status, 200)
+  assert.equal((await call('DELETE', '/admin/textures/nogal', null, owner)).status, 204)
+  assert.equal((await call('GET', '/public/settings')).body.textures.nogal, undefined)
+})
+
 test('límite de intentos de acceso', async () => {
   let last
   for (let i = 0; i < 12; i++) last = await call('POST', '/admin/login', { username: 'nadie', password: 'x' })

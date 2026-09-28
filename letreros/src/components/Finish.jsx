@@ -232,7 +232,19 @@ function Base({ finish, id, W, H }) {
 
 // Capa de textura (sin recorte): la usa LedPreview dentro de un clipPath con la forma de la placa.
 // `relief` añade el relieve con luz (se apaga en miniaturas para que carguen rápido)
-export function FinishLayer({ finish, id, W, H, relief = true }) {
+export function FinishLayer({ finish, id, W, H, relief = true, photo = null }) {
+  // Foto real de la muestra del proveedor, repetida a su tamaño real (tileCm)
+  if (photo?.url) {
+    const tile = (photo.tileCm || 60) * 10
+    return (
+      <>
+        <pattern id={`${id}-ph`} patternUnits="userSpaceOnUse" width={tile} height={tile}>
+          <image href={photo.url} width={tile} height={tile} preserveAspectRatio="xMidYMid slice" />
+        </pattern>
+        <rect x="0" y="0" width={W} height={H} fill={`url(#${id}-ph)`} />
+      </>
+    )
+  }
   return (
     <>
       <Base finish={finish} id={id} W={W} H={H} />
@@ -253,13 +265,13 @@ export function FinishLayer({ finish, id, W, H, relief = true }) {
 }
 
 // Muestra para el selector de acabados
-export function FinishSwatch({ finish, fallback }) {
+export function FinishSwatch({ finish, fallback, photo = null }) {
   const id = 'fs' + useId().replace(/[^a-zA-Z0-9]/g, '')
   const f = finishById(finish)
   return (
     <svg viewBox="0 0 240 150" className="finish-swatch" aria-hidden="true">
       <rect width="240" height="150" fill={f.base || fallback} />
-      <FinishLayer finish={finish} id={id} W={240} H={150} />
+      <FinishLayer finish={finish} id={id} W={240} H={150} photo={photo && { ...photo, tileCm: 24 }} />
       <linearGradient id={`${id}-s`} x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stopColor="#fff" stopOpacity="0.25" />
         <stop offset="1" stopColor="#000" stopOpacity="0.08" />

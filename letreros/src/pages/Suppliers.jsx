@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
-import { CUT_OPTIONS, SUPPLIERS, SUPPLIER_CATEGORIES } from '../lib/suppliers'
+import { fileToJpeg } from '../lib/image'
+import { refreshPublicSettings } from '../lib/settings'
+import { FinishSwatch } from '../components/Finish'
+import { FINISH_MATERIAL, CUT_OPTIONS, HARDWARE_KIT, SUPPLIERS, SUPPLIER_CATEGORIES, partCategory, suppliersFor } from '../lib/suppliers'
 import { DEFAULT_COSTS, costEstimate, margin } from '../lib/costs'
 import { REFERENCE_SIGNS } from '../lib/market'
-import { FRAME_LINE, boardMaterialById, defaultLedDesign, faceCount, normalizeLedDesign, planPower } from '../lib/ledSign'
+import { FINISHES, FRAME_LINE, boardMaterialById, defaultLedDesign, faceCount, normalizeLedDesign, planPower } from '../lib/ledSign'
 import { computeTotals } from '../lib/prices'
 import { money, quote } from '../lib/pricing'
 
@@ -98,10 +101,13 @@ export default function Suppliers({ settings, orders, onSaved, canEdit }) {
         <button className={tab === 'costos' ? 'active' : ''} onClick={() => setTab('costos')}>Costos y margen</button>
         <button className={tab === 'compras' ? 'active' : ''} onClick={() => setTab('compras')}>Lista de compras</button>
         <button className={tab === 'equipo' ? 'active' : ''} onClick={() => setTab('equipo')}>Equipo e inversión</button>
+        <button className={tab === 'texturas' ? 'active' : ''} onClick={() => setTab('texturas')}>Texturas reales</button>
       </div>
       {msg && <p className="small">{msg}</p>}
 
-      {tab === 'equipo' ? (
+      {tab === 'texturas' ? (
+        <RealTextures canEdit={canEdit} />
+      ) : tab === 'equipo' ? (
         <Investment orders={orders} costs={costs} />
       ) : tab === 'compras' ? (
         <ShoppingList orders={orders} />
@@ -219,11 +225,12 @@ function ShoppingList({ orders = [] }) {
         <h2>Para {pending.length} pedido{pending.length > 1 ? 's' : ''} por fabricar</h2>
         <button className="btn ghost sm" onClick={() => navigator.clipboard?.writeText(text)}>Copiar lista</button>
       </div>
-      <ul className="quote-lines">
+      <ul className="buy-list">
         {Object.entries(sheets).map(([m, a]) => (
-          <li key={m}><span>{boardMaterialById(m).name} · {a.toFixed(2)} m² + 15 % de corte</span><strong>{Math.ceil((a * 1.15) / (1.22 * 2.44))} hoja(s)</strong></li>
+          <BuyRow key={m} item={`${boardMaterialById(m).name} · ${a.toFixed(2)} m² + 15 % de corte`} qty={`${Math.ceil((a * 1.15) / (1.22 * 2.44))} hoja(s)`} category={m === 'acrilico' ? 'acrilico' : m} />
         ))}
-        {rows.map(([item, n]) => <li key={item}><span>{item}</span><strong>{n}</strong></li>)}
+        {rows.map(([item, n]) => <BuyRow key={item} item={item} qty={n} category={partCategory(item)} />)}
+        {HARDWARE_KIT.map((k) => <BuyRow key={k.item} item={k.item} qty={k.qty} category={k.category} />)}
       </ul>
       <p className="muted small">Pedidos: {pending.map((o) => o.folio).join(', ')}</p>
     </section>
@@ -305,6 +312,92 @@ function Investment({ orders = [], costs }) {
           <li><span>Guantes, lentes y extintor (127 V y láser)</span><span>≈ $600</span></li>
         </ul>
       </section>
+    </>
+  )
+}
+
+// Un renglón de la lista con sus proveedores (mínimo 5 por material)
+function BuyRow({ item, qty, category }) {
+  const list = category ? suppliersFor(category) : []
+  return (
+    <li>
+      <div className="buy-main"><span>{item}</span><strong>{qty}</strong></div>
+      {list.length > 0 && (
+        <div className="buy-where">
+          {list.map((x) => <a key={x.name} href={x.url} target="_blank" rel="noreferrer" title={`${x.what} · ${x.price}`}>{x.name}</a>)}
+        </div>
+      )}
+    </li>
+  )
+}
+
+// Fotos reales de la muestra de cada acabado (se repiten en la placa a su tamaño real)
+function RealTextures({ canEdit }) {
+  const [textures, setTextures] = useState({})
+  const [busy, setBusy] = useState('')
+  const [msg, setMsg] = useState('')
+  const [tile, setTile] = useState({})
+  const [source, setSource] = useState({})
+  const reload = () => refreshPublicSettings().then((s) => setTextures(s.textures || {}))
+  useEffect(() => {
+    reload()
+  }, [])
+  const upload = (finish) => async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setBusy(finish)
+    setMsg('')
+    try {
+      await api.saveTexture(finish, { image: await fileToJpeg(file, 1400, 0.85), tileCm: tile[finish] || 60, source: source[finish] || '' })
+      await reload()
+    } catch (err) {
+      setMsg(err.message)
+    } finally {
+      setBusy('')
+    }
+  }
+  const remove = async (finish) => {
+    await api.deleteTexture(finish).catch((err) => setMsg(err.message))
+    reload()
+  }
+  return (
+    <>
+      <p className="muted small">
+        Sube una foto de la <b>muestra real</b> de cada material (el vinil o el acrílico que le compras al proveedor), tomada de frente y con buena luz.
+        La vista previa la repite a su tamaño real. Usa fotos tuyas o imágenes que el proveedor te autorice: las de sus tiendas tienen derechos de autor.
+      </p>
+      {msg && <p className="error">{msg}</p>}
+      <div className="texture-grid">
+        {FINISHES.filter((f) => f.id !== 'liso').map((f) => {
+          const t = textures[f.id]
+          const cat = FINISH_MATERIAL[f.id]
+          return (
+            <article key={f.id} className="texture-card">
+              <FinishSwatch finish={f.id} photo={t} />
+              <div className="row between">
+                <strong>{f.group} · {f.name}</strong>
+                <span className={`margin ${t ? 'ok' : 'mid'}`}>{t ? 'foto real' : 'simulada'}</span>
+              </div>
+              {t?.source && <span className="muted small">{t.source} · se repite cada {t.tileCm} cm</span>}
+              {canEdit && (
+                <div className="texture-form">
+                  <input className="input sm" placeholder="Proveedor / modelo" value={source[f.id] ?? ''} onChange={(e) => setSource({ ...source, [f.id]: e.target.value })} />
+                  <input className="input sm" type="number" min="5" max="300" title="Cuántos cm mide lo que sale en la foto" placeholder="cm" value={tile[f.id] ?? ''} onChange={(e) => setTile({ ...tile, [f.id]: +e.target.value })} />
+                  <label className="btn ghost sm file-btn">
+                    <input type="file" accept="image/*" onChange={upload(f.id)} disabled={busy === f.id} />
+                    {busy === f.id ? 'Subiendo…' : t ? 'Cambiar foto' : 'Subir foto'}
+                  </label>
+                  {t && <button className="link-btn danger" onClick={() => remove(f.id)}>Quitar</button>}
+                </div>
+              )}
+              <div className="buy-where">
+                {suppliersFor(cat).map((x) => <a key={x.name} href={x.url} target="_blank" rel="noreferrer" title={x.what}>{x.name}</a>)}
+              </div>
+            </article>
+          )
+        })}
+      </div>
     </>
   )
 }

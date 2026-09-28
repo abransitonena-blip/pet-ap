@@ -51,5 +51,7 @@ export const api = {
   suppliers: () => request('/admin/suppliers', { auth: true }),
   addSupplier: (x) => request('/admin/suppliers', { method: 'POST', body: x, auth: true }),
   deleteSupplier: (id) => request(`/admin/suppliers/${id}`, { method: 'DELETE', auth: true }),
+  saveTexture: (finish, body) => request(`/admin/textures/${finish}`, { method: 'POST', body, auth: true }),
+  deleteTexture: (finish) => request(`/admin/textures/${finish}`, { method: 'DELETE', auth: true }),
   deleteOrder: (id) => request(`/admin/orders/${id}`, { method: 'DELETE', auth: true })
 }

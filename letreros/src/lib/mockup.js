@@ -82,6 +82,21 @@ export async function downloadMockup({ wall, signSvg, night, glow, halo, backgro
   clone.setAttribute('width', Math.round(w * 2))
   clone.setAttribute('height', Math.round(h * 2))
   clone.querySelectorAll('style').forEach((s) => s.remove()) // sin animación: todo encendido
+  // Las fotos de textura se incrustan (un SVG convertido a imagen no puede cargar archivos externos)
+  for (const im of clone.querySelectorAll('image')) {
+    const href = im.getAttribute('href')
+    if (!href || href.startsWith('data:')) continue
+    try {
+      const blob = await (await fetch(href)).blob()
+      im.setAttribute('href', await new Promise((ok) => {
+        const r = new FileReader()
+        r.onload = () => ok(r.result)
+        r.readAsDataURL(blob)
+      }))
+    } catch {
+      /* sin textura: se queda el color base */
+    }
+  }
   const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' })
   const url = URL.createObjectURL(blob)
   try {

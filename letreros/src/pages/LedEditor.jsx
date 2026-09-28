@@ -102,6 +102,8 @@ export default function LedEditor() {
   const [night, setNight] = useState(true)
   const [dusk, setDusk] = useState(false)
   const [brightness, setBrightness] = useState(1)
+  const [turn, setTurn] = useState(null)
+  const [spin, setSpin] = useState(false)
   const [logoError, setLogoError] = useState('')
   const uploadLogo = (i) => async (e) => {
     const file = e.target.files?.[0]
@@ -252,7 +254,7 @@ export default function LedEditor() {
   const update = (patch) => setDesign((d) => ({ ...d, ...patch }))
   const setLine = (i, patch) => setDesign((d) => ({ ...d, lines: d.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) }))
   const plan = useMemo(() => planPower(design), [design])
-  const { prices, business } = usePublicSettings()
+  const { prices, business, textures } = usePublicSettings()
   const q = useMemo(() => quote({ ...design, quantity }, prices), [design, quantity, prices])
   const tooMany = design.dots.length >= MAX_DOTS
   const box = previewBox(design)
@@ -275,7 +277,8 @@ export default function LedEditor() {
                 {photo ? 'Cambiar foto' : 'Pruébalo en tu local'}
               </label>
               {photo && <button className="tool-btn" onClick={() => { URL.revokeObjectURL(photo); setPhoto('') }}>Quitar foto</button>}
-              {!photo && <button className={`tool-btn ${view3d ? 'on' : ''}`} onClick={() => setView3d((v) => !v)}>3D</button>}
+              <button className={`tool-btn ${view3d ? 'on' : ''}`} onClick={() => { setView3d((v) => !v); setSpin(false) }}>3D</button>
+              {view3d && <button className={`tool-btn ${spin ? 'on' : ''}`} onClick={() => setSpin((v) => !v)} title="Dar la vuelta completa al letrero">360°</button>}
               {!photo && (
                 <div className="scene-menu">
                   <button className={`tool-btn ${scenesOpen ? 'on' : ''}`} onClick={() => setScenesOpen((v) => !v)}>
@@ -306,6 +309,13 @@ export default function LedEditor() {
                 <span className="muted">Arrastra el letrero</span>
               </label>
             )}
+            {view3d && (
+              <label className="turn-control" title="Gira el letrero para ver los lados y el armado de atrás">
+                <span>Girar</span>
+                <input type="range" min="0" max="360" step="1" value={turn ?? 0} onChange={(e) => { setSpin(false); setTurn(+e.target.value) }} />
+                <span>{turn ?? 0}°</span>
+              </label>
+            )}
             {night && (
               <label className="brightness" title="Intensidad del LED (el taller puede agregar un regulador)">
                 <span>☼</span>
@@ -327,7 +337,7 @@ export default function LedEditor() {
             >
               {!photo && <span className="dim dim-w">{design.widthCm} cm</span>}
               {!photo && <span className="dim dim-h">{design.heightCm} cm</span>}
-              <Sign3D design={design} night={night} animate={night} brightness={brightness} dusk={dusk} enabled={view3d && !photo} />
+              <Sign3D design={design} night={night} animate={night} brightness={brightness} dusk={dusk} enabled={view3d} draggable={!photo} angle={turn} spin={spin} onAngle={setTurn} />
             </div>
           </div>
 
@@ -465,7 +475,7 @@ export default function LedEditor() {
             <div className="finishes">
               {FINISHES.map((f) => (
                 <button key={f.id} className={design.finish === f.id ? 'active' : ''} onClick={() => update({ finish: f.id })} title={f.group ? `${f.group} · ${f.name}` : 'Color liso'}>
-                  <FinishSwatch finish={f.id} fallback={boardById(design.board).hex} />
+                  <FinishSwatch finish={f.id} fallback={boardById(design.board).hex} photo={textures?.[f.id]} />
                   <span>{f.name}</span>
                   {prices.led.finishes?.[f.id] > 0 && <em>+{money(prices.led.finishes[f.id])}/m²</em>}
                 </button>

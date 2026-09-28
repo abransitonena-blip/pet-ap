@@ -5,7 +5,7 @@ import crypto from 'node:crypto'
 import { normalizeDesign } from '../src/lib/design.js'
 import { MATERIALS, EXTRAS, quote } from '../src/lib/pricing.js'
 import { STATUS_IDS, PRINTED_STATUSES } from '../src/lib/status.js'
-import { normalizeLedDesign } from '../src/lib/ledSign.js'
+import { FINISHES, normalizeLedDesign } from '../src/lib/ledSign.js'
 import {
   PERM_IDS, computeTotals, mergeBusiness, mergePrices, normalizeAdjust, normalizePayment, paymentSummary, publicBusiness, shippingFor, volumeDiscount
 } from '../src/lib/prices.js'
@@ -41,6 +41,7 @@ async function loadDb() {
   db.users = db.users || []
   db.leads = db.leads || []
   db.suppliers = db.suppliers || []
+  db.textures = db.textures && typeof db.textures === 'object' ? db.textures : {}
   db.settings = {
     prices: mergePrices(db.settings?.prices),
     business: mergeBusiness(db.settings?.business),
@@ -184,7 +185,10 @@ api.get('/health', (req, res) => res.json({ status: 'ok' }))
 // Precios y datos públicos del negocio (el editor los usa para cotizar en vivo)
 api.get('/public/settings', h(async (req, res) => {
   const db = await loadDb()
-  res.json({ prices: db.settings.prices, business: publicBusiness(db.settings.business) })
+  const textures = Object.fromEntries(
+    Object.entries(db.textures).map(([finish, t]) => [finish, { url: `/api/photos/${t.photoId}`, tileCm: t.tileCm, source: t.source }])
+  )
+  res.json({ prices: db.settings.prices, business: publicBusiness(db.settings.business), textures })
 }))
 
 // Crear pedido (público)
@@ -340,7 +344,7 @@ function publicReview(o) {
 api.get('/photos/:id', h(async (req, res) => {
   if (!/^[a-f0-9]{32}$/.test(req.params.id)) return res.status(404).end()
   const db = await loadDb()
-  const meta = db.orders.flatMap((o) => o.photos).find((p) => p.id === req.params.id)
+  const meta = [...db.orders.flatMap((o) => o.photos), ...Object.values(db.textures).map((t) => ({ id: t.photoId, type: t.type }))].find((p) => p.id === req.params.id)
   const buffer = meta && (await store.getPhoto(meta.id))
   if (!buffer) return res.status(404).end()
   res.set({ 'Content-Type': meta.type, 'Cache-Control': 'public, max-age=604800, immutable' })
@@ -665,6 +669,41 @@ api.put('/admin/settings/costs', requireUser, need('precios'), h(async (req, res
     return db.settings
   })
   res.json(settings)
+}))
+
+// Texturas reales: foto de la muestra del material para cada acabado
+const FINISH_IDS = FINISHES.map((f) => f.id).filter((id) => id !== 'liso')
+api.post('/admin/textures/:finish', requireUser, need('precios'), h(async (req, res) => {
+  if (!FINISH_IDS.includes(req.params.finish)) return res.status(400).json({ error: 'Acabado inválido' })
+  const tileCm = Math.round(Math.min(300, Math.max(5, Number(req.body?.tileCm) || 60)))
+  const saved = await savePhoto(req.body?.image, { by: req.user.name, source: 'textura' })
+  if (saved.error) return res.status(400).json({ error: saved.error })
+  const old = await mutate((db) => {
+    const prev = db.textures[req.params.finish]
+    db.textures[req.params.finish] = {
+      photoId: saved.photo.id,
+      type: saved.photo.type,
+      tileCm,
+      source: String(req.body?.source || '').trim().slice(0, 120),
+      at: saved.photo.at,
+      by: req.user.name
+    }
+    return { prev: prev?.photoId }
+  })
+  if (old.prev) await store.deletePhoto(old.prev)
+  res.status(201).json({ ok: true })
+}))
+
+api.delete('/admin/textures/:finish', requireUser, need('precios'), h(async (req, res) => {
+  const old = await mutate((db) => {
+    const prev = db.textures[req.params.finish]
+    if (!prev) return { save: false, missing: true }
+    delete db.textures[req.params.finish]
+    return { prev: prev.photoId }
+  })
+  if (old.missing) return res.status(404).json({ error: 'Sin textura' })
+  await store.deletePhoto(old.prev)
+  res.status(204).end()
 }))
 
 // Proveedores propios (además del directorio de fábrica)

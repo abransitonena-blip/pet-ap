@@ -74,6 +74,11 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 - Directorio de proveedores reales en México (LED, electrónica, acrílico, PVC, MDF, vinil de texturas, envíos) + los tuyos
 - Costos editables (LED, hojas, vinil, capacitores, placas, mano de obra…) → costo estimado y **margen** de cada letrero y
   de cada pedido (en el pedido, solo para Ventas/Precios)
+- **Mínimo 5 proveedores por material o pieza** (LED, capacitores, fuentes, tiras, acrílico, espejo, PVC, MDF, vinil,
+  separadores, taquetes y pijas, cinchos, cable, clemas, soldadura y termofit, cinta VHB, cable de acero/cadenas/ménsulas,
+  empaque, PCB, ensamble, corte por servicio, máquinas y envíos); una prueba automática lo verifica
+- La **lista de compras** dice dónde comprar cada renglón e incluye el kit de ferretería (cable, clemas, soldadura,
+  cinchos, taquetes, VHB, empaque)
 - **Fuentes de poder** (Mean Well LRS), **tiras LED y neón flex** (GoLed, Duraled, Neon Bit, Signalux), **separadores y
   herrajes** (Avance y Tec), **cables y adhesivos** (Steren 22 AWG, 3M VHB) con precios de referencia
 - **Máquinas, corte por servicio, cobro con tarjeta y financiamiento**: láser CO2 (K40, 60–130 W), diodo 20 W, router CNC,
@@ -93,6 +98,14 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 
 **Mercado (panel → Estrategia)**
 - Análisis con fuentes: tamaño del mercado (INEGI), competencia y precios (Radox, programables, neón flex), tu precio actual en vivo contra el mercado y plan de acción. Documento: `docs/analisis-mercado.md`
+
+**360° y armado real**
+- El letrero gira 360° arrastrando (o con el control *Girar* y el botón *360°*), también en modo foto del local;
+  por detrás se ve el armado real: patas soldadas de cada LED, cableado de cada cadena, placa de la fuente,
+  cable de corriente con cinchos, etiqueta y barrenos
+- LED más reales: pestaña (flange) de la base, copa reflectora y chip visibles con el LED apagado, núcleo blanco encendido
+- **Texturas reales**: en Proveedores → Texturas reales se sube la foto de la muestra de cada material (con el tamaño
+  que cubre la foto); la vista previa, las miniaturas y la imagen descargable la usan a escala real
 
 **Hecho por AP (galería pública)**
 - En el panel marca un pedido con *Mostrar en “Hecho por AP”* y aparece en la página del cliente
@@ -163,7 +176,7 @@ letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, dato
 
 ```bash
 cd letreros
-npm test        # 33 pruebas: halo trasero, costos, proveedores, bandera, logo, pedido múltiple, prospectos, envío, enlaces seguros, opiniones y fotos, combinaciones de color, marco, acabados, precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
+npm test        # 36 pruebas: proveedores mínimos, texturas reales, halo trasero, costos, proveedores, bandera, logo, pedido múltiple, prospectos, envío, enlaces seguros, opiniones y fotos, combinaciones de color, marco, acabados, precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
 npm run check   # pruebas + build
 ```
 

@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { SEQ_CHANNELS, boardBase, boardOutline, dotColorId, finishById, ledColorById, mountHoles } from '../lib/ledSign'
 import { FinishLayer } from './Finish'
+import { usePublicSettings } from '../lib/settings'
 
 // Mezcla dos colores hex (t = 0 → a, t = 1 → b)
 export function mix(a, b, t) {
@@ -35,6 +36,7 @@ export default function LedPreview({ design, night = false, animate = false, wit
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
   const W = design.widthCm * 10
   const H = design.heightCm * 10
+  const { textures } = usePublicSettings()
   const finish = finishById(design.finish).id
   const baseHex = boardBase(design)
   const r = design.ledMm / 2
@@ -108,6 +110,11 @@ export default function LedPreview({ design, night = false, animate = false, wit
           <stop offset="0" stopColor="#fff" stopOpacity="0.95" />
           <stop offset="1" stopColor="#fff" stopOpacity="0" />
         </radialGradient>
+        <radialGradient id={`cup-${uid}`} cx="50%" cy="45%" r="55%">
+          <stop offset="0" stopColor="#f1f5f9" />
+          <stop offset="0.6" stopColor="#94a3b8" />
+          <stop offset="1" stopColor="#475569" stopOpacity="0.6" />
+        </radialGradient>
         <radialGradient id={`metal-${uid}`} cx="35%" cy="30%" r="75%">
           <stop offset="0" stopColor="#ffffff" />
           <stop offset="0.45" stopColor="#c9ccd2" />
@@ -150,7 +157,7 @@ export default function LedPreview({ design, night = false, animate = false, wit
       )}
       <path d={outline.d} fill={baseHex} fillOpacity={glass ? 0.28 : 1} />
       <g clipPath={`url(#c-${uid})`}>
-        {finish !== 'liso' && <FinishLayer finish={finish} id={`f-${uid}`} W={W} H={H} relief={relief} />}
+        {finish !== 'liso' && <FinishLayer finish={finish} id={`f-${uid}`} W={W} H={H} relief={relief} photo={textures?.[finish]} />}
         <rect x="0" y="0" width={W} height={H} fill={`url(#am-${uid})`} />
         {/* De noche la placa queda en penumbra; la luz de los LED la ilumina encima */}
         {night && !glass && <rect x="0" y="0" width={W} height={H} fill="#1a0f16" opacity="0.2" />}
@@ -196,6 +203,10 @@ export default function LedPreview({ design, night = false, animate = false, wit
               ))}
             </g>
           )}
+          {/* Pestaña (flange) de la base del LED de 5 mm: anillo un poco más ancho que el domo */}
+          {dotsOf(g).map(({ d, c }, i) => (
+            <circle key={`f${i}`} cx={d[0]} cy={d[1]} r={r * 1.16} fill={mix(hexOf(c), night ? '#ffffff' : '#000000', night ? 0.25 : 0.55)} opacity={night ? 0.9 : 0.75} />
+          ))}
           {dotsOf(g).map(({ d, c }, i) => (
             <circle
               key={i}
@@ -207,6 +218,15 @@ export default function LedPreview({ design, night = false, animate = false, wit
               strokeWidth={r * 0.12}
             />
           ))}
+          {/* Apagado: a través del lente se ve la copa reflectora y el chip */}
+          {!night && dotsOf(g).map(({ d }, i) => (
+            <g key={`c${i}`} opacity="0.7">
+              <circle cx={d[0]} cy={d[1] + r * 0.05} r={r * 0.42} fill={`url(#cup-${uid})`} />
+              <rect x={d[0] - r * 0.11} y={d[1] - r * 0.06} width={r * 0.22} height={r * 0.22} fill="#3b3b3b" />
+            </g>
+          ))}
+          {/* Encendido: el chip es un punto blanco muy brillante */}
+          {night && dotsOf(g).map(({ d }, i) => <circle key={`k${i}`} cx={d[0]} cy={d[1]} r={r * 0.3} fill="#fff" opacity={0.75 * glowK + 0.2} />)}
           {dotsOf(g).map(({ d }, i) => (
             <circle key={i} cx={d[0] - r * 0.22} cy={d[1] - r * 0.28} r={r * 0.42} fill={`url(#lens-${uid})`} />
           ))}
