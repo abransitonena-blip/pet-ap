@@ -1099,6 +1099,7 @@ function LedSpecs({ order }) {
         <div><span>Placa</span><strong>{d.widthCm} × {d.heightCm} cm</strong></div>
         <div><span>Material</span><strong>{boardMaterialById(d.material).name}</strong></div>
         <div><span>Acabado</span><strong>{finishById(d.finish).id === 'liso' ? 'Color liso' : `Vinil ${finishById(d.finish).name.toLowerCase()}`}</strong></div>
+        <div><span>Halo trasero</span><strong>{planPower(d).haloM ? `${planPower(d).haloM} m · ${ledColorById(d.halo.color).name} · ${planPower(d).haloWatts} W` : 'No'}</strong></div>
         <div><span>Marco LED</span><strong>{d.frame?.on ? `${d.frame.double ? 'Doble' : 'Sencillo'} · ${d.dots.filter((p) => p[2] === FRAME_LINE).length} LED` : 'No'}</strong></div>
         <div><span>LED</span><strong>{d.dots.length} de {d.ledMm} mm</strong></div>
         <div><span>Cantidad</span><strong>{order.quote.quantity}</strong></div>

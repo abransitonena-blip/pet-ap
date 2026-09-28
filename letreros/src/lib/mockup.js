@@ -11,7 +11,7 @@ const loadImage = (src) =>
 
 const cssUrl = (bg) => /url\("?(.*?)"?\)$/.exec(bg || '')?.[1]
 
-export async function downloadMockup({ wall, signSvg, night, glow, background, photo, caption, filename = 'mi-letrero.png' }) {
+export async function downloadMockup({ wall, signSvg, night, glow, halo, background, photo, caption, filename = 'mi-letrero.png' }) {
   const W = 1600
   const wr = wall.getBoundingClientRect()
   const H = Math.round((W * wr.height) / wr.width)
@@ -64,6 +64,18 @@ export async function downloadMockup({ wall, signSvg, night, glow, background, p
     ctx.globalCompositeOperation = 'screen'
     ctx.fillStyle = g
     ctx.fillRect(0, 0, W, H)
+    ctx.restore()
+  }
+  // Halo trasero: luz de la tira LED alrededor de la placa
+  if (night && halo) {
+    ctx.save()
+    ctx.filter = 'blur(26px)'
+    ctx.globalCompositeOperation = 'screen'
+    ctx.globalAlpha = 0.85
+    ctx.fillStyle = halo
+    ctx.beginPath()
+    ctx.roundRect(x - w * 0.04, y - h * 0.06, w * 1.08, h * 1.12, Math.min(w, h) * 0.12)
+    ctx.fill()
     ctx.restore()
   }
   const clone = signSvg.cloneNode(true)

@@ -15,7 +15,7 @@ import { FinishSwatch } from '../components/Finish'
 import { wallStyle } from '../lib/walls'
 import {
   ANIMATIONS, BOARDS, BOARD_MATERIALS, COLOR_MIXES, FINISHES, MOUNTS, SCENES, SHAPES, DOT_STYLES, LED_COLORS, LED_SIZES, MAX_DOTS, POWER,
-  boardById, boardMaterialById, defaultLedDesign, dotColorId, ledColorById, newLedLine, normalizeLedDesign, planPower
+  boardById, boardMaterialById, defaultLedDesign, dotColorId, haloOn, ledColorById, newLedLine, normalizeLedDesign, planPower
 } from '../lib/ledSign'
 import { computeLedDots } from '../lib/ledText'
 import { money, quote } from '../lib/pricing'
@@ -229,6 +229,7 @@ export default function LedEditor() {
         wall,
         signSvg: svg,
         night: night && !dusk,
+        halo: haloOn(design) ? ledColorById(design.halo.color).hex : null,
         glow: ledColorById(design.dots[0] ? dotColorId(design, design.dots[0]) : design.lines[0].color).hex,
         photo,
         background: { color: SCENES.find((x) => x.id === scene)?.hex, image: style.backgroundImage, size: style.backgroundSize },
@@ -496,6 +497,22 @@ export default function LedEditor() {
           </Section>
 
           <Section n="04" title="Luz y efectos" hint="Combina LED, marco y animación">
+            <div className="frame-box">
+              <label className="check-row">
+                <input type="checkbox" checked={design.halo.on} onChange={(e) => { update({ halo: { ...design.halo, on: e.target.checked }, ...(e.target.checked && design.mount !== 'pared' ? { mount: 'pared' } : {}) }); if (e.target.checked) { setNight(true); setDusk(false) } }} />
+                <span><strong>Halo trasero</strong> · tira LED detrás de la placa: la pared brilla alrededor{prices.led.haloPerM ? ` · desde +${money(prices.led.haloSupply + prices.led.haloPerM)}` : ''}</span>
+              </label>
+              {design.halo.on && (
+                <div className="led-colors">
+                  {LED_COLORS.map((c) => (
+                    <button key={c.id} className={design.halo.color === c.id ? 'active' : ''} onClick={() => update({ halo: { ...design.halo, color: c.id } })} title={c.name}>
+                      <span className="led" style={{ '--led': c.hex }} />
+                    </button>
+                  ))}
+                  <span className="muted small">{ledColorById(design.halo.color).name} · solo montaje de pared</span>
+                </div>
+              )}
+            </div>
             <div className="frame-box">
               <label className="check-row">
                 <input type="checkbox" checked={design.frame.on} onChange={(e) => update({ frame: { ...design.frame, on: e.target.checked } })} />

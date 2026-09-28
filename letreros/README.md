@@ -40,6 +40,8 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 - **Día / Tarde / Noche** y **brillo regulable** en la vista previa (la tarde opaca un poco el LED y entibia la pared)
 - **Tu logo en LED**: el cliente sube su logo (PNG/JPG, fondo blanco o transparente); se convierte en puntos con el
   mismo estilo que las letras (trazo, contorno o relleno) y viaja en el pedido como máscara comprimida
+- **Halo trasero**: tira LED 12 V detrás de la placa (la pared brilla alrededor, en el color que elijas); calcula metros
+  de tira, fuente Mean Well con 25 % de holgura y separadores; se ve en la vista 3D y en la imagen descargable
 - **Bandera doble cara**: montaje con ménsula que sale de la fachada; duplica placa, LED, cadenas y lista de materiales
 - **Varios letreros** (sucursales, mesas, puertas): mismo diseño con un texto por renglón, precio de cada uno,
   descuento por volumen y un folio por letrero (`POST /api/orders/batch`, envío cobrado una sola vez)
@@ -72,6 +74,8 @@ más un **panel de administración** para controlar los pedidos, la cola de impr
 - Directorio de proveedores reales en México (LED, electrónica, acrílico, PVC, MDF, vinil de texturas, envíos) + los tuyos
 - Costos editables (LED, hojas, vinil, capacitores, placas, mano de obra…) → costo estimado y **margen** de cada letrero y
   de cada pedido (en el pedido, solo para Ventas/Precios)
+- **Fuentes de poder** (Mean Well LRS), **tiras LED y neón flex** (GoLed, Duraled, Neon Bit, Signalux), **separadores y
+  herrajes** (Avance y Tec), **cables y adhesivos** (Steren 22 AWG, 3M VHB) con precios de referencia
 - **Máquinas, corte por servicio, cobro con tarjeta y financiamiento**: láser CO2 (K40, 60–130 W), diodo 20 W, router CNC,
   talleres de corte por minuto (CDMX, GDL), Mercado Pago / Clip y créditos NAFIN
 - **Equipo e inversión**: compara mandar a cortar ($15–$18/min) contra taladro, K40, diodo, CO2 60/100 W y CNC: tiempo por
@@ -159,7 +163,7 @@ letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, dato
 
 ```bash
 cd letreros
-npm test        # 32 pruebas: costos, proveedores, bandera, logo, pedido múltiple, prospectos, envío, enlaces seguros, opiniones y fotos, combinaciones de color, marco, acabados, precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
+npm test        # 33 pruebas: halo trasero, costos, proveedores, bandera, logo, pedido múltiple, prospectos, envío, enlaces seguros, opiniones y fotos, combinaciones de color, marco, acabados, precios, IVA, pagos, galería, cálculo eléctrico (tabla de la placa B), archivos láser, API y permisos
 npm run check   # pruebas + build
 ```
 

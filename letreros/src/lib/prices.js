@@ -19,6 +19,8 @@ export const DEFAULT_PRICES = {
     flasher: 120,
     fader: 220, // efecto respirar (PWM)
     frame: 90, // trazo y armado del marco LED (los LED se cobran aparte)
+    haloPerM: 120, // halo trasero: tira LED instalada por metro
+    haloSupply: 320, // fuente 12 V del halo
     finishes: { liso: 0, pino: 250, roble: 300, nogal: 350, marmol: 400, concreto: 250, aluminio: 450, espejo: 500, oro: 550, rosaoro: 550, pizarra: 300, terrazo: 350, carbono: 450, cobre: 550 }, // por m²
     supply12: { 1: 180, 2: 220, 3: 280, 5: 380, 10: 600, 20: 950 },
     resistor: 2, // por cadena a 12 V

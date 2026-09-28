@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import LedPreview, { mix, previewBox } from './LedPreview'
-import { boardBase, boardOutline, dotColorId, ledColorById } from '../lib/ledSign'
+import { boardBase, boardOutline, dotColorId, haloOn, ledColorById } from '../lib/ledSign'
 
 const REST = { x: 3, y: -12 }
 
@@ -38,6 +38,13 @@ export default function Sign3D({ design, night, animate, enabled = true, brightn
     <div className={`sign3d ${enabled ? 'on' : ''}`} ref={ref} onPointerMove={move} onPointerLeave={leave} onPointerUp={leave}>
       {night && !dusk && <div className="wall-spill" style={{ opacity: 0.35 + 0.4 * brightness, background: `radial-gradient(closest-side, ${accent}99, ${accent}33 55%, transparent)` }} />}
       <div className={`rig ${live ? 'live' : ''}`} style={{ transform }}>
+        {night && haloOn(design) && (
+          // Halo trasero: la tira LED detrás de la placa ilumina la pared alrededor del contorno
+          <svg className="layer halo-layer" viewBox={viewBox} style={{ transform: `${enabled ? `translateZ(${-(layers + 14) * step}px) ` : ''}scale(1.06)`, opacity: (dusk ? 0.55 : 0.95) * (0.45 + 0.55 * brightness) }}>
+            <path d={outline.d} fill="none" stroke={ledColorById(design.halo.color).hex} strokeWidth={Math.max(30, design.heightCm * 1.6)} />
+            <path d={outline.d} fill={ledColorById(design.halo.color).hex} opacity="0.55" />
+          </svg>
+        )}
         {enabled && (
           <svg className="layer shadow-layer" viewBox={viewBox} style={{ transform: `translateZ(${-(layers + 10) * step}px) translate(2.5%, 4%)` }}>
             <path d={outline.d} fill="#000" />

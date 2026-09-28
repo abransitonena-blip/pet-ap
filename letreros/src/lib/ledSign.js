@@ -120,6 +120,21 @@ export const MOUNTS = [
   { id: 'bandera', name: 'Bandera doble cara', note: 'Sale de la fachada · se ve de ambos lados', price: 450 }
 ]
 
+// Halo trasero: tira LED 12 V detrás de la placa (la pared brilla alrededor). Solo en montaje de pared.
+export const HALO_W_PER_M = 9.6 // tira 2835, 120 LED/m
+export const haloOn = (design) => Boolean(design.halo?.on) && design.mount === 'pared'
+export function haloMeters(design) {
+  if (!haloOn(design)) return 0
+  // La tira va ~3 cm hacia adentro del borde
+  const inset = 30
+  const w = Math.max(0, design.widthCm * 10 - 2 * inset)
+  const h = Math.max(0, design.heightCm * 10 - 2 * inset)
+  const k = design.shape === 'circle' || design.shape === 'pill' ? 0.86 : 1
+  return Math.ceil(((2 * (w + h) * k) / 1000) * 10) / 10
+}
+// Fuente Mean Well con 25 % de holgura
+export const haloSupplyW = (m) => [35, 60, 100, 150, 200].find((w) => w >= m * HALO_W_PER_M * 1.25) || 320
+
 // Letrero de bandera: dos caras con LED (se ve al caminar por la banqueta en ambos sentidos)
 export const faceCount = (design) => (design.mount === 'bandera' ? 2 : 1)
 
@@ -194,6 +209,8 @@ export function defaultLedDesign() {
     board: 'blanco',
     finish: 'liso',
     frame: { on: false, double: false, color: 'blanco', color2: 'rosa', mix: 'solido' },
+    halo: { on: false, color: 'calido' },
+    logo: null,
     shape: 'round',
     mount: 'pared',
     cornerMm: 16,
@@ -254,6 +271,7 @@ export function normalizeLedDesign(input) {
     board: oneOf(d.board, BOARDS.map((b) => b.id), def.board),
     finish: oneOf(d.finish, FINISHES.map((f) => f.id), 'liso'),
     logo: normalizeLogo(d.logo),
+    halo: { on: Boolean(d.halo?.on), color: oneOf(d.halo?.color, colorIds, 'calido') },
     frame: {
       on: Boolean(fr.on),
       double: Boolean(fr.double),
@@ -467,8 +485,14 @@ export function planPower(design) {
   }
 
   if (faces === 2) bom.push({ qty: 1, item: 'Brazo de bandera (ménsula) con tornillería y caja de 2 caras' })
+  const haloM = haloMeters(design)
+  if (haloM) {
+    bom.push({ qty: haloM, item: `metros de tira LED 2835 12 V ${ledColorById(design.halo.color).name.toLowerCase()} (halo trasero)` })
+    bom.push({ qty: 1, item: `Fuente 12 V ${haloSupplyW(haloM)} W (Mean Well LRS) para el halo` })
+    bom.push({ qty: 4, item: 'Separadores de 25 mm (la placa se despega de la pared para que salga la luz)' })
+  }
 
-  return { strings, dotString, boardsA, boardsB, faces, totalLeds: dots.length * faces, totalMa: Math.round(totalMa), watts, supplyA, bom, colorCount }
+  return { strings, dotString, boardsA, boardsB, faces, haloM, haloWatts: Math.round(haloM * HALO_W_PER_M * 10) / 10, totalLeds: dots.length * faces, totalMa: Math.round(totalMa), watts, supplyA, bom, colorCount }
 }
 
 // Precio del letrero LED (lo recalcula el servidor con la tabla de precios vigente)
@@ -496,6 +520,7 @@ export function ledQuoteParts(design, prices = DEFAULT_PRICES) {
   const finish = finishById(design.finish)
   const finishM2 = P.finishes?.[finish.id] ?? finish.price
   if (finishM2) parts.push({ label: `Acabado ${finish.name.toLowerCase()}`, amount: Math.max(80, Math.round(areaM2 * finishM2)) * faces })
+  if (plan.haloM) parts.push({ label: `Halo trasero (${plan.haloM} m de tira + fuente 12 V)`, amount: Math.round(plan.haloM * P.haloPerM + P.haloSupply) })
   const frameDots = (design.dots || []).filter((p) => p[2] === FRAME_LINE).length
   if (frameDots) parts.push({ label: `Marco LED (${frameDots} puntos)`, amount: P.frame })
   const shape = SHAPES.find((x) => x.id === design.shape)

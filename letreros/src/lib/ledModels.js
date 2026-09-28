@@ -17,5 +17,6 @@ export const LED_MODELS = [
   { name: 'Bar', d: { style: 'trazo', pitchMm: 12, shape: 'rect', finish: 'concreto', animation: 'secuencial', frame: { on: true, double: true, color: 'rosa', color2: 'azul', mix: 'alternado' }, lines: [L({ text: 'BAR', font: 'Monoton', heightMm: 160, color: 'rosa', icon: 'coctel' })] } },
   { name: 'Boutique', d: { style: 'trazo', pitchMm: 9, shape: 'arch', finish: 'rosaoro', frame: { on: true, color: 'blanco' }, lines: [L({ text: 'Boutique', font: 'Great Vibes', heightMm: 120, color: 'blanco' })] } },
   { name: 'Fiesta', d: { style: 'contorno', pitchMm: 11, shape: 'pill', finish: 'marmol', animation: 'respirar', frame: { on: true, mix: 'arcoiris' }, lines: [L({ text: 'PARTY', font: 'Bungee', heightMm: 120, color: 'rosa', mix: 'arcoiris' })] } },
+  { name: 'Studio halo', d: { style: 'trazo', pitchMm: 9, shape: 'pill', finish: 'aluminio', halo: { on: true, color: 'rosa' }, lines: [L({ text: 'Studio', font: 'Great Vibes', heightMm: 130, color: 'blanco' })] } },
   { name: 'Mesa', d: { style: 'trazo', pitchMm: 9, board: 'transparente', mount: 'base', lines: [L({ text: 'Bienvenidos', font: 'Great Vibes', heightMm: 100, color: 'calido', icon: 'brillos' })] } }
 ]

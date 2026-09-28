@@ -118,3 +118,12 @@ test('logo: la máscara comprimida se valida y se recupera igual', () => {
   assert.equal(normalizeLogo({ ...logo, w: 9 }), null, 'tamaño que no cuadra con las corridas')
   assert.equal(normalizeLogo({ w: 8, h: 6, rle: '<script>' }), null)
 })
+
+test('halo trasero: metros de tira, fuente con holgura, precio y solo en pared', () => {
+  const d = normalizeLedDesign({ ...defaultLedDesign(), widthCm: 60, heightCm: 25, shape: 'rect', halo: { on: true, color: 'rosa' }, dots: [[10, 10, 0, 0]] })
+  const plan = planPower(d)
+  assert.equal(plan.haloM, 1.5) // 2 × (540 + 190) mm = 1.46 m, redondeado hacia arriba
+  assert.ok(plan.bom.some((b) => /Fuente 12 V 35 W/.test(b.item)))
+  assert.ok(ledQuoteParts(d).parts.some((p) => p.label.startsWith('Halo trasero')))
+  assert.equal(planPower({ ...d, mount: 'colgante' }).haloM, 0)
+})
