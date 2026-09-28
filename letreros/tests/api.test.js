@@ -199,6 +199,25 @@ test('texturas reales: foto por acabado, visible al público y reemplazable', as
   assert.equal((await call('GET', '/public/settings')).body.textures.nogal, undefined)
 })
 
+test('inventario: se descuenta una sola vez al terminar el letrero', async () => {
+  const owner = await login('admin', 'clave-prueba')
+  assert.equal((await call('GET', '/admin/inventory', null, owner)).body.started, false)
+  const put = await call('PUT', '/admin/inventory', { items: { 'led-rojo': { qty: 100, min: 10 }, caja: { qty: 3 }, hacker: { qty: 9 } } }, owner)
+  assert.equal(put.body.started, true)
+  assert.equal(put.body.items['led-rojo'].qty, 100)
+  assert.equal(put.body.items.hacker, undefined)
+  const made = await call('POST', '/orders', { ...ledOrder, design: { ...ledOrder.design, lines: [{ text: 'HOLA', color: 'rojo' }], wifi: true } })
+  const id = (await call('GET', '/admin/orders', null, owner)).body.find((o) => o.folio === made.body.folio).id
+  assert.equal((await call('PATCH', `/admin/orders/${id}`, { status: 'impreso' }, owner)).status, 200)
+  await call('PATCH', `/admin/orders/${id}`, { status: 'entregado' }, owner)
+  const inv = (await call('GET', '/admin/inventory', null, owner)).body.items
+  assert.equal(inv['led-rojo'].qty, 97, '2 LED + 5 % redondeado hacia arriba = 3, una sola vez')
+  assert.equal(inv.caja.qty, 2)
+  assert.equal(inv.wifi.qty, -1)
+  const stats = (await call('GET', '/admin/stats', null, owner)).body
+  assert.ok(stats.lowStock.includes('Módulo WiFi Sonoff'))
+})
+
 test('límite de intentos de acceso', async () => {
   let last
   for (let i = 0; i < 12; i++) last = await call('POST', '/admin/login', { username: 'nadie', password: 'x' })

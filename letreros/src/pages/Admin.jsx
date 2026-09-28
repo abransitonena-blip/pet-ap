@@ -188,6 +188,7 @@ function Login({ onLogin }) {
 
 function Dashboard({ onLogout }) {
   const [section, setSection] = useState('resumen')
+  const [supTab, setSupTab] = useState('directorio')
   const [orders, setOrders] = useState([])
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -347,7 +348,7 @@ function Dashboard({ onLogout }) {
           <p className="muted">Cargando…</p>
         ) : (
           <>
-            {active.id === 'resumen' && <Overview stats={stats} orders={orders} onOpen={open} showMoney={can('ventas')} />}
+            {active.id === 'resumen' && <Overview stats={stats} orders={orders} onOpen={open} showMoney={can('ventas')} onInventory={() => { setSupTab('inventario'); setSection('proveedores') }} />}
             {active.id === 'pedidos' && <OrdersList orders={orders} onOpen={open} onUpdate={updateOrder} can={can} />}
             {active.id === 'presupuestos' && <Quotes orders={orders} onOpen={open} onUpdate={updateOrder} />}
             {active.id === 'produccion' && <Production orders={orders} onOpen={open} onUpdate={updateOrder} />}
@@ -356,7 +357,7 @@ function Dashboard({ onLogout }) {
             {active.id === 'opiniones' && <ReviewsAdmin orders={orders} onOpen={open} onUpdate={updateOrder} />}
             {active.id === 'mercado' && <Market settings={settings} orders={orders} />}
             {active.id === 'prospectos' && <Prospects business={settings?.business} prices={settings?.prices} />}
-            {active.id === 'proveedores' && <Suppliers settings={settings} orders={orders} onSaved={setSettings} canEdit={can('precios')} />}
+            {active.id === 'proveedores' && <Suppliers key={supTab} initialTab={supTab} settings={settings} orders={orders} onSaved={setSettings} canEdit={can('precios')} />}
             {active.id === 'clientes' && <Clients orders={orders} onOpen={open} showMoney={can('ventas')} />}
             {active.id === 'precios' && <Prices settings={settings} onSaved={setSettings} />}
             {active.id === 'equipo' && <Team me={me} />}
@@ -400,7 +401,7 @@ function Dashboard({ onLogout }) {
   )
 }
 
-function Overview({ stats, orders, onOpen, showMoney }) {
+function Overview({ stats, orders, onOpen, showMoney, onInventory }) {
   const pending = ['nuevo', 'en_diseno', 'aprobado'].reduce((n, s) => n + (stats.byStatus[s] || 0), 0)
   const active = orders.filter((o) => o.status !== 'cancelado')
   const ticket = active.length ? Math.round(stats.revenue / active.length) : 0
@@ -423,8 +424,16 @@ function Overview({ stats, orders, onOpen, showMoney }) {
     { label: 'Presupuestos aceptados', value: stats.quotes?.aceptada ?? 0 }
   ]
 
+  const low = stats.lowStock || []
   return (
     <>
+      {low.length > 0 && (
+        <div className="low-stock-alert">
+          <LedIcon name="box" size={20} color="#f59e0b" />
+          <span className="grow"><b>{low.length} material{low.length > 1 ? 'es' : ''} bajo el mínimo:</b> {low.slice(0, 4).join(', ')}{low.length > 4 ? '…' : ''}</span>
+          <button className="btn ghost sm" onClick={onInventory}>Ver inventario</button>
+        </div>
+      )}
       <div className="kpis">
         {tiles.map((t) => (
           <div className={`kpi ${t.hot ? 'hot' : ''}`} key={t.label}>
@@ -1100,6 +1109,7 @@ function LedSpecs({ order }) {
         <div><span>Material</span><strong>{boardMaterialById(d.material).name}</strong></div>
         <div><span>Acabado</span><strong>{finishById(d.finish).id === 'liso' ? 'Color liso' : `Vinil ${finishById(d.finish).name.toLowerCase()}`}</strong></div>
         <div><span>Halo trasero</span><strong>{planPower(d).haloM ? `${planPower(d).haloM} m · ${ledColorById(d.halo.color).name} · ${planPower(d).haloWatts} W` : 'No'}</strong></div>
+        <div><span>Control WiFi</span><strong>{d.wifi ? 'Sí · Sonoff Basic R2' : 'No'}</strong></div>
         <div><span>Marco LED</span><strong>{d.frame?.on ? `${d.frame.double ? 'Doble' : 'Sencillo'} · ${d.dots.filter((p) => p[2] === FRAME_LINE).length} LED` : 'No'}</strong></div>
         <div><span>LED</span><strong>{d.dots.length} de {d.ledMm} mm</strong></div>
         <div><span>Cantidad</span><strong>{order.quote.quantity}</strong></div>

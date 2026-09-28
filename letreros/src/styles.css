@@ -956,3 +956,10 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .texture-card .finish-swatch { aspect-ratio: 16 / 9; border-radius: 10px; }
 .texture-form { display: grid; grid-template-columns: 1fr 64px auto auto; gap: 6px; align-items: center; }
 .texture-form .input.sm { width: 100%; }
+
+/* Inventario */
+.notice { background: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; }
+.inventory-table .sm-num { width: 90px; padding: 6px 8px; }
+.inventory-table tr.low-row td { background: #fff7ed; }
+.order-text { white-space: pre-wrap; background: #f8f8f6; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; margin: 10px 0; max-height: 220px; overflow: auto; }
+.low-stock-alert { display: flex; gap: 10px; align-items: center; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; font-size: 14px; }

@@ -22,6 +22,7 @@ export const SUPPLIER_CATEGORIES = [
   { id: 'empaque', name: 'Empaque', material: true },
   { id: 'pcb', name: 'Placas de circuito (PCB)', material: true },
   { id: 'ensamble', name: 'Ensamble electrónico', material: true },
+  { id: 'wifi', name: 'Módulo WiFi (control por celular)', material: true },
   { id: 'maquila', name: 'Corte por servicio', material: true },
   { id: 'maquinas', name: 'Máquinas y herramienta', material: true },
   { id: 'envios', name: 'Envíos', material: true },
@@ -164,6 +165,13 @@ export const SUPPLIERS = [
   S('ensamble', 'VisuaLeds', 'https://visualeds.com.mx/maquila-de-ensamble-electronico-smt-y-tht/', 'Ensamble SMT y THT, también manual', 'cotiza'),
   S('ensamble', 'VI Electronics', 'https://vielectronics.com/ensamble-electronico.html', 'Ensamble en lotes chicos', 'cotiza'),
   S('ensamble', 'PCB de México · ensamble', 'https://pcbdemexico.com.mx/', 'Integración y ensamble de tarjetas', 'cotiza'),
+  // Módulo WiFi
+  S('wifi', 'UNIT Electronics', 'https://uelectronics.com/producto/sonoff-basic-r2-interruptor-wifi-10a/', 'Sonoff Basic R2 interruptor WiFi 10 A', 'por pieza'),
+  S('wifi', 'SONOFF México (Global Office)', 'https://globaloffice.com.mx/app/detalle/producto/smart-home/interruptor-onoff-sonoff-basic-r2-smart-inalambri/sonoff-basic-basicr2', 'Sonoff Basic R2 (distribuidor)', 'cotiza'),
+  S('wifi', 'aelectronics', 'https://aelectronics.com.mx/interruptores/4159-sonoff-basic-r2-switch-inteligente-wifi-domotica-inalambrico.html', 'Sonoff Basic R2 switch WiFi', 'por pieza'),
+  S('wifi', 'MercadoLibre · Sonoff Basic R2', 'https://listado.mercadolibre.com.mx/sonoff-basic-r2', 'Sonoff Basic R2', 'desde ≈ $71'),
+  S('wifi', 'Amazon México · Sonoff Basic R2', 'https://www.amazon.com.mx/Sonoff-Interruptor-Inteligente-Basic-Dom%C3%B3tica/dp/B08HLWTFKJ', 'Interruptor inteligente Basic R2', 'por pieza', 'Compatible con Alexa y Google Home'),
+  S('wifi', 'Lowpi (comparador)', 'https://lowpi.com/precio/sonoff', 'Compara precios de Sonoff en tiendas de México', 'desde $71'),
   // Corte por servicio
   S('maquila', 'Color Make', 'https://colormake.com/blog/cuanto-cuesta-el-corte-laser-y-como-se-calcula/', 'Referencia de precio de corte láser', '$15–$18 por minuto (centro, 2026)'),
   S('maquila', 'FIC Corte Láser', 'https://fic-cortelaser.mx/', 'Corte láser 24/7 MDF y acrílico', 'cotiza', 'CDMX'),
@@ -199,7 +207,8 @@ const PART_RULES = [
   [/eliminador|fuente 12/i, 'fuentes'],
   [/tira LED|neón/i, 'tiras'],
   [/separador/i, 'herrajes'],
-  [/ménsula|bandera|cable de acero|gancho/i, 'colgante']
+  [/ménsula|bandera|cable de acero|gancho/i, 'colgante'],
+  [/WiFi|Sonoff/i, 'wifi']
 ]
 export const partCategory = (item) => PART_RULES.find(([re]) => re.test(item))?.[1] || null
 export const suppliersFor = (category) => SUPPLIERS.filter((x) => x.category === category)

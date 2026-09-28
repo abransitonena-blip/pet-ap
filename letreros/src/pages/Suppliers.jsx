@@ -9,6 +9,7 @@ import { REFERENCE_SIGNS } from '../lib/market'
 import { FINISHES, FRAME_LINE, boardMaterialById, defaultLedDesign, faceCount, normalizeLedDesign, planPower } from '../lib/ledSign'
 import { computeTotals } from '../lib/prices'
 import { money, quote } from '../lib/pricing'
+import { INVENTORY_ITEMS, consumption } from '../lib/inventory'
 
 const catName = (id) => SUPPLIER_CATEGORIES.find((c) => c.id === id)?.name || 'Otro'
 const EMPTY = { name: '', category: 'led', contact: '', phone: '', url: '', what: '', price: '', note: '' }
@@ -44,8 +45,8 @@ function sample(ref) {
   return normalizeLedDesign({ ...defaultLedDesign(), widthCm: ref.widthCm, heightCm: ref.heightCm, frame: { on: Boolean(ref.frame) }, lines: [{ text: 'X', color: 'rojo' }], dots: [...dots, ...frame] })
 }
 
-export default function Suppliers({ settings, orders, onSaved, canEdit }) {
-  const [tab, setTab] = useState('directorio')
+export default function Suppliers({ settings, orders, onSaved, canEdit, initialTab = 'directorio' }) {
+  const [tab, setTab] = useState(initialTab)
   const [mine, setMine] = useState([])
   const [cat, setCat] = useState('todos')
   const [form, setForm] = useState(EMPTY)
@@ -99,6 +100,7 @@ export default function Suppliers({ settings, orders, onSaved, canEdit }) {
       <div className="switch small">
         <button className={tab === 'directorio' ? 'active' : ''} onClick={() => setTab('directorio')}>Directorio</button>
         <button className={tab === 'costos' ? 'active' : ''} onClick={() => setTab('costos')}>Costos y margen</button>
+        <button className={tab === 'inventario' ? 'active' : ''} onClick={() => setTab('inventario')}>Inventario</button>
         <button className={tab === 'compras' ? 'active' : ''} onClick={() => setTab('compras')}>Lista de compras</button>
         <button className={tab === 'equipo' ? 'active' : ''} onClick={() => setTab('equipo')}>Equipo e inversión</button>
         <button className={tab === 'texturas' ? 'active' : ''} onClick={() => setTab('texturas')}>Texturas reales</button>
@@ -109,6 +111,8 @@ export default function Suppliers({ settings, orders, onSaved, canEdit }) {
         <RealTextures canEdit={canEdit} />
       ) : tab === 'equipo' ? (
         <Investment orders={orders} costs={costs} />
+      ) : tab === 'inventario' ? (
+        <Inventory orders={orders} mine={mine} />
       ) : tab === 'compras' ? (
         <ShoppingList orders={orders} />
       ) : tab === 'directorio' ? (
@@ -198,6 +202,115 @@ export default function Suppliers({ settings, orders, onSaved, canEdit }) {
         </>
       )}
     </div>
+  )
+}
+
+const waLink = (phone, text) => {
+  const d = String(phone || '').replace(/\D/g, '')
+  return `https://wa.me/${d.length === 10 ? '52' : ''}${d}?text=${encodeURIComponent(text)}`
+}
+const fmtQty = (n, unit) => (unit === 'pz' ? Math.ceil(n) : Math.ceil(n * 10) / 10)
+
+// Existencias del taller: se descuentan solas al marcar un pedido como terminado.
+// Calcula lo que falta comprar para los pedidos por fabricar y arma el pedido al proveedor.
+function Inventory({ orders = [], mine = [] }) {
+  const [inv, setInv] = useState(null)
+  const [saved, setSaved] = useState(null)
+  const [started, setStarted] = useState(true)
+  const [msg, setMsg] = useState('')
+  const [who, setWho] = useState('')
+  useEffect(() => {
+    api.inventory().then((r) => {
+      setInv(r.items)
+      setSaved(r.items)
+      setStarted(r.started)
+    }).catch((e) => setMsg(e.message))
+  }, [])
+  const need = useMemo(() => {
+    const m = new Map()
+    for (const o of orders) {
+      if (o.design.kind !== 'led' || !TO_BUILD.includes(o.status)) continue
+      for (const [k, n] of consumption(o.design, o.quote.quantity || 1)) m.set(k, (m.get(k) || 0) + n)
+    }
+    return m
+  }, [orders])
+  if (!inv) return <p className="muted">{msg || 'Cargando inventario…'}</p>
+
+  const rows = INVENTORY_ITEMS.map((it) => {
+    const { qty, min } = inv[it.key]
+    const req = need.get(it.key) || 0
+    const buy = Math.max(0, req + min - qty)
+    return { ...it, qty, min, req, buy, low: qty < min, short: qty < req }
+  })
+  const toBuy = rows.filter((r) => r.buy > 0 && (r.req > 0 || started))
+  const dirty = JSON.stringify(inv) !== JSON.stringify(saved)
+  const set = (key, field, v) => setInv((x) => ({ ...x, [key]: { ...x[key], [field]: v === '' ? 0 : Number(v) } }))
+  const save = async () => {
+    setMsg('')
+    try {
+      const r = await api.saveInventory(inv)
+      setInv(r.items)
+      setSaved(r.items)
+      setStarted(true)
+      setMsg('Inventario guardado')
+    } catch (e) {
+      setMsg(e.message)
+    }
+  }
+  const withPhone = mine.filter((x) => x.phone)
+  const supplier = withPhone.find((x) => x.id === who)
+  // Si el proveedor es de una categoría, el pedido solo lleva lo suyo
+  const forSupplier = supplier ? toBuy.filter((r) => r.category === supplier.category) : toBuy
+  const lines = (supplier && forSupplier.length ? forSupplier : toBuy).map((r) => `• ${fmtQty(r.buy, r.unit)} ${r.unit} — ${r.name}`)
+  const text = [`Hola${supplier?.contact ? ` ${supplier.contact}` : ''}, soy de AP letreros. Quiero cotizar / pedir:`, ...lines, '', '¿Me confirmas precio y tiempo de entrega? Gracias.'].join('\n')
+
+  return (
+    <>
+      {!started && <p className="notice small">Captura cuánto tienes de cada material y guarda. A partir de ahí, cada letrero que marques como <b>Impreso</b> descuenta solo su material (LED por color, placa, capacitores, fuentes, tira del halo, WiFi y caja).</p>}
+      <section className="card">
+        <div className="row between">
+          <h2>Existencias {started && rows.some((r) => r.low) && <span className="impact alto">{rows.filter((r) => r.low).length} bajo el mínimo</span>}</h2>
+          <button className="btn primary sm" onClick={save} disabled={!dirty && started}>Guardar</button>
+        </div>
+        {msg && <p className="small">{msg}</p>}
+        <div className="table-wrap">
+          <table className="market-table inventory-table">
+            <thead><tr><th>Material</th><th>Tengo</th><th>Mínimo</th><th>Pedidos por fabricar</th><th>Comprar</th></tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key} className={started && (r.short || r.low) ? 'low-row' : ''}>
+                  <td>{r.name}<div className="muted small">{catName(r.category)}</div></td>
+                  <td><input className="input sm-num" type="number" step="any" value={r.qty} onChange={(e) => set(r.key, 'qty', e.target.value)} aria-label={`Existencia de ${r.name}`} /> <span className="muted small">{r.unit}</span></td>
+                  <td><input className="input sm-num" type="number" min="0" step="any" value={r.min} onChange={(e) => set(r.key, 'min', e.target.value)} aria-label={`Mínimo de ${r.name}`} /></td>
+                  <td>{r.req ? `${fmtQty(r.req, r.unit)} ${r.unit}` : '—'}</td>
+                  <td>{r.buy > 0 && (r.req > 0 || started) ? <strong className={r.short ? 'warn-text' : ''}>{fmtQty(r.buy, r.unit)} {r.unit}</strong> : <span className="muted">—</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="muted small">Consumo por letrero: LED del diseño + 5 % de repuesto, placa × caras + 15 % de corte (hoja de 1.22×2.44 = 2.98 m²), un capacitor por cadena, puente y resistencia, placas B/A o eliminador, tira y separadores del halo, módulo WiFi y caja.</p>
+      </section>
+
+      {toBuy.length > 0 && (
+        <section className="card">
+          <h2>Pedido al proveedor</h2>
+          <p className="muted small">Lo que falta para los pedidos por fabricar y para volver al mínimo. Mándalo en un clic a tu proveedor por WhatsApp o cópialo.</p>
+          <div className="row wrap">
+            <select className="input" value={who} onChange={(e) => setWho(e.target.value)}>
+              <option value="">{withPhone.length ? 'Elige proveedor con WhatsApp…' : 'Agrega proveedores con WhatsApp en Directorio'}</option>
+              {withPhone.map((x) => <option key={x.id} value={x.id}>{x.name} · {catName(x.category)}</option>)}
+            </select>
+            {supplier && <a className="btn primary sm" href={waLink(supplier.phone, text)} target="_blank" rel="noreferrer">Pedir por WhatsApp</a>}
+            <button className="btn ghost sm" onClick={() => navigator.clipboard?.writeText(text).then(() => setMsg('Pedido copiado'))}>Copiar pedido</button>
+          </div>
+          <pre className="order-text">{text}</pre>
+          <ul className="buy-list">
+            {toBuy.map((r) => <BuyRow key={r.key} item={r.name} qty={`${fmtQty(r.buy, r.unit)} ${r.unit}`} category={r.category} />)}
+          </ul>
+        </section>
+      )}
+    </>
   )
 }
 

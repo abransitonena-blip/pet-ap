@@ -211,6 +211,7 @@ export function defaultLedDesign() {
     frame: { on: false, double: false, color: 'blanco', color2: 'rosa', mix: 'solido' },
     halo: { on: false, color: 'calido' },
     logo: null,
+    wifi: false,
     shape: 'round',
     mount: 'pared',
     cornerMm: 16,
@@ -272,6 +273,7 @@ export function normalizeLedDesign(input) {
     finish: oneOf(d.finish, FINISHES.map((f) => f.id), 'liso'),
     logo: normalizeLogo(d.logo),
     halo: { on: Boolean(d.halo?.on), color: oneOf(d.halo?.color, colorIds, 'calido') },
+    wifi: Boolean(d.wifi),
     frame: {
       on: Boolean(fr.on),
       double: Boolean(fr.double),
@@ -485,6 +487,7 @@ export function planPower(design) {
   }
 
   if (faces === 2) bom.push({ qty: 1, item: 'Brazo de bandera (ménsula) con tornillería y caja de 2 caras' })
+  if (design.wifi) bom.push({ qty: 1, item: 'Módulo WiFi Sonoff Basic R2 (prender/apagar, horario y control por celular)' })
   const haloM = haloMeters(design)
   if (haloM) {
     bom.push({ qty: haloM, item: `metros de tira LED 2835 12 V ${ledColorById(design.halo.color).name.toLowerCase()} (halo trasero)` })
@@ -520,6 +523,7 @@ export function ledQuoteParts(design, prices = DEFAULT_PRICES) {
   const finish = finishById(design.finish)
   const finishM2 = P.finishes?.[finish.id] ?? finish.price
   if (finishM2) parts.push({ label: `Acabado ${finish.name.toLowerCase()}`, amount: Math.max(80, Math.round(areaM2 * finishM2)) * faces })
+  if (design.wifi) parts.push({ label: 'Control WiFi desde el celular (horario y encendido)', amount: P.wifi })
   if (plan.haloM) parts.push({ label: `Halo trasero (${plan.haloM} m de tira + fuente 12 V)`, amount: Math.round(plan.haloM * P.haloPerM + P.haloSupply) })
   const frameDots = (design.dots || []).filter((p) => p[2] === FRAME_LINE).length
   if (frameDots) parts.push({ label: `Marco LED (${frameDots} puntos)`, amount: P.frame })

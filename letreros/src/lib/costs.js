@@ -18,6 +18,7 @@ export const DEFAULT_COSTS = {
   bracket: 180, // ménsula de bandera
   stripM: 30, // tira LED 2835 12 V por metro (rollo de 5 m)
   supplyHalo: 180, // fuente Mean Well LRS 35–60 W
+  wifiModule: 150, // Sonoff Basic R2
   packaging: 70, // caja y protección
   laborHour: 70, // mano de obra por hora
   minutesPer100Led: 22 // perforar, soldar y probar 100 LED
@@ -56,6 +57,7 @@ export function costEstimate(design, costs = DEFAULT_COSTS) {
     parts.push({ label: 'Eliminador y resistencias', amount: c.supply12 + plan.strings.length * c.resistor })
   }
   if (faces === 2) parts.push({ label: 'Ménsula de bandera', amount: c.bracket })
+  if (design.wifi) parts.push({ label: 'Módulo WiFi', amount: c.wifiModule })
   if (plan.haloM) parts.push({ label: `Halo: ${plan.haloM} m de tira + fuente`, amount: plan.haloM * c.stripM + c.supplyHalo })
   const minutes = (leds / 100) * c.minutesPer100Led + 30 // + corte, armado y prueba
   parts.push({ label: `Mano de obra (${Math.round(minutes)} min)`, amount: (minutes / 60) * c.laborHour })

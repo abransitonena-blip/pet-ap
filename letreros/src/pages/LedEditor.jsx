@@ -525,6 +525,12 @@ export default function LedEditor() {
             </div>
             <div className="frame-box">
               <label className="check-row">
+                <input type="checkbox" checked={Boolean(design.wifi)} onChange={(e) => update({ wifi: e.target.checked })} />
+                <span><strong>Control WiFi</strong> · préndelo, apágalo y ponle horario desde tu celular (app eWeLink, Alexa o Google){prices.led.wifi ? ` · +${money(prices.led.wifi)}` : ''}</span>
+              </label>
+            </div>
+            <div className="frame-box">
+              <label className="check-row">
                 <input type="checkbox" checked={design.frame.on} onChange={(e) => update({ frame: { ...design.frame, on: e.target.checked } })} />
                 <span><strong>Marco LED</strong> · una línea de luz siguiendo la forma de la placa</span>
               </label>

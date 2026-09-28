@@ -171,6 +171,12 @@ letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, dato
   - **DXF** (capas `CORTE` y `LED`) para LightBurn, LaserGRBL, Inkscape o CAD
   - **G-code GRBL 1.1** (Arduino): marca los puntos LED y corta el contorno. Origen = esquina inferior izquierda
   - **CSV** con las coordenadas de cada punto
+- **Inventario** (Proveedores → Inventario): existencias y mínimo por material (LED por color, placas,
+  capacitores, fuentes, tira, separadores, WiFi, cajas). Al marcar un pedido como *Impreso* se descuenta
+  solo su material (una vez). Calcula lo que falta para los pedidos por fabricar, avisa en el Resumen
+  lo que está bajo el mínimo y arma el **pedido al proveedor por WhatsApp** en un clic (o lo copia)
+- **Control WiFi** opcional para el cliente (Sonoff Basic R2: horario y encendido desde el celular),
+  con precio, costo y 6 proveedores en el directorio
 
 ## ✅ Pruebas
 

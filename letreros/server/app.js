@@ -13,6 +13,7 @@ import { normalizeCustomer } from '../src/lib/customer.js'
 import { GIRO_IDS, LEAD_STATE_IDS } from '../src/lib/prospects.js'
 import { mergeCosts } from '../src/lib/costs.js'
 import { SUPPLIER_CATEGORIES } from '../src/lib/suppliers.js'
+import { consumption, inventoryItem, lowStock, normalizeInventory } from '../src/lib/inventory.js'
 import { store } from './store.js'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
@@ -42,6 +43,8 @@ async function loadDb() {
   db.leads = db.leads || []
   db.suppliers = db.suppliers || []
   db.textures = db.textures && typeof db.textures === 'object' ? db.textures : {}
+  // Inventario: null hasta que el taller captura sus existencias por primera vez
+  db.inventory = db.inventory ? normalizeInventory(db.inventory) : null
   db.settings = {
     prices: mergePrices(db.settings?.prices),
     business: mergeBusiness(db.settings?.business),
@@ -521,7 +524,8 @@ api.get('/admin/stats', requireUser, (req, res) => {
     collected: can(req.user, 'ventas') ? Math.round(collected) : null,
     receivable: can(req.user, 'ventas') ? Math.round(receivable) : null,
     printedPieces,
-    printedM2: Math.round(printedM2 * 100) / 100
+    printedM2: Math.round(printedM2 * 100) / 100,
+    lowStock: req.db.inventory && can(req.user, 'produccion', 'precios') ? lowStock(req.db.inventory).map((it) => it.name) : []
   })
 })
 
@@ -551,6 +555,13 @@ api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
       o.status = status
       o.history.push({ status, at: now, by: u.name })
       if (status === 'impreso' && !o.printedAt) o.printedAt = now
+      // Al terminar un letrero se descuenta su material del inventario (una sola vez)
+      if (PRINTED_STATUSES.includes(status) && !o.consumed && db.inventory) {
+        const used = consumption(o.design, o.quote?.quantity || 1)
+        for (const [k, n] of used) if (db.inventory[k]) db.inventory[k].qty = Math.round((db.inventory[k].qty - n) * 100) / 100
+        o.consumed = true
+        if (used.size) o.history.push({ status, at: now, by: u.name, note: `Material descontado del inventario (${used.size} artículos)` })
+      }
     }
     if (showcase !== undefined) o.showcase = Boolean(showcase)
     if (reviewStatus !== undefined && o.review && o.review.status !== reviewStatus) {
@@ -722,6 +733,22 @@ function cleanSupplier(b = {}) {
     note: t('note', 300)
   }
 }
+
+// ---------- Inventario ----------
+api.get('/admin/inventory', requireUser, need('produccion', 'precios'), (req, res) =>
+  res.json({ started: Boolean(req.db.inventory), items: req.db.inventory || normalizeInventory() })
+)
+
+api.put('/admin/inventory', requireUser, need('produccion', 'precios'), h(async (req, res) => {
+  const body = req.body?.items
+  if (!body || typeof body !== 'object') return res.status(400).json({ error: 'Inventario inválido' })
+  const items = await mutate((db) => {
+    const next = normalizeInventory({ ...(db.inventory || {}), ...Object.fromEntries(Object.entries(body).filter(([k]) => inventoryItem(k))) })
+    db.inventory = next
+    return next
+  })
+  res.json({ started: true, items })
+}))
 
 api.get('/admin/suppliers', requireUser, need('precios', 'produccion'), (req, res) => res.json(req.db.suppliers))
 
