@@ -96,7 +96,7 @@ export default function Market({ settings, orders = [] }) {
           ))}
           {refs.map((r) => (
             <div className="pm-row ours" key={r.name}>
-              <span className="pm-label">AP · {r.name}</span>
+              <span className="pm-label">Tú · {r.name}</span>
               <div className="pm-track"><b style={{ left: pct(r.price) }} title={money(r.price)} /><em style={{ left: pct(r.price) }}>{money(r.price)}</em></div>
             </div>
           ))}

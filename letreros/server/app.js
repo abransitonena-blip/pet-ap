@@ -1,4 +1,4 @@
-// API de AP letreros. La usan server/index.js (Node local / VPS) y api/index.js (Vercel).
+// API de Destello AP (letreros LED). La usan server/index.js (Node local / VPS) y api/index.js (Vercel).
 import express from 'express'
 import cors from 'cors'
 import crypto from 'node:crypto'
@@ -17,6 +17,7 @@ import { consumption, inventoryItem, lowStock, normalizeInventory } from '../src
 import { store } from './store.js'
 import { applyCoupon, loadBusiness, registerBusiness, registerPublicCoupon } from './business.js'
 import { AREAS } from '../src/lib/business.js'
+import { GOOGLE_CLIENT_ID, registerAccounts, verifyGoogle } from './accounts.js'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
 // Estable entre instancias serverless aunque no se defina ADMIN_SECRET
@@ -38,10 +39,11 @@ const cleanDesign = (d) => (d?.kind === 'led' ? normalizeLedDesign(d) : normaliz
 const addDays = (iso, days) => new Date(new Date(iso).getTime() + days * 86400000).toISOString()
 
 // ---------- Datos ----------
-async function loadDb() {
-  const db = await store.load()
+async function loadDb(read = () => store.load()) {
+  const db = await read()
   db.orders = db.orders || []
   db.users = db.users || []
+  db.customers = db.customers || []
   db.leads = db.leads || []
   db.suppliers = db.suppliers || []
   db.textures = db.textures && typeof db.textures === 'object' ? db.textures : {}
@@ -72,10 +74,19 @@ async function loadDb() {
   return db
 }
 
-// Serializa las escrituras dentro de la misma instancia
+// Serializa las escrituras dentro de la misma instancia; con PostgreSQL además
+// cada cambio es una transacción con candado (seguro entre varias instancias)
 let queue = Promise.resolve()
 function mutate(fn) {
   const run = queue.then(async () => {
+    if (store.transaction) {
+      return store.transaction(async (tx) => {
+        const db = await loadDb(tx.load)
+        const result = await fn(db)
+        if (result?.save !== false) await tx.save(db)
+        return result
+      })
+    }
     const db = await loadDb()
     const result = await fn(db)
     if (result?.save !== false) await store.save(db)
@@ -105,8 +116,8 @@ function safeEqual(a, b) {
 
 const sign = (payload) => crypto.createHmac('sha256', ADMIN_SECRET).update(payload).digest('base64url')
 
-function createToken(uid) {
-  const payload = Buffer.from(JSON.stringify({ u: uid, e: Date.now() + SESSION_HOURS * 3600 * 1000 })).toString('base64url')
+function createToken(uid, hours = SESSION_HOURS) {
+  const payload = Buffer.from(JSON.stringify({ u: uid, e: Date.now() + hours * 3600 * 1000 })).toString('base64url')
   return `${payload}.${sign(payload)}`
 }
 
@@ -125,14 +136,15 @@ function readToken(token) {
 }
 
 const OWNER = { id: 'owner', name: 'Dueño', username: 'admin', role: 'dueño', area: 'direccion', perms: PERM_IDS }
-const publicUser = (u) => ({ id: u.id, name: u.name, username: u.username, role: u.role, area: u.area || 'direccion', perms: u.perms, active: u.active !== false })
+const publicUser = (u) => ({ id: u.id, name: u.name, username: u.username, role: u.role, area: u.area || 'direccion', googleEmail: u.googleEmail || '', perms: u.perms, active: u.active !== false })
+const cleanEmail = (e) => { const v = String(e || '').trim().toLowerCase().slice(0, 120); return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? v : '' }
 const cleanArea = (a) => (AREAS.some((x) => x.id === a) ? a : 'direccion')
 
 // Carga la base y el usuario de la sesión (permisos al día: revocar surte efecto de inmediato)
 async function requireUser(req, res, next) {
   try {
     const data = readToken((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
-    if (!data) return res.status(401).json({ error: 'Sesión inválida o expirada' })
+    if (!data || String(data.u).startsWith('c:')) return res.status(401).json({ error: 'Sesión inválida o expirada' })
     const db = await loadDb()
     const user = data.u === 'owner' ? OWNER : db.users.find((u) => u.id === data.u && u.active !== false)
     if (!user) return res.status(401).json({ error: 'Usuario desactivado' })
@@ -181,6 +193,7 @@ function rateLimit({ windowMs, max, message }) {
   }
 }
 const loginLimit = rateLimit({ windowMs: 10 * 60 * 1000, max: 10, message: 'Demasiados intentos. Espera unos minutos.' })
+const accountLimit = rateLimit({ windowMs: 10 * 60 * 1000, max: 40, message: 'Demasiados intentos. Espera unos minutos.' })
 const orderLimit = rateLimit({ windowMs: 10 * 60 * 1000, max: 15, message: 'Demasiados pedidos seguidos. Intenta más tarde.' })
 
 // Express 4 no captura errores de funciones async
@@ -197,7 +210,7 @@ api.get('/public/settings', h(async (req, res) => {
   const textures = Object.fromEntries(
     Object.entries(db.textures).map(([finish, t]) => [finish, { url: `/api/photos/${t.photoId}`, tileCm: t.tileCm, source: t.source }])
   )
-  res.json({ prices: db.settings.prices, business: publicBusiness(db.settings.business), textures })
+  res.json({ prices: db.settings.prices, business: publicBusiness(db.settings.business), textures, googleClientId: GOOGLE_CLIENT_ID })
 }))
 
 // Crear pedido (público)
@@ -209,8 +222,15 @@ function checkDesign(design) {
   return { clean }
 }
 
+// Cliente con sesión (cuenta): el pedido queda en su historial
+function accountId(req, db) {
+  const data = readToken((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
+  const id = data && String(data.u).startsWith('c:') ? data.u.slice(2) : ''
+  return id && db.customers.some((c) => c.id === id) ? id : ''
+}
+
 // Crea un pedido dentro de mutate(): folio, presupuesto, envío y ajustes
-function buildOrder(db, { clean, quantity, customer, ship = true, discountPct = 0, group = null, coupon = null, couponAmt = 0 }) {
+function buildOrder(db, { clean, quantity, customer, ship = true, discountPct = 0, group = null, coupon = null, couponAmt = 0, customerId = '' }) {
   const q = quote({ ...clean, quantity }, db.settings.prices)
   const now = new Date().toISOString()
   db.seq = (db.seq || 0) + 1
@@ -244,6 +264,7 @@ function buildOrder(db, { clean, quantity, customer, ship = true, discountPct = 
     group: group?.id || null,
     coupon: coupon?.code || '',
     assignee: '',
+    customerId,
     history: [{ status: 'nuevo', at: now, by: 'Cliente (web)' }]
   }
   db.orders.unshift(o)
@@ -260,7 +281,7 @@ api.post('/orders', orderLimit, h(async (req, res) => {
     const cp = applyCoupon(db, code, quote({ ...d.clean, quantity }, db.settings.prices).total)
     if (cp.error) return { save: false, error: cp.error }
     if (cp.coupon) cp.coupon.uses = (cp.coupon.uses || 0) + 1
-    return buildOrder(db, { clean: d.clean, quantity, customer: checked.customer, coupon: cp.coupon, couponAmt: cp.discountAmt || 0 })
+    return buildOrder(db, { clean: d.clean, quantity, customer: checked.customer, coupon: cp.coupon, couponAmt: cp.discountAmt || 0, customerId: accountId(req, db) })
   })
   if (order.error) return res.status(400).json({ error: `Cupón: ${order.error}` })
   res.status(201).json({ folio: order.folio, total: order.totals.total, status: order.status, token: order.publicToken })
@@ -292,7 +313,7 @@ api.post('/orders/batch', orderLimit, h(async (req, res) => {
     return cleans.map((clean, i) =>
       buildOrder(db, {
         clean, quantity: 1, customer: checked.customer, ship: ship && i === 0, discountPct: Math.round(rate * 100), group,
-        coupon: cp.coupon, couponAmt: i === 0 ? cp.discountAmt || 0 : 0
+        coupon: cp.coupon, couponAmt: i === 0 ? cp.discountAmt || 0 : 0, customerId: accountId(req, db)
       })
     )
   })
@@ -882,7 +903,7 @@ const cleanUsername = (s) => String(s || '').trim().toLowerCase().replace(/[^a-z
 api.get('/admin/users', requireUser, need('equipo'), (req, res) => res.json(req.db.users.map(publicUser)))
 
 api.post('/admin/users', requireUser, need('equipo'), h(async (req, res) => {
-  const { name, username, password, role, perms, area } = req.body || {}
+  const { name, username, password, role, perms, area, googleEmail } = req.body || {}
   const uname = cleanUsername(username)
   if (!String(name || '').trim() || !uname) return res.status(400).json({ error: 'Nombre y usuario son obligatorios' })
   if (['admin', 'dueño', 'owner'].includes(uname)) return res.status(400).json({ error: 'Ese usuario está reservado' })
@@ -895,6 +916,7 @@ api.post('/admin/users', requireUser, need('equipo'), h(async (req, res) => {
       username: uname,
       role: String(role || 'personalizado').slice(0, 30),
       area: cleanArea(area),
+      googleEmail: cleanEmail(googleEmail),
       perms: (Array.isArray(perms) ? perms : []).filter((p) => PERM_IDS.includes(p)),
       pass: hashPassword(password),
       active: true,
@@ -908,7 +930,7 @@ api.post('/admin/users', requireUser, need('equipo'), h(async (req, res) => {
 }))
 
 api.patch('/admin/users/:id', requireUser, need('equipo'), h(async (req, res) => {
-  const { name, role, perms, active, password, area } = req.body || {}
+  const { name, role, perms, active, password, area, googleEmail } = req.body || {}
   if (password !== undefined && String(password).length < 6) {
     return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' })
   }
@@ -918,6 +940,7 @@ api.patch('/admin/users/:id', requireUser, need('equipo'), h(async (req, res) =>
     if (name !== undefined) u.name = String(name).trim().slice(0, 60) || u.name
     if (role !== undefined) u.role = String(role).slice(0, 30)
     if (area !== undefined) u.area = cleanArea(area)
+    if (googleEmail !== undefined) u.googleEmail = cleanEmail(googleEmail)
     if (perms !== undefined) u.perms = (Array.isArray(perms) ? perms : []).filter((p) => PERM_IDS.includes(p))
     if (active !== undefined) u.active = Boolean(active)
     if (password !== undefined) u.pass = hashPassword(password)
@@ -937,6 +960,39 @@ api.delete('/admin/users/:id', requireUser, need('equipo'), h(async (req, res) =
   res.status(204).end()
 }))
 
+// Sistema: qué base de datos está en uso y respaldo completo (solo el dueño)
+const ownerOnly = (req, res, next) => (req.user.id === 'owner' ? next() : res.status(403).json({ error: 'Solo el dueño' }))
+api.get('/admin/system', requireUser, ownerOnly, h(async (req, res) => {
+  const counts = store.stats ? await store.stats() : Object.fromEntries(Object.entries(req.db).filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, v.length]))
+  res.json({ storage: store.kind, counts, google: Boolean(GOOGLE_CLIENT_ID) })
+}))
+api.get('/admin/backup', requireUser, ownerOnly, (req, res) => {
+  res.set('Content-Disposition', `attachment; filename="respaldo-${new Date().toISOString().slice(0, 10)}.json"`)
+  res.json(req.db)
+})
+
+// Equipo: entrar con Google (el correo debe estar ligado a su usuario o ser el del dueño)
+api.post('/admin/login/google', loginLimit, h(async (req, res) => {
+  let g
+  try {
+    g = await verifyGoogle(req.body?.credential)
+  } catch (err) {
+    return res.status(401).json({ error: err.message })
+  }
+  const db = await loadDb()
+  const owner = db.ownerGoogle && db.ownerGoogle === g.email
+  const user = owner ? OWNER : db.users.find((u) => u.active !== false && u.googleEmail && u.googleEmail === g.email)
+  if (!user) return res.status(401).json({ error: `${g.email} no tiene acceso al panel. Pide que lo liguen a tu usuario en Equipo.` })
+  res.json({ token: createToken(user.id), user: publicUser(user) })
+}))
+
+api.get('/admin/owner-google', requireUser, ownerOnly, (req, res) => res.json({ email: req.db.ownerGoogle || '' }))
+api.put('/admin/owner-google', requireUser, ownerOnly, h(async (req, res) => {
+  const email = await mutate((db) => (db.ownerGoogle = cleanEmail(req.body?.email)))
+  res.json({ email })
+}))
+
+registerAccounts(api, { mutate, h, hashPassword, checkPassword, createToken, readToken, loadDb, authLimit: accountLimit })
 registerBusiness(api, { requireUser, need, can, mutate, h, owner: OWNER })
 registerPublicCoupon(api, { loadDb, h })
 

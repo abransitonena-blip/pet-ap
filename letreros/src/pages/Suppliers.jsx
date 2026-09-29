@@ -10,6 +10,7 @@ import { FINISHES, FRAME_LINE, boardMaterialById, defaultLedDesign, faceCount, n
 import { computeTotals } from '../lib/prices'
 import { money, quote } from '../lib/pricing'
 import { INVENTORY_ITEMS, consumption } from '../lib/inventory'
+import { BRAND } from '../lib/brand'
 
 const catName = (id) => SUPPLIER_CATEGORIES.find((c) => c.id === id)?.name || 'Otro'
 const EMPTY = { name: '', category: 'led', contact: '', phone: '', url: '', what: '', price: '', note: '' }
@@ -262,7 +263,7 @@ function Inventory({ orders = [], mine = [] }) {
   // Si el proveedor es de una categoría, el pedido solo lleva lo suyo
   const forSupplier = supplier ? toBuy.filter((r) => r.category === supplier.category) : toBuy
   const lines = (supplier && forSupplier.length ? forSupplier : toBuy).map((r) => `• ${fmtQty(r.buy, r.unit)} ${r.unit} — ${r.name}`)
-  const text = [`Hola${supplier?.contact ? ` ${supplier.contact}` : ''}, soy de AP letreros. Quiero cotizar / pedir:`, ...lines, '', '¿Me confirmas precio y tiempo de entrega? Gracias.'].join('\n')
+  const text = [`Hola${supplier?.contact ? ` ${supplier.contact}` : ''}, soy de ${BRAND}. Quiero cotizar / pedir:`, ...lines, '', '¿Me confirmas precio y tiempo de entrega? Gracias.'].join('\n')
 
   return (
     <>

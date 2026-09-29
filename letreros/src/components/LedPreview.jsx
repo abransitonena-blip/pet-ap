@@ -84,6 +84,15 @@ export default function LedPreview({ design, night = false, animate = false, wit
         <filter id={`sp-${uid}`} x="-100%" y="-100%" width="300%" height="300%">
           <feGaussianBlur stdDeviation={design.ledMm * 2.6} />
         </filter>
+        <filter id={`n-${uid}`} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation={design.ledMm * 0.32} />
+        </filter>
+        {/* Chip encendido: punto caliente difuminado dentro del lente */}
+        <radialGradient id={`hot-${uid}`} cx="50%" cy="50%" r="50%">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="1" />
+          <stop offset="0.45" stopColor="#ffffff" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+        </radialGradient>
         <filter id={`sh-${uid}`} x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation={design.ledMm * 0.25} />
         </filter>
@@ -92,10 +101,10 @@ export default function LedPreview({ design, night = false, animate = false, wit
           <radialGradient key={i} id={`d-${uid}-${i}`} cx="38%" cy="34%" r="68%">
             {night ? (
               <>
-                <stop offset="0" stopColor="#ffffff" />
-                <stop offset="0.3" stopColor={mix(c, '#ffffff', 0.45)} />
-                <stop offset="0.72" stopColor={c} />
-                <stop offset="1" stopColor={mix(c, '#000000', 0.25)} />
+                <stop offset="0" stopColor={mix(c, '#ffffff', 0.9)} />
+                <stop offset="0.28" stopColor={mix(c, '#ffffff', 0.55)} />
+                <stop offset="0.62" stopColor={c} />
+                <stop offset="1" stopColor={mix(c, '#000000', 0.18)} />
               </>
             ) : (
               <>
@@ -160,7 +169,7 @@ export default function LedPreview({ design, night = false, animate = false, wit
         {finish !== 'liso' && <FinishLayer finish={finish} id={`f-${uid}`} W={W} H={H} relief={relief} photo={textures?.[finish]} />}
         <rect x="0" y="0" width={W} height={H} fill={`url(#am-${uid})`} />
         {/* De noche la placa queda en penumbra; la luz de los LED la ilumina encima */}
-        {night && !glass && <rect x="0" y="0" width={W} height={H} fill="#1a0f16" opacity="0.2" />}
+        {night && !glass && <rect x="0" y="0" width={W} height={H} fill="#140b11" opacity={dusk ? 0.25 : 0.55} />}
       </g>
       {/* Canto: brillo arriba y sombra abajo para que se sienta el grosor */}
       <path d={outline.d} fill="none" stroke={glass ? '#ffffffaa' : '#ffffff'} strokeOpacity={glass ? 1 : 0.35} strokeWidth={glass ? 2 : 1.6} />
@@ -179,7 +188,7 @@ export default function LedPreview({ design, night = false, animate = false, wit
       )}
       {/* Luz que se derrama sobre la placa */}
       {night && (
-        <g filter={`url(#sp-${uid})`} opacity={0.3 * glowK}>
+        <g filter={`url(#sp-${uid})`} opacity={0.34 * glowK} style={{ mixBlendMode: 'screen' }}>
           {items.map(({ d, c }, i) => (i % 2 ? null : <circle key={i} cx={d[0]} cy={d[1]} r={r * 3.2} fill={hexOf(c)} />))}
         </g>
       )}
@@ -190,11 +199,18 @@ export default function LedPreview({ design, night = false, animate = false, wit
           style={seq ? { animationDelay: `${g * 0.66}s` } : undefined}
         >
           {night && (
-            <g filter={`url(#g-${uid})`} opacity={0.95 * glowK}>
-              {dotsOf(g).map(({ d, c }, i) => (
-                <circle key={i} cx={d[0]} cy={d[1]} r={r * 1.5} fill={hexOf(c)} />
-              ))}
-            </g>
+            <>
+              <g filter={`url(#g-${uid})`} opacity={0.95 * glowK} style={{ mixBlendMode: 'screen' }}>
+                {dotsOf(g).map(({ d, c }, i) => (
+                  <circle key={i} cx={d[0]} cy={d[1]} r={r * 1.55} fill={hexOf(c)} />
+                ))}
+              </g>
+              <g filter={`url(#n-${uid})`} opacity={0.9 * glowK}>
+                {dotsOf(g).map(({ d, c }, i) => (
+                  <circle key={i} cx={d[0]} cy={d[1]} r={r * 1.12} fill={mix(hexOf(c), '#ffffff', 0.2)} />
+                ))}
+              </g>
+            </>
           )}
           {!night && (
             <g filter={`url(#sh-${uid})`} opacity="0.28">
@@ -226,7 +242,7 @@ export default function LedPreview({ design, night = false, animate = false, wit
             </g>
           ))}
           {/* Encendido: el chip es un punto blanco muy brillante */}
-          {night && dotsOf(g).map(({ d }, i) => <circle key={`k${i}`} cx={d[0]} cy={d[1]} r={r * 0.3} fill="#fff" opacity={0.75 * glowK + 0.2} />)}
+          {night && dotsOf(g).map(({ d }, i) => <circle key={`k${i}`} cx={d[0]} cy={d[1] + r * 0.04} r={r * 0.62} fill={`url(#hot-${uid})`} opacity={0.7 * glowK + 0.3} />)}
           {dotsOf(g).map(({ d }, i) => (
             <circle key={i} cx={d[0] - r * 0.22} cy={d[1] - r * 0.28} r={r * 0.42} fill={`url(#lens-${uid})`} />
           ))}

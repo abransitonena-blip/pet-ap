@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { EXPENSE_CATEGORIES, breakEven, expenseName, mergeHr, monthReport, payroll } from '../lib/business'
 import { costEstimate } from '../lib/costs'
 import { money } from '../lib/pricing'
+import { BRAND } from '../lib/brand'
 
 const thisMonth = () => new Date().toLocaleString('sv-SE', { timeZone: 'America/Mexico_City' }).slice(0, 7)
 const prevMonths = (m, n) =>
@@ -188,7 +189,7 @@ export default function Finance({ orders = [], settings }) {
           <h2>Por cobrar <span className="muted small">{money(receivable.reduce((s, o) => s + o.pay.balance, 0))}</span></h2>
           <ul className="quote-lines">
             {receivable.slice(0, 12).map((o) => {
-              const link = waLink(o.customer.phone, `Hola ${o.customer.name.split(' ')[0]}, te escribo de AP letreros por tu pedido ${o.folio}. Queda un saldo de ${money(o.pay.balance)}. ¿Te comparto los datos para pagar?`)
+              const link = waLink(o.customer.phone, `Hola ${o.customer.name.split(' ')[0]}, te escribo de ${settings?.business?.name || BRAND} por tu pedido ${o.folio}. Queda un saldo de ${money(o.pay.balance)}. ¿Te comparto los datos para pagar?`)
               return (
                 <li key={o.id}>
                   <span>{o.folio} · {o.customer.name}<em className="muted small"> · {o.status}</em></span>

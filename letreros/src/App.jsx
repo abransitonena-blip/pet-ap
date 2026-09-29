@@ -5,6 +5,7 @@ import Admin from './pages/Admin'
 import Track from './pages/Track'
 import QuotePage from './pages/QuotePage'
 import Privacy from './pages/Privacy'
+import Account from './pages/Account'
 
 // Router mínimo por hash: #/ (letrero LED), #/impreso, #/seguimiento/<folio>, #/presupuesto/<folio>/<token>, #/admin
 function useHashRoute() {
@@ -28,5 +29,6 @@ export default function App() {
   }
   if (route.startsWith('/impreso')) return <Editor />
   if (route.startsWith('/privacidad')) return <Privacy />
+  if (route.startsWith('/cuenta')) return <Account />
   return <LedEditor />
 }

@@ -3,9 +3,28 @@ const TOKEN_KEY = 'letreros_admin_token'
 export const getToken = () => localStorage.getItem(TOKEN_KEY)
 export const setToken = (t) => (t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY))
 
-async function request(path, { method = 'GET', body, auth = false } = {}) {
+// Sesión del cliente (su cuenta en la tienda), aparte de la del panel
+const ACCOUNT_KEY = 'ap_account_token'
+export const getAccountToken = () => {
+  try {
+    return localStorage.getItem(ACCOUNT_KEY)
+  } catch {
+    return null
+  }
+}
+export const setAccountToken = (t) => {
+  try {
+    t ? localStorage.setItem(ACCOUNT_KEY, t) : localStorage.removeItem(ACCOUNT_KEY)
+  } catch {
+    /* sin almacenamiento */
+  }
+  window.dispatchEvent(new Event('ap-account'))
+}
+
+async function request(path, { method = 'GET', body, auth = false, account = false } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   if (auth) headers.Authorization = `Bearer ${getToken()}`
+  else if (account && getAccountToken()) headers.Authorization = `Bearer ${getAccountToken()}`
   const res = await fetch(`/api${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
   if (res.status === 204) return null
   const data = await res.json().catch(() => ({}))
@@ -18,8 +37,20 @@ async function request(path, { method = 'GET', body, auth = false } = {}) {
 }
 
 export const api = {
-  createOrder: (payload) => request('/orders', { method: 'POST', body: payload }),
-  createBatch: (payload) => request('/orders/batch', { method: 'POST', body: payload }),
+  createOrder: (payload) => request('/orders', { method: 'POST', body: payload, account: true }),
+  createBatch: (payload) => request('/orders/batch', { method: 'POST', body: payload, account: true }),
+  register: (x) => request('/auth/register', { method: 'POST', body: x }),
+  accountLogin: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
+  googleAccount: (credential) => request('/auth/google', { method: 'POST', body: { credential } }),
+  account: () => request('/account', { account: true }),
+  updateAccount: (x) => request('/account', { method: 'PUT', body: x, account: true }),
+  saveDesign: (name, design) => request('/account/designs', { method: 'POST', body: { name, design }, account: true }),
+  deleteDesign: (id) => request(`/account/designs/${id}`, { method: 'DELETE', account: true }),
+  googleAdmin: (credential) => request('/admin/login/google', { method: 'POST', body: { credential } }),
+  ownerGoogle: () => request('/admin/owner-google', { auth: true }),
+  setOwnerGoogle: (email) => request('/admin/owner-google', { method: 'PUT', body: { email }, auth: true }),
+  system: () => request('/admin/system', { auth: true }),
+  backupUrl: '/api/admin/backup',
   track: (folio) => request(`/track/${encodeURIComponent(folio)}`),
   login: (username, password) => request('/admin/login', { method: 'POST', body: { username, password } }),
   me: () => request('/admin/me', { auth: true }),

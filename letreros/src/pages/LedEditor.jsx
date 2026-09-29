@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import LedIcon from '../components/LedIcon'
+import Icon from '../components/Icon'
+import { useAccount } from '../lib/account'
 import SiteHeader from '../components/SiteHeader'
 import LedPreview, { previewBox } from '../components/LedPreview'
 import IconPicker, { IconGlyph } from '../components/IconPicker'
@@ -52,6 +54,15 @@ function loadScene() {
 // Tamaños por ancho final: el cliente piensa en el letrero completo, no en milímetros de letra
 const DARK_BOARDS = ['negro', 'humo', 'azulnoche', 'madera', 'gris']
 const DARK_FINISHES = ['nogal', 'roble', 'pizarra', 'carbono']
+
+// Pasos del configurador (pestañas)
+const TABS = [
+  { id: 'texto', name: 'Texto', icon: 'type' },
+  { id: 'tamano', name: 'Tamaño', icon: 'ruler' },
+  { id: 'base', name: 'Base', icon: 'palette' },
+  { id: 'luz', name: 'Luz', icon: 'bulb' },
+  { id: 'mas', name: 'Más', icon: 'sliders' }
+]
 
 const SIZES = [
   { id: 's', name: 'Chico', widthCm: 40 },
@@ -126,6 +137,37 @@ export default function LedEditor() {
   const [batchOrder, setBatchOrder] = useState(null)
   const [variants, setVariants] = useState(readVariants)
   const [saving, setSaving] = useState('')
+  const [tab, setTabState] = useState('texto')
+  const [saved, setSaved] = useState('')
+  const [showLines, setShowLines] = useState(false)
+  const { account, refresh: refreshAccount } = useAccount()
+  const panelRef = useRef(null)
+  const setTab = (id) => {
+    setTabState(id)
+    // En celular, al cambiar de paso se sube al inicio del panel
+    // (el letrero queda fijo arriba: el paso empieza justo debajo de él)
+    if (window.innerWidth < 1000 && panelRef.current) {
+      const stage = document.querySelector('.studio-stage')
+      const header = document.querySelector('.site-header')
+      const top = panelRef.current.getBoundingClientRect().top + window.scrollY - (stage?.offsetHeight || 0) - (header?.offsetHeight || 0)
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+    }
+  }
+  // Guardar el diseño en la cuenta del cliente (si no tiene sesión, lo lleva a entrar)
+  const saveToAccount = async () => {
+    if (!account) {
+      window.location.hash = '#/cuenta'
+      return
+    }
+    try {
+      await api.saveDesign(design.lines.map((l) => l.text).filter(Boolean).join(' ').slice(0, 60) || 'Mi letrero', design)
+      await refreshAccount()
+      setSaved('Guardado en tu cuenta')
+    } catch (e) {
+      setSaved(e.message)
+    }
+    setTimeout(() => setSaved(''), 2200)
+  }
   const wallRef = useRef(null)
   const storeVariants = (list) => {
     setVariants(list)
@@ -196,7 +238,7 @@ export default function LedEditor() {
   const share = async () => {
     const url = shareUrl(design)
     try {
-      if (navigator.share) await navigator.share({ title: 'Mi letrero AP', url })
+      if (navigator.share) await navigator.share({ title: `Mi letrero ${business.name}`, url })
       else await navigator.clipboard.writeText(url)
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
@@ -274,15 +316,15 @@ export default function LedEditor() {
             <div className="wall-tools">
               <label className={`tool-btn ${photo ? 'on' : ''}`} title="Sube una foto de tu local y coloca el letrero">
                 <input type="file" accept="image/*" onChange={onPhoto} />
-                {photo ? 'Cambiar foto' : 'Pruébalo en tu local'}
+                <Icon name="camera" size={15} /> <span>{photo ? 'Cambiar foto' : 'En tu local'}</span>
               </label>
               {photo && <button className="tool-btn" onClick={() => { URL.revokeObjectURL(photo); setPhoto('') }}>Quitar foto</button>}
-              <button className={`tool-btn ${view3d ? 'on' : ''}`} onClick={() => { setView3d((v) => !v); setSpin(false) }}>3D</button>
-              {view3d && <button className={`tool-btn ${spin ? 'on' : ''}`} onClick={() => setSpin((v) => !v)} title="Dar la vuelta completa al letrero">360°</button>}
+              <button className={`tool-btn ${view3d ? 'on' : ''}`} onClick={() => { setView3d((v) => !v); setSpin(false) }} title="Vista 3D"><Icon name="box" size={15} /> <span>3D</span></button>
+              {view3d && <button className={`tool-btn ${spin ? 'on' : ''}`} onClick={() => setSpin((v) => !v)} title="Dar la vuelta completa al letrero"><Icon name="rotate" size={15} /> <span>360°</span></button>}
               {!photo && (
                 <div className="scene-menu">
                   <button className={`tool-btn ${scenesOpen ? 'on' : ''}`} onClick={() => setScenesOpen((v) => !v)}>
-                    <i className="scene-dot" style={wallStyle(scene)} /> Fondo
+                    <i className="scene-dot" style={wallStyle(scene)} /> <span>Fondo</span>
                   </button>
                   {scenesOpen && (
                     <div className="scene-pop">
@@ -297,9 +339,9 @@ export default function LedEditor() {
                 </div>
               )}
               <div className="switch">
-                <button className={!night ? 'active' : ''} onClick={() => { setNight(false); setDusk(false) }} title="De día, apagado">☀ Día</button>
-                <button className={night && dusk ? 'active' : ''} onClick={() => { setNight(true); setDusk(true) }} title="Atardecer, encendido">◐ Tarde</button>
-                <button className={night && !dusk ? 'active' : ''} onClick={() => { setNight(true); setDusk(false) }} title="De noche, encendido">☾ Noche</button>
+                <button className={!night ? 'active' : ''} onClick={() => { setNight(false); setDusk(false) }} title="De día, apagado"><Icon name="sun" size={15} /> <span>Día</span></button>
+                <button className={night && dusk ? 'active' : ''} onClick={() => { setNight(true); setDusk(true) }} title="Atardecer, encendido"><Icon name="sunset" size={15} /> <span>Tarde</span></button>
+                <button className={night && !dusk ? 'active' : ''} onClick={() => { setNight(true); setDusk(false) }} title="De noche, encendido"><Icon name="moon" size={15} /> <span>Noche</span></button>
               </div>
             </div>
             {photo && (
@@ -318,7 +360,7 @@ export default function LedEditor() {
             )}
             {night && (
               <label className="brightness" title="Intensidad del LED (el taller puede agregar un regulador)">
-                <span>☼</span>
+                <Icon name="sun" size={14} />
                 <input type="range" min="0.25" max="1" step="0.05" value={brightness} onChange={(e) => setBrightness(+e.target.value)} />
               </label>
             )}
@@ -328,7 +370,7 @@ export default function LedEditor() {
               style={{
                 aspectRatio: `${box.w} / ${box.h}`,
                 // Cabe en la pared a lo ancho y a lo alto (100cqh = alto disponible de la pared)
-                width: `min(100%, calc(${(box.w / box.h).toFixed(3)} * (100cqh - 150px)))`,
+                width: `min(100%, calc(${(box.w / box.h).toFixed(3)} * (100cqh - var(--sign-pad, 150px))))`,
                 ...(photo ? { transform: `translate(${place.x}px, ${place.y}px) scale(${place.scale})` } : {})
               }}
               onPointerDown={startDrag}
@@ -341,67 +383,48 @@ export default function LedEditor() {
             </div>
           </div>
 
-          <div className="led-stats">
-            <div><strong>{design.widthCm}×{design.heightCm}</strong><span>cm</span></div>
-            <div><strong>{design.dots.length}</strong><span>LED</span></div>
-            <div><strong>{plan.watts} W</strong><span>consumo</span></div>
-            <div><strong>{business.deliveryDays} días</strong><span>entrega</span></div>
-            <div className="stat-action">
+          <div className="stage-bar">
+            <div className="stage-facts">
+              <span><strong>{design.widthCm}×{design.heightCm}</strong> cm</span>
+              <span><strong>{design.dots.length}</strong> LED</span>
+              <span><strong>{plan.watts}</strong> W</span>
+              <span><strong>{business.deliveryDays}</strong> días</span>
+            </div>
+            <div className="stage-actions">
               {business.whatsapp && (
-                <a className="btn ghost sm wa-action" href={askWa()} target="_blank" rel="noreferrer" title="Manda tu diseño por WhatsApp y te respondemos">
-                  <LedIcon name="chat" size={16} color="#22c55e" /> WhatsApp
+                <a className="icon-action wa" href={askWa()} target="_blank" rel="noreferrer" title="Manda tu diseño por WhatsApp">
+                  <Icon name="chat" /> <span>WhatsApp</span>
                 </a>
               )}
-              <button className="btn ghost sm" onClick={downloadImage} disabled={busy || Boolean(saving)} title="Imagen de tu letrero en la pared o en tu local">
-                <LedIcon name="download" size={16} /> {saving || 'Imagen'}
+              <button className="icon-action" onClick={saveToAccount} disabled={busy} title={account ? 'Guardar en mi cuenta' : 'Entra para guardar tus diseños'}>
+                <Icon name="bookmark" /> <span>{saved || 'Guardar'}</span>
               </button>
-              <button className="btn ghost sm" onClick={saveVariant} disabled={busy} title="Guarda esta versión para compararla">
-                <LedIcon name="plus" size={16} /> Variante
+              <button className="icon-action" onClick={downloadImage} disabled={busy || Boolean(saving)} title="Imagen de tu letrero en la pared o en tu local">
+                <Icon name="download" /> <span>{saving || 'Imagen'}</span>
               </button>
-              <button className="btn ghost sm" onClick={share}>
-                <LedIcon name="share" size={16} /> {copied ? '¡Copiado!' : 'Compartir'}
+              <button className="icon-action" onClick={saveVariant} disabled={busy} title="Guarda esta versión para compararla">
+                <Icon name="copy" /> <span>Variante</span>
               </button>
-            </div>
-          </div>
-
-          {variants.length > 0 && (
-            <Variants
-              variants={variants}
-              prices={prices}
-              current={design}
-              onLoad={(v) => setDesign(normalizeLedDesign(v.design))}
-              onRemove={(id) => storeVariants(variants.filter((x) => x.id !== id))}
-            />
-          )}
-
-          <TrustBar business={business} total={q.total} />
-
-          <div className="styles-row">
-            <span className="label">Ideas</span>
-            <div className="styles-scroll">
-              {LED_MODELS.map((t) => {
-                const first = t.d.lines.find((l) => l.text) || t.d.lines[0]
-                const color = ledColorById(t.d.lines[0].color).hex
-                return (
-                  <button
-                    key={t.name}
-                    className={`style-card text ${DARK_BOARDS.includes(t.d.board) || DARK_FINISHES.includes(t.d.finish) ? 'dark' : ''}`}
-                    style={{ background: FINISHES.find((f) => f.id === t.d.finish)?.base || boardById(t.d.board || 'blanco').hex }}
-                    onClick={() => setDesign(normalizeLedDesign({ ...defaultLedDesign(), ...t.d, dots: [] }))}
-                  >
-                    <span className="model-line" style={{ color }}>
-                      {t.d.lines[0].icon && <IconGlyph id={t.d.lines[0].icon} size={18} />}
-                      <span style={{ fontFamily: `"${first.font}"` }}>{first.text}</span>
-                    </span>
-                    <em>{t.name}</em>
-                  </button>
-                )
-              })}
+              <button className="icon-action" onClick={share} title="Compartir enlace">
+                <Icon name="share" /> <span>{copied ? '¡Copiado!' : 'Compartir'}</span>
+              </button>
             </div>
           </div>
         </section>
 
-        <aside className="studio-panel">
+        <aside className="studio-panel" ref={panelRef}>
+          <nav className="step-tabs" aria-label="Pasos">
+            {TABS.map((t, i) => (
+              <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)} aria-current={tab === t.id ? 'step' : undefined}>
+                <Icon name={t.icon} size={17} />
+                <span>{t.name}</span>
+                <i>{i + 1}</i>
+              </button>
+            ))}
+          </nav>
+          <div className="step-body">
+          {tab === 'texto' && (<>
+          <Ideas onPick={(d) => setDesign(normalizeLedDesign({ ...defaultLedDesign(), ...d, dots: [] }))} />
           <Section n="01" title="¿Qué dice tu letrero?" hint="Hasta 4 líneas">
             {design.lines.map((line, i) => (
               <div className="text-line" key={i}>
@@ -420,7 +443,7 @@ export default function LedEditor() {
                   </button>
                   <label className="icon-chip logo-chip" title="Sube tu logo (PNG o JPG, mejor con fondo blanco o transparente)">
                     <input type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadLogo(i)} />
-                    <LedIcon name="image" size={16} lit={false} />
+                    <Icon name="image" size={16} />
                     <span>{line.icon === 'logo' ? 'Cambiar logo' : 'Subir mi logo'}</span>
                   </label>
                   {line.icon === 'logo' && <button className="link-btn" onClick={() => setLine(i, { icon: '' })}>Quitar</button>}
@@ -449,7 +472,9 @@ export default function LedEditor() {
               </button>
             )}
           </Section>
+          </>)}
 
+          {tab === 'tamano' && (
           <Section n="02" title="Tamaño" hint={`${design.widthCm} × ${design.heightCm} cm`}>
             <div className="sizes">
               {SIZES.map((x) => (
@@ -460,8 +485,15 @@ export default function LedEditor() {
               ))}
             </div>
             <p className="muted small">¿Otra medida? Mueve la altura de cada línea en el paso 1.</p>
+            <label className="range">
+              <span>Margen</span>
+              <input type="range" min="10" max="150" step="5" value={design.marginMm} onChange={(e) => update({ marginMm: +e.target.value })} />
+              <output>{design.marginMm / 10}</output>
+            </label>
           </Section>
+          )}
 
+          {tab === 'base' && (
           <Section n="03" title="Base" hint="Forma, color y montaje">
             <div className="shapes">
               {SHAPES.map((x) => (
@@ -505,7 +537,9 @@ export default function LedEditor() {
               ))}
             </div>
           </Section>
+          )}
 
+          {tab === 'luz' && (
           <Section n="04" title="Luz y efectos" hint="Combina LED, marco y animación">
             <div className="frame-box">
               <label className="check-row">
@@ -555,8 +589,21 @@ export default function LedEditor() {
               <span>Instalación (+{money(prices.led.installation)})</span>
             </label>
           </Section>
+          )}
 
-          <details className="advanced batch">
+          {tab === 'mas' && (<>
+          {variants.length > 0 && (
+            <Section n="·" title="Tus variantes" hint="Compara y elige">
+              <Variants
+                variants={variants}
+                prices={prices}
+                current={design}
+                onLoad={(v) => setDesign(normalizeLedDesign(v.design))}
+                onRemove={(id) => storeVariants(variants.filter((x) => x.id !== id))}
+              />
+            </Section>
+          )}
+          <details className="advanced batch" open>
             <summary>
               <span>¿Varios letreros?</span>
               <em>Sucursales, mesas, puertas o consultorios: mismo diseño, distinto texto y descuento por volumen</em>
@@ -607,11 +654,6 @@ export default function LedEditor() {
                 </button>
               ))}
             </div>
-            <label className="range">
-              <span>Margen</span>
-              <input type="range" min="10" max="150" step="5" value={design.marginMm} onChange={(e) => update({ marginMm: +e.target.value })} />
-              <output>{design.marginMm / 10}</output>
-            </label>
             {design.shape === 'round' && (
               <label className="range">
                 <span>Esquinas</span>
@@ -621,8 +663,16 @@ export default function LedEditor() {
             )}
             </Section>
           </details>
+          </>)}
 
-          <div className="checkout">
+          {tab !== 'mas' && (
+            <button className="btn ghost next-step" onClick={() => setTab(TABS[TABS.findIndex((t) => t.id === tab) + 1].id)}>
+              Siguiente: {TABS[TABS.findIndex((t) => t.id === tab) + 1].name} <Icon name="next" size={16} />
+            </button>
+          )}
+          </div>
+
+          <div className={`checkout ${showLines ? 'show-lines' : ''}`}>
             <div className="checkout-lines">
               {q.lines.map((l, i) => (
                 <div key={i}><span>{l.label}</span><span>{money(l.amount)}</span></div>
@@ -638,6 +688,7 @@ export default function LedEditor() {
               <div className="grow price">
                 <strong>{money(q.total)}</strong>
                 <span className="muted small">
+                  <button className="link-btn lines-toggle" onClick={() => setShowLines((v) => !v)}>{showLines ? 'Ocultar' : 'Desglose'}</button>{' '}
                   {quantity > 1 ? `${money(q.unitPrice)} c/u` : (business.ivaIncluded ? 'IVA incluido' : `más IVA ${business.ivaRate} %`)}
                   {business.installments > 0 && ` · o ${business.installments} × ${money(Math.ceil(q.total / business.installments))}`}
                 </span>
@@ -648,6 +699,9 @@ export default function LedEditor() {
         </aside>
       </div>
 
+      <div className="below-studio">
+        <TrustBar business={business} total={q.total} />
+      </div>
       <ReviewsSection />
       <MadeByAp onPick={(d) => { setDesign(normalizeLedDesign(d)); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
       <SiteFooter business={business} />
@@ -676,6 +730,35 @@ export default function LedEditor() {
   )
 }
 
+// Ideas para empezar: modelos listos por giro
+function Ideas({ onPick }) {
+  return (
+    <div className="ideas">
+      <span className="label"><Icon name="sparkles" size={13} /> Empieza con una idea</span>
+      <div className="styles-scroll">
+        {LED_MODELS.map((t) => {
+          const first = t.d.lines.find((l) => l.text) || t.d.lines[0]
+          const color = ledColorById(t.d.lines[0].color).hex
+          return (
+            <button
+              key={t.name}
+              className={`style-card text ${DARK_BOARDS.includes(t.d.board) || DARK_FINISHES.includes(t.d.finish) ? 'dark' : ''}`}
+              style={{ background: FINISHES.find((f) => f.id === t.d.finish)?.base || boardById(t.d.board || 'blanco').hex }}
+              onClick={() => onPick(t.d)}
+            >
+              <span className="model-line" style={{ color }}>
+                {t.d.lines[0].icon && <IconGlyph id={t.d.lines[0].icon} size={16} />}
+                <span style={{ fontFamily: `"${first.font}"` }}>{first.text}</span>
+              </span>
+              <em>{t.name}</em>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function Section({ n, title, hint, children }) {
   return (
     <section className="section">
@@ -699,7 +782,7 @@ function MadeByAp({ onPick }) {
   return (
     <section className="made-by">
       <div className="made-by-head">
-        <h2>Hecho por AP</h2>
+        <h2>Hecho por nosotros</h2>
         <span className="muted small">Letreros que ya entregamos · toca “Lo quiero así” para usarlo de base</span>
       </div>
       <div className="made-by-strip">
@@ -735,11 +818,11 @@ function ColorMix({ value, onChange }) {
   const palette = (key) => (
     <div className="led-colors">
       {LED_COLORS.map((c) => (
-        <button key={c.id} className={value[key] === c.id ? 'active' : ''} onClick={() => onChange({ [key]: c.id })} title={c.name}>
+        <button key={c.id} className={value[key] === c.id ? 'active' : ''} onClick={() => onChange({ [key]: c.id })} title={`${c.name} · ${c.nm}`}>
           <span className="led" style={{ '--led': c.hex }} />
         </button>
       ))}
-      <span className="muted small">{ledColorById(value[key]).name}</span>
+      <span className="muted small">{ledColorById(value[key]).name} · {ledColorById(value[key]).nm}</span>
     </div>
   )
   return (

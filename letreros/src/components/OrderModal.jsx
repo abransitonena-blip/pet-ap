@@ -6,6 +6,7 @@ import { DELIVERY_OPTIONS } from '../lib/customer'
 import { shippingFor } from '../lib/prices'
 import { LEAD_SOURCES } from '../lib/business'
 import { readCampaign } from '../lib/campaign'
+import { useAccount } from '../lib/account'
 
 const SAVED_KEY = 'ap_customer'
 
@@ -30,6 +31,7 @@ export const waLink = (phone, text) => {
 export default function OrderModal({ design, batch, quantity, total, preview, summary = [], onClose }) {
   const { business } = usePublicSettings()
   const saved = loadCustomer()
+  const { account } = useAccount()
   const [form, setForm] = useState({
     name: saved.name || '',
     phone: saved.phone || '',
@@ -39,6 +41,11 @@ export default function OrderModal({ design, batch, quantity, total, preview, su
     notes: '',
     source: saved.source || ''
   })
+  // Con cuenta: sus datos se llenan solos
+  useEffect(() => {
+    if (!account) return
+    setForm((f) => ({ ...f, name: f.name || account.name, email: f.email || account.email, phone: f.phone || account.phone }))
+  }, [account])
   const campaign = readCampaign()
   const [code, setCode] = useState(campaign.coupon || '')
   const [coupon, setCoupon] = useState(null) // { code, pct, amount, label }

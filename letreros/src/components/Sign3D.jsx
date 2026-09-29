@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import LedPreview, { mix, previewBox } from './LedPreview'
 import { boardBase, boardOutline, dotColorId, haloOn, ledColorById, mountHoles, planPower } from '../lib/ledSign'
+import { BRAND } from '../lib/brand'
 
 const REST = { x: 3, y: -12 }
 
@@ -150,7 +151,7 @@ function BackFace({ design, viewBox, box, outline, z }) {
       {/* Etiqueta y barrenos de montaje */}
       <rect x={W * 0.06} y={H * 0.08} width={Math.min(W * 0.28, 110)} height={Math.min(H * 0.14, 28)} rx={2} fill="#fff" stroke="#0001" />
       <text x={W * 0.06 + 6} y={H * 0.08 + Math.min(H * 0.14, 28) * 0.62} fontSize={Math.min(9, H * 0.05)} fill="#111" fontFamily="sans-serif">
-        AP letreros · {design.widthCm}×{design.heightCm} · {design.power === '12v' ? '12 V' : '127 V'}
+        {BRAND} · {design.widthCm}×{design.heightCm} · {design.power === '12v' ? '12 V' : '127 V'}
       </text>
       {mountHoles(design).map(([x, y], i) => <circle key={i} cx={W - x} cy={y} r={4} fill="#6b7280" />)}
     </svg>

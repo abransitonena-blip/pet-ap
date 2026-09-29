@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import DesignPreview from '../components/DesignPreview'
-import { api } from '../lib/api'
+import { api, getToken } from '../lib/api'
 import { money, MATERIALS, EXTRAS } from '../lib/pricing'
 import { BOARD_MATERIALS, FINISHES, LED_COLORS, MOUNTS, SHAPES } from '../lib/ledSign'
 import { DEFAULT_PRICES, PERMISSIONS, ROLES, computeTotals } from '../lib/prices'
 import { AREAS, areaById } from '../lib/business'
+import { BRAND } from '../lib/brand'
 
 const fmtDate = (iso) => new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
 export const quoteLink = (o) => `${window.location.origin}${window.location.pathname}#/presupuesto/${o.folio}/${o.publicToken}`
@@ -236,8 +237,8 @@ export function Clients({ orders, onOpen, showMoney }) {
                 <strong>{c.name}</strong>
                 <span className="muted small">{c.phone || c.email || '—'}</span>
               </div>
-              {waTo(c.phone, `Hola ${c.name}, te saludamos de AP.`) && (
-                <a className="btn ghost sm" href={waTo(c.phone, `Hola ${c.name}, te saludamos de AP.`)} target="_blank" rel="noreferrer">WhatsApp</a>
+              {waTo(c.phone, `Hola ${c.name}, te saludamos de ${BRAND}.`) && (
+                <a className="btn ghost sm" href={waTo(c.phone, `Hola ${c.name}, te saludamos de ${BRAND}.`)} target="_blank" rel="noreferrer">WhatsApp</a>
               )}
             </div>
             <div className="client-stats">
@@ -485,6 +486,7 @@ export function Team({ me }) {
         <button className="btn primary sm" onClick={() => setForm({ name: '', username: '', password: '', role: 'ventas', area: 'ventas', perms: ROLES.find((r) => r.id === 'ventas').perms })}>+ Agregar persona</button>
       </div>
       {error && <p className="error">{error}</p>}
+      {me.id === 'owner' && <SystemCard />}
 
       {form && (
         <section className="card user-form">
@@ -502,6 +504,10 @@ export function Team({ me }) {
               ))}
             </div>
           </div>
+          <label className="field">
+            <span>Correo de Google (para entrar con Google)</span>
+            <input className="input" type="email" placeholder="opcional" value={form.googleEmail || ''} onChange={(e) => setForm({ ...form, googleEmail: e.target.value })} />
+          </label>
           <label className="field">
             <span>Área</span>
             <select className="input" value={form.area || 'direccion'} onChange={(e) => setForm({ ...form, area: e.target.value })}>
@@ -527,7 +533,7 @@ export function Team({ me }) {
               onClick={() =>
                 act(async () => {
                   if (form.id) {
-                    const patch = { name: form.name, role: form.role, area: form.area, perms: form.perms }
+                    const patch = { name: form.name, role: form.role, area: form.area, googleEmail: form.googleEmail || '', perms: form.perms }
                     if (form.password) patch.password = form.password
                     await api.updateUser(form.id, patch)
                   } else {
@@ -568,5 +574,48 @@ export function Team({ me }) {
         ))}
       </div>
     </div>
+  )
+}
+
+// Solo el dueño: base de datos en uso, respaldo y su acceso con Google
+function SystemCard() {
+  const [info, setInfo] = useState(null)
+  const [email, setEmail] = useState('')
+  const [msg, setMsg] = useState('')
+  useEffect(() => {
+    Promise.all([api.system(), api.ownerGoogle()]).then(([s, g]) => {
+      setInfo(s)
+      setEmail(g.email)
+    }).catch((e) => setMsg(e.message))
+  }, [])
+  const backup = async () => {
+    const res = await fetch('/api/admin/backup', { headers: { Authorization: `Bearer ${getToken()}` } })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(await res.blob())
+    a.download = `respaldo-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+  }
+  const STORAGE = { postgres: 'PostgreSQL (base de datos real)', blob: 'Vercel Blob (archivo JSON)', archivo: 'Archivo JSON local' }
+  if (!info) return msg ? <p className="error">{msg}</p> : null
+  return (
+    <section className="card system-card">
+      <h2>Sistema y acceso</h2>
+      <div className="row wrap between">
+        <span>
+          Base de datos: <b>{STORAGE[info.storage] || info.storage}</b>
+          {info.storage !== 'postgres' && <em className="warn-text small"> · conecta Neon (Postgres) en Vercel → Storage para activar la base real</em>}
+        </span>
+        <button className="btn ghost sm" onClick={backup}>Descargar respaldo</button>
+      </div>
+      <p className="muted small">{Object.entries(info.counts || {}).map(([k, v]) => `${k}: ${v}`).join(' · ')}</p>
+      <div className="row wrap">
+        <label className="field grow">
+          <span>Tu correo de Google para entrar como dueño {info.google ? '' : '(activa GOOGLE_CLIENT_ID en Vercel)'}</span>
+          <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@gmail.com" />
+        </label>
+        <button className="btn ghost sm" onClick={() => api.setOwnerGoogle(email).then((r) => { setEmail(r.email); setMsg(r.email ? 'Listo: ya puedes entrar con Google' : 'Acceso con Google quitado') }).catch((e) => setMsg(e.message))}>Guardar</button>
+      </div>
+      {msg && <p className="small">{msg}</p>}
+    </section>
   )
 }

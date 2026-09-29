@@ -4,6 +4,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createPgStore, pgClient, pgliteClient } from './pgstore.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // DATA_DIR permite usar otra carpeta (p. ej. en las pruebas automáticas)
@@ -83,4 +84,37 @@ const blobStore = {
   }
 }
 
-export const store = usingBlob ? blobStore : fileStore
+// Base de datos real: PostgreSQL si hay DATABASE_URL / POSTGRES_URL (Neon, Supabase…),
+// o PGlite (Postgres en memoria / carpeta) con PGLITE=memory|<carpeta> para pruebas y desarrollo.
+// La primera vez copia lo que había en Blob o en el archivo JSON.
+const PG_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || ''
+const PGLITE = process.env.PGLITE || ''
+export const usingPostgres = Boolean(PG_URL || PGLITE)
+
+function lazyPostgres() {
+  let pending = null
+  const get = () =>
+    (pending ||= (async () => {
+      const client = PGLITE ? await pgliteClient(PGLITE) : await pgClient(PG_URL)
+      const hasBlob = Boolean(process.env.BLOB_READ_WRITE_TOKEN) && !process.env.DATA_DIR
+      return createPgStore(client, { legacy: hasBlob ? blobStore : fileStore, photoStore: hasBlob ? blobStore : null })
+    })().catch((err) => {
+      pending = null
+      throw err
+    }))
+  const call = (name) => async (...args) => (await get())[name](...args)
+  return {
+    kind: 'postgres',
+    load: call('load'),
+    save: call('save'),
+    transaction: call('transaction'),
+    putPhoto: call('putPhoto'),
+    getPhoto: call('getPhoto'),
+    deletePhoto: call('deletePhoto'),
+    stats: call('stats')
+  }
+}
+
+fileStore.kind = 'archivo'
+blobStore.kind = 'blob'
+export const store = usingPostgres ? lazyPostgres() : usingBlob ? blobStore : fileStore

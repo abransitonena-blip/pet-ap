@@ -1,5 +1,6 @@
 // Ajustes editables desde el panel: precios, datos del negocio y permisos del equipo.
 // Módulo puro (sin DOM): lo usan el servidor (fuente de verdad) y el navegador.
+import { BRAND, LEGACY_NAMES } from './brand.js'
 
 export const DEFAULT_PRICES = {
   // Descuento por volumen: [piezas mínimas, % de descuento]
@@ -40,7 +41,7 @@ export const DEFAULT_PRICES = {
 }
 
 export const DEFAULT_BUSINESS = {
-  name: 'AP letreros',
+  name: BRAND,
   whatsapp: '',
   email: '',
   address: '',
@@ -130,7 +131,8 @@ export function mergeBusiness(input) {
   const d = DEFAULT_BUSINESS
   const b = input || {}
   return {
-    name: text(b.name, 60, d.name) || d.name,
+    // El nombre de fábrica anterior pasa a la marca nueva
+    name: LEGACY_NAMES.includes(text(b.name, 60, d.name)) ? d.name : text(b.name, 60, d.name) || d.name,
     whatsapp: text(b.whatsapp, 20, d.whatsapp).replace(/[^\d+ ]/g, ''),
     email: text(b.email, 80, d.email),
     address: text(b.address, 160, d.address),

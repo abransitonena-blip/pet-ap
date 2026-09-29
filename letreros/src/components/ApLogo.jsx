@@ -1,4 +1,6 @@
 import { matrixGlyph } from '../lib/ledText'
+import { brandParts } from '../lib/brand'
+import { usePublicSettings } from '../lib/settings'
 
 // Monograma "AP" hecho con puntos LED (fuente 5 × 7), en rosa de marca
 const DOTS = []
@@ -18,14 +20,17 @@ export default function ApLogo({ size = 22, lit = true }) {
   )
 }
 
-export function Brand({ sub = 'letreros' }) {
+// Logotipo: el nombre de la marca y al final el monograma AP en puntos de luz
+export function Brand({ sub = '', size = 20 }) {
+  const { business } = usePublicSettings()
+  const { word, ap, full } = brandParts(business?.name)
   return (
-    <span className="brand">
-      <ApLogo />
+    <span className="brand" aria-label={full}>
       <span className="brand-word">
-        <b>AP</b>
-        <em>{sub}</em>
+        <b>{word}</b>
+        {ap && <ApLogo size={size} />}
       </span>
+      {sub && <em className="brand-sub">{sub}</em>}
     </span>
   )
 }

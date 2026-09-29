@@ -4,6 +4,7 @@ import { api } from '../lib/api'
 import { GIROS, LEAD_STATES, WEEKLY_GOAL, sampleDesign } from '../lib/prospects'
 import { shareUrl } from '../lib/share'
 import { boardBase, ledColorById } from '../lib/ledSign'
+import { BRAND } from '../lib/brand'
 
 const waLink = (phone, text) => {
   const d = (phone || '').replace(/\D/g, '')
@@ -107,7 +108,7 @@ export default function Prospects({ business, prices }) {
           const design = sampleDesign(l)
           const link = shareUrl(design)
           const giro = GIROS.find((g) => g.id === l.giro)?.name
-          const msg = `Hola${l.contact ? ` ${l.contact.split(' ')[0]}` : ''}, soy de ${business?.name || 'AP letreros'}. Te hice una muestra de letrero LED para ${l.name} 👉 ${link} Ahí puedes cambiar texto, colores y tamaño y ver el precio al instante.`
+          const msg = `Hola${l.contact ? ` ${l.contact.split(' ')[0]}` : ''}, soy de ${business?.name || BRAND}. Te hice una muestra de letrero LED para ${l.name} 👉 ${link} Ahí puedes cambiar texto, colores y tamaño y ver el precio al instante.`
           return (
             <article key={l.id} className="lead-card">
               <a className="lead-sample" href={link} target="_blank" rel="noreferrer" title="Abrir la muestra en el editor" style={{ background: boardBase(design) }}>

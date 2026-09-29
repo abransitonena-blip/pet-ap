@@ -8,6 +8,7 @@ import Market from './Market'
 import Prospects from './Prospects'
 import Suppliers from './Suppliers'
 import Tasks from './Tasks'
+import GoogleButton from '../components/GoogleButton'
 import Finance from './Finance'
 import HR from './HR'
 import Marketing from './Marketing'
@@ -29,6 +30,7 @@ import { downloadDesignPng, downloadDiagramSvg, downloadDxf, downloadGcode, down
 import { PAPERS, planTiles } from '../lib/production'
 import { PAY_METHODS, PAY_STATES, payMethodName } from '../lib/prices'
 import { ledPointsMm } from '../lib/ledPoints'
+import { BRAND } from '../lib/brand'
 
 const fmtDate = (iso) =>
   new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -189,6 +191,17 @@ function Login({ onLogin }) {
         <input className="input" type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} />
         {error && <p className="error">{error}</p>}
         <button className="btn primary block" disabled={loading || !password}>{loading ? 'Entrando…' : 'Entrar'}</button>
+        <GoogleButton
+          text="signin_with"
+          onCredential={async (credential) => {
+            setError('')
+            try {
+              onLogin((await api.googleAdmin(credential)).token)
+            } catch (err) {
+              setError(err.message)
+            }
+          }}
+        />
         <a href="#/" className="muted small center">← Volver al sitio</a>
       </form>
     </div>
@@ -225,7 +238,7 @@ function Dashboard({ onLogout }) {
           chime()
           if ('Notification' in window && Notification.permission === 'granted') {
             try {
-              new Notification('Pedido nuevo · AP letreros', { body: text, tag: 'ap-pedido' })
+              new Notification(`Pedido nuevo · ${BRAND}`, { body: text, tag: 'ap-pedido' })
             } catch {
               /* algunos navegadores móviles solo permiten avisos desde un service worker */
             }
@@ -570,7 +583,7 @@ function OrdersList({ orders, onOpen, onUpdate, can, me, people = [] }) {
                 <td><StatusPill status={o.status} /></td>
                 <td className="actions" onClick={(e) => e.stopPropagation()}>
                   {waLink(o.customer.phone) && (
-                    <a className="icon-btn wa" href={waLink(o.customer.phone, `Hola ${o.customer.name}, te escribimos de AP sobre tu pedido ${o.folio}.`)} target="_blank" rel="noreferrer" title="WhatsApp">
+                    <a className="icon-btn wa" href={waLink(o.customer.phone, `Hola ${o.customer.name}, te escribimos de ${BRAND} sobre tu pedido ${o.folio}.`)} target="_blank" rel="noreferrer" title="WhatsApp">
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21l1.7-4.4A8.5 8.5 0 1 1 8 20z" /><path d="M9 9.5c.3 2 2.4 4.2 4.5 4.6l1.2-1.2 2 .9c-.2 1.3-1.3 2-2.4 1.9C10.8 15.3 8.4 12.8 8 9.6 8 8.5 8.7 7.4 10 7.2l.9 2z" /></svg>
                     </a>
                   )}
@@ -1011,7 +1024,7 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDel
                 </button>
               )}
               {waLink(order.customer.phone) && (
-                <a className="btn ghost" href={waLink(order.customer.phone, `Hola ${order.customer.name}, tu pedido ${order.folio} de AP está: ${statusById(order.status).label}.`)} target="_blank" rel="noreferrer">
+                <a className="btn ghost" href={waLink(order.customer.phone, `Hola ${order.customer.name}, tu pedido ${order.folio} de ${BRAND} está: ${statusById(order.status).label}.`)} target="_blank" rel="noreferrer">
                   Avisar por WhatsApp
                 </a>
               )}

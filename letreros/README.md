@@ -192,6 +192,25 @@ letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, dato
 - **Control WiFi** opcional para el cliente (Sonoff Basic R2: horario y encendido desde el celular),
   con precio, costo y 6 proveedores en el directorio
 
+## 🗄️ Base de datos, cuentas y marca
+
+- **PostgreSQL** (Neon, Supabase o cualquiera): se activa con `DATABASE_URL` o `POSTGRES_URL`.
+  Tablas `records` (una fila por pedido, cliente, usuario, tarea…), `kv` (ajustes) y `photos`.
+  Cada cambio es una transacción con candado; solo se escriben las filas que cambian.
+  La primera vez copia automáticamente lo que había en Vercel Blob / JSON.
+  Sin `DATABASE_URL` sigue funcionando con Blob o archivo.
+- **Cuentas de clientes** (`#/cuenta`): correo y contraseña o **Google**; pedidos, diseños guardados y datos.
+- **Equipo con Google:** cada usuario liga su correo en *Equipo*; el dueño liga el suyo en *Sistema y acceso*.
+- **Respaldo:** *Equipo → Sistema y acceso → Descargar respaldo* (solo el dueño).
+- **Marca:** nombre en *Negocio → Nombre* (por defecto **Destello AP**); el logo es el nombre + monograma AP de puntos.
+  Plan y nombres con dominio libre en `docs/plan-rediseno.md`.
+
+| Variable | Para qué |
+|---|---|
+| `DATABASE_URL` / `POSTGRES_URL` | Base de datos PostgreSQL |
+| `GOOGLE_CLIENT_ID` | Botón “Continuar con Google” (clientes y equipo) |
+| `PGLITE=memory` o carpeta | Postgres local sin servidor (pruebas / desarrollo) |
+
 ## ✅ Pruebas
 
 ```bash

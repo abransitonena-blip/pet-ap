@@ -8,15 +8,18 @@ import { FONTS } from './design.js'
 import { DEFAULT_PRICES } from './prices.js'
 
 export const LED_COLORS = [
-  { id: 'rojo', name: 'Rojo', hex: '#ff3b30', vf: 2.0, price: 2.5 },
-  { id: 'ambar', name: 'Ámbar', hex: '#ffa31a', vf: 2.0, price: 2.5 },
-  { id: 'amarillo', name: 'Amarillo', hex: '#ffe14a', vf: 2.1, price: 2.5 },
-  { id: 'verde', name: 'Verde', hex: '#2dff7a', vf: 3.0, price: 3 },
-  { id: 'azul', name: 'Azul', hex: '#3d8bff', vf: 3.1, price: 3.5 },
-  { id: 'blanco', name: 'Blanco frío', hex: '#eef4ff', vf: 3.1, price: 3.5 },
-  { id: 'calido', name: 'Blanco cálido', hex: '#ffd49a', vf: 3.0, price: 3.5 },
-  { id: 'rosa', name: 'Rosa', hex: '#ff5bd6', vf: 3.1, price: 3.5 },
-  { id: 'morado', name: 'Morado', hex: '#a95cff', vf: 3.1, price: 3.5 }
+  // Colores calibrados a la longitud de onda real de cada LED de 5 mm (nm) o su temperatura de color
+  { id: 'rojo', name: 'Rojo', hex: '#ff2a14', vf: 2.0, price: 2.5, nm: '625 nm' },
+  { id: 'naranja', name: 'Naranja', hex: '#ff6a00', vf: 2.0, price: 2.5, nm: '605 nm' },
+  { id: 'ambar', name: 'Ámbar', hex: '#ffa800', vf: 2.0, price: 2.5, nm: '590 nm' },
+  { id: 'amarillo', name: 'Amarillo', hex: '#ffdc0a', vf: 2.1, price: 2.5, nm: '585 nm' },
+  { id: 'verde', name: 'Verde', hex: '#1dff4a', vf: 3.0, price: 3, nm: '525 nm' },
+  { id: 'cian', name: 'Cian', hex: '#00e0ff', vf: 3.1, price: 3.5, nm: '500 nm' },
+  { id: 'azul', name: 'Azul', hex: '#2e6cff', vf: 3.1, price: 3.5, nm: '470 nm' },
+  { id: 'blanco', name: 'Blanco frío', hex: '#f2f7ff', vf: 3.1, price: 3.5, nm: '6500 K' },
+  { id: 'calido', name: 'Blanco cálido', hex: '#ffc988', vf: 3.0, price: 3.5, nm: '3000 K' },
+  { id: 'rosa', name: 'Rosa', hex: '#ff47c8', vf: 3.1, price: 3.5, nm: 'rosa' },
+  { id: 'morado', name: 'Morado', hex: '#9a4dff', vf: 3.1, price: 3.5, nm: '405 nm' }
 ]
 
 export const DOT_STYLES = [
@@ -81,7 +84,7 @@ export const COLOR_MIXES = [
   { id: 'alternado', name: 'Dos colores' },
   { id: 'arcoiris', name: 'Arcoíris' }
 ]
-export const RAINBOW = ['rojo', 'ambar', 'amarillo', 'verde', 'azul', 'morado']
+export const RAINBOW = ['rojo', 'naranja', 'amarillo', 'verde', 'cian', 'azul', 'morado']
 // Índice de "línea" reservado para los LED del marco
 export const FRAME_LINE = 9
 

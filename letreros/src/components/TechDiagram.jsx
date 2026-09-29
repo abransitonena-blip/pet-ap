@@ -1,6 +1,7 @@
 import SignPreview from './SignPreview'
 import { FONTS, LED_MODES } from '../lib/design'
 import { extraById, ledSpec, materialById } from '../lib/pricing'
+import { BRAND } from '../lib/brand'
 
 // Plano de producción en SVG (A4 horizontal): letrero con cotas, colores,
 // tipografías, iluminación LED y datos del pedido.
@@ -87,7 +88,7 @@ export default function TechDiagram({ order }) {
       <rect x="30" y="30" width={PAGE_W - 60} height={PAGE_H - 60} fill="none" stroke={INK} strokeWidth="2" />
 
       <text x="60" y="82" fontSize="26" fontWeight="800" fill={INK}>PLANO DE PRODUCCIÓN</text>
-      <text x="60" y="110" fontSize="14" fill={MUTED}>AP letreros · Diagrama técnico del letrero</text>
+      <text x="60" y="110" fontSize="14" fill={MUTED}>{BRAND} · Diagrama técnico del letrero</text>
       <text x={PAGE_W - 60} y="82" fontSize="26" fontWeight="800" fill={INK} textAnchor="end">{order.folio}</text>
       <text x={PAGE_W - 60} y="110" fontSize="14" fill={MUTED} textAnchor="end">Escala aprox. 1:{ratio} en A4 horizontal</text>
       <line x1="30" y1="130" x2={PAGE_W - 30} y2="130" stroke={INK} strokeWidth="1.5" />

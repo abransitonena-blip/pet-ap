@@ -5,6 +5,7 @@
 //  - CSV con las coordenadas de los puntos
 import { holeMm, ledPointsMm, signGeometryMm } from './ledPoints.js'
 import { FRAME_LINE, boardOutline, dotColorId, mountHoles, planPower } from './ledSign.js'
+import { BRAND } from './brand.js'
 
 export const PAPERS = [
   { id: 'carta', name: 'Carta', w: 215.9, h: 279.4 },
@@ -214,7 +215,7 @@ export function gcode(order, { power = 1000, markPower = 300, feed = 600, passes
   const Y = (y) => g.h - y
   const pts = ledPointsMm(d)
   const out = [
-    `; AP letreros ${order.folio} · ${d.widthCm}x${d.heightCm} cm · GRBL 1.1 (Arduino)`,
+    `; ${BRAND} ${order.folio} · ${d.widthCm}x${d.heightCm} cm · GRBL 1.1 (Arduino)`,
     `; Origen X0 Y0 = esquina inferior izquierda del letrero. Unidades mm.`,
     `; AJUSTA potencia (S) y velocidad (F) a tu laser y material antes de usar.`,
     `; Area de trabajo necesaria: ${f(g.w)} x ${f(g.h)} mm`,
