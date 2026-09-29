@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import SiteHeader from '../components/SiteHeader'
+import HelpDialog from '../components/HelpDialog'
 import { usePublicSettings } from '../lib/settings'
 
 // Aviso de privacidad simplificado (LFPDPPP). Usa los datos del panel → Negocio.
 export default function Privacy() {
   const { business: b } = usePublicSettings()
-  const contact = [b.email, b.whatsapp && `WhatsApp ${b.whatsapp}`].filter(Boolean).join(' o ') || 'nuestros medios de contacto'
+  const [help, setHelp] = useState(false)
+  const channels = [b.email && `el correo ${b.email}`, b.whatsapp && `WhatsApp ${b.whatsapp}`].filter(Boolean)
   return (
     <div className="page">
       <SiteHeader />
@@ -21,11 +24,17 @@ export default function Privacy() {
         </ul>
         <p>No vendemos ni rentamos tus datos. Solo se comparten con la paquetería cuando pides envío.</p>
         <h2>Tus derechos (ARCO)</h2>
-        <p>Puedes pedir acceso, rectificación, cancelación u oposición al uso de tus datos, o retirar tu consentimiento, escribiéndonos a {contact}. Respondemos en un máximo de 20 días hábiles.</p>
+        <p>Puedes pedir acceso, rectificación, cancelación u oposición al uso de tus datos, o retirar tu consentimiento. Respondemos en un máximo de 20 días hábiles.</p>
+        <p>
+          <strong>Canal para ejercerlos:</strong>{' '}
+          {channels.length ? `${channels.join(' o ')}. ` : ''}
+          También puedes <button className="link-btn" onClick={() => setHelp(true)}>enviarnos tu solicitud aquí</button>; te damos un número de caso para darle seguimiento.
+        </p>
         <h2>Cambios</h2>
         <p>Cualquier cambio a este aviso se publicará en esta página.</p>
         <p className="muted small">Última actualización: septiembre de 2026.</p>
       </article>
+      {help && <HelpDialog onClose={() => setHelp(false)} kind="consulta" context="Solicitud sobre mis datos personales (derechos ARCO): " />}
     </div>
   )
 }

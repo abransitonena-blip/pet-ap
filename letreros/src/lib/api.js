@@ -21,8 +21,10 @@ export const setAccountToken = (t) => {
   window.dispatchEvent(new Event('ap-account'))
 }
 
-async function request(path, { method = 'GET', body, auth = false, account = false } = {}) {
+async function request(path, { method = 'GET', body, auth = false, account = false, idem = '' } = {}) {
   const headers = { 'Content-Type': 'application/json' }
+  // Clave de idempotencia: reintentar la misma solicitud no duplica pedidos ni pagos
+  if (idem) headers['Idempotency-Key'] = idem
   if (auth) headers.Authorization = `Bearer ${getToken()}`
   else if (account && getAccountToken()) headers.Authorization = `Bearer ${getAccountToken()}`
   const res = await fetch(`/api${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
@@ -31,14 +33,22 @@ async function request(path, { method = 'GET', body, auth = false, account = fal
   if (!res.ok) {
     const err = new Error(data.error || `Error ${res.status}`)
     err.status = res.status
+    err.field = data.field
+    err.code = data.code
+    err.missing = data.missing
     throw err
   }
   return data
 }
 
 export const api = {
-  createOrder: (payload) => request('/orders', { method: 'POST', body: payload, account: true }),
-  createBatch: (payload) => request('/orders/batch', { method: 'POST', body: payload, account: true }),
+  createOrder: (payload, idem) => request('/orders', { method: 'POST', body: payload, account: true, idem }),
+  createBatch: (payload, idem) => request('/orders/batch', { method: 'POST', body: payload, account: true, idem }),
+  help: (x) => request('/public/help', { method: 'POST', body: x }),
+  forgot: (email) => request('/auth/forgot', { method: 'POST', body: { email } }),
+  resetPassword: (token, password) => request('/auth/reset', { method: 'POST', body: { token, password } }),
+  resetLink: (email) => request('/admin/customers/reset-link', { method: 'POST', body: { email }, auth: true }),
+  metrics: () => request('/admin/metrics', { auth: true }),
   register: (x) => request('/auth/register', { method: 'POST', body: x }),
   accountLogin: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   googleAccount: (credential) => request('/auth/google', { method: 'POST', body: { credential } }),
@@ -51,7 +61,7 @@ export const api = {
   setOwnerGoogle: (email) => request('/admin/owner-google', { method: 'PUT', body: { email }, auth: true }),
   system: () => request('/admin/system', { auth: true }),
   backupUrl: '/api/admin/backup',
-  track: (folio) => request(`/track/${encodeURIComponent(folio)}`),
+  track: (folio, tel) => request(`/track/${encodeURIComponent(folio)}?tel=${encodeURIComponent(tel || '')}`),
   login: (username, password) => request('/admin/login', { method: 'POST', body: { username, password } }),
   me: () => request('/admin/me', { auth: true }),
   publicSettings: () => request('/public/settings'),
@@ -67,7 +77,7 @@ export const api = {
   orders: () => request('/admin/orders', { auth: true }),
   stats: () => request('/admin/stats', { auth: true }),
   updateOrder: (id, patch) => request(`/admin/orders/${id}`, { method: 'PATCH', body: patch, auth: true }),
-  addPayment: (id, p) => request(`/admin/orders/${id}/payments`, { method: 'POST', body: p, auth: true }),
+  addPayment: (id, p, idem) => request(`/admin/orders/${id}/payments`, { method: 'POST', body: p, auth: true, idem }),
   deletePayment: (id, pid) => request(`/admin/orders/${id}/payments/${pid}`, { method: 'DELETE', auth: true }),
   gallery: () => request('/public/gallery'),
   reviews: () => request('/public/reviews'),

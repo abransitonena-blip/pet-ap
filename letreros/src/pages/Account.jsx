@@ -16,14 +16,14 @@ const DRAFT_KEY = 'letreros_led_draft'
 const fmt = (iso) => new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })
 
 // Cuenta del cliente: entrar (correo o Google), sus pedidos y sus diseños guardados
-export default function Account() {
+export default function Account({ resetToken = '' }) {
   const { account, orders, loading, refresh, signIn, signOut } = useAccount()
   const { business, googleClientId } = usePublicSettings()
   return (
     <div className="page">
       <SiteHeader active="account" />
       <main className="account-page">
-        {loading ? <p className="muted">Cargando…</p> : account ? (
+        {resetToken ? <ResetPassword token={resetToken} onSession={(x) => { signIn(x); window.location.hash = '#/cuenta' }} /> : loading ? <p className="muted">Cargando…</p> : account ? (
           <Dashboard account={account} orders={orders} onRefresh={refresh} onSignOut={signOut} />
         ) : (
           <SignIn onSession={signIn} google={Boolean(googleClientId)} />
@@ -70,6 +70,7 @@ function SignIn({ onSession, google }) {
           {error && <p className="error">{error}</p>}
           <button className="btn primary block" disabled={busy}>{busy ? 'Un momento…' : mode === 'entrar' ? 'Entrar' : 'Crear cuenta'}</button>
         </form>
+        {mode === 'entrar' && <Forgot initialEmail={form.email} />}
         <p className="small center">
           {mode === 'entrar' ? '¿Primera vez? ' : '¿Ya tienes cuenta? '}
           <button className="link-btn" onClick={() => { setMode(mode === 'entrar' ? 'crear' : 'entrar'); setError('') }}>{mode === 'entrar' ? 'Crea tu cuenta' : 'Entra'}</button>
@@ -166,6 +167,60 @@ function Dashboard({ account, orders, onRefresh, onSignOut }) {
         </div>
         {msg && <p className="small">{msg}</p>}
       </section>
+    </div>
+  )
+}
+
+// ¿Olvidaste tu contraseña? Abre una solicitud; el equipo te manda un enlace de un solo uso
+function Forgot({ initialEmail }) {
+  const [open, setOpen] = useState(false)
+  const [email, setEmail] = useState(initialEmail)
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+  if (!open) return <button className="link-btn forgot-link" type="button" onClick={() => { setEmail(initialEmail); setOpen(true) }}>¿Olvidaste tu contraseña?</button>
+  return (
+    <form className="forgot-box" onSubmit={async (e) => {
+      e.preventDefault()
+      setBusy(true)
+      try {
+        setMsg((await api.forgot(email)).message)
+      } catch (err) {
+        setMsg(err.message)
+      } finally {
+        setBusy(false)
+      }
+    }}>
+      <label className="field"><span>Tu correo</span><input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
+      <button className="btn ghost sm" disabled={busy}>Pedir enlace para restablecer</button>
+      {msg && <p className="small" role="status">{msg}</p>}
+    </form>
+  )
+}
+
+function ResetPassword({ token, onSession }) {
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  return (
+    <div className="auth-wrap">
+      <form className="auth-card" onSubmit={async (e) => {
+        e.preventDefault()
+        setBusy(true)
+        setError('')
+        try {
+          onSession(await api.resetPassword(token, password))
+        } catch (err) {
+          setError(err.message)
+        } finally {
+          setBusy(false)
+        }
+      }}>
+        <h1>Nueva contraseña</h1>
+        <p className="muted small">El enlace sirve una sola vez y vence en una hora.</p>
+        <label className="field"><span>Contraseña (mínimo 8 caracteres)</span><input className="input" type="password" autoComplete="new-password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
+        {error && <p className="error">{error}</p>}
+        <button className="btn primary block" disabled={busy}>Guardar y entrar</button>
+      </form>
     </div>
   )
 }

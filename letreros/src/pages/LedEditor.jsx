@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import LedIcon from '../components/LedIcon'
 import Icon from '../components/Icon'
 import { useAccount } from '../lib/account'
+import HelpDialog from '../components/HelpDialog'
+import HowItWorks from '../components/HowItWorks'
+import { track } from '../lib/events'
 import SiteHeader from '../components/SiteHeader'
 import LedPreview, { previewBox } from '../components/LedPreview'
 import IconPicker, { IconGlyph } from '../components/IconPicker'
@@ -140,6 +143,8 @@ export default function LedEditor() {
   const [tab, setTabState] = useState('texto')
   const [saved, setSaved] = useState('')
   const [showLines, setShowLines] = useState(false)
+  const [help, setHelp] = useState(false)
+  const [exactW, setExactW] = useState('')
   const { account, refresh: refreshAccount } = useAccount()
   const panelRef = useRef(null)
   const setTab = (id) => {
@@ -245,11 +250,14 @@ export default function LedEditor() {
     } catch {}
   }
 
+  const firstDesign = useRef(true)
   useEffect(() => {
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(design))
     } catch {}
-  }, [design])
+    if (firstDesign.current) firstDesign.current = false
+    else track('design_started', { once: true })
+  }, [design.lines, design.shape, design.finish, design.board])
 
   // Variantes: guarda hasta 4 versiones para compararlas lado a lado
   const saveVariant = () => {
@@ -296,7 +304,7 @@ export default function LedEditor() {
   const update = (patch) => setDesign((d) => ({ ...d, ...patch }))
   const setLine = (i, patch) => setDesign((d) => ({ ...d, lines: d.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) }))
   const plan = useMemo(() => planPower(design), [design])
-  const { prices, business, textures } = usePublicSettings()
+  const { prices, business, textures, ok: priceOk, loading: priceLoading, retry: retryPrices } = usePublicSettings()
   const q = useMemo(() => quote({ ...design, quantity }, prices), [design, quantity, prices])
   const tooMany = design.dots.length >= MAX_DOTS
   const box = previewBox(design)
@@ -304,6 +312,17 @@ export default function LedEditor() {
   return (
     <div className="page">
       <SiteHeader active="led" />
+
+      <section className="intro-strip">
+        <div className="intro-copy">
+          <strong>Letreros LED de puntos hechos a la medida</strong>
+          <span>Diseña el tuyo y ve el precio al instante, o cuéntanos tu idea y lo diseñamos contigo.</span>
+        </div>
+        <div className="intro-actions">
+          <button className="btn primary sm" onClick={() => document.querySelector('.step-body')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}><Icon name="bulb" size={16} /> Diseñar mi letrero</button>
+          <button className="btn ghost sm" onClick={() => setHelp(true)}><Icon name="chat" size={16} /> Necesito ayuda</button>
+        </div>
+      </section>
 
       <div className="studio">
         <section className="studio-stage">
@@ -405,6 +424,9 @@ export default function LedEditor() {
               <button className="icon-action" onClick={saveVariant} disabled={busy} title="Guarda esta versión para compararla">
                 <Icon name="copy" /> <span>Variante</span>
               </button>
+              <button className="icon-action" onClick={() => setHelp(true)} title="Te ayudamos a diseñarlo">
+                <Icon name="chat" /> <span>Ayuda</span>
+              </button>
               <button className="icon-action" onClick={share} title="Compartir enlace">
                 <Icon name="share" /> <span>{copied ? '¡Copiado!' : 'Compartir'}</span>
               </button>
@@ -484,7 +506,14 @@ export default function LedEditor() {
                 </button>
               ))}
             </div>
-            <p className="muted small">¿Otra medida? Mueve la altura de cada línea en el paso 1.</p>
+            <form className="exact-size" onSubmit={(e) => { e.preventDefault(); const w = Math.round(+exactW); if (w >= 20 && w <= 300) pickSize(w) }}>
+              <label className="field grow">
+                <span>¿Otra medida? Ancho exacto (20 a 300 cm)</span>
+                <input className="input" type="number" min="20" max="300" inputMode="numeric" placeholder={String(design.widthCm)} value={exactW} onChange={(e) => setExactW(e.target.value)} />
+              </label>
+              <button className="btn ghost sm" disabled={busy || !(+exactW >= 20 && +exactW <= 300)}>Ajustar</button>
+            </form>
+            <p className="muted small">El alto se ajusta solo según tu texto: quedaría de ≈ {design.heightCm} cm con {design.widthCm} cm de ancho. Si necesitas un alto exacto, dinos en la solicitud y lo acomodamos.</p>
             <label className="range">
               <span>Margen</span>
               <input type="range" min="10" max="150" step="5" value={design.marginMm} onChange={(e) => update({ marginMm: +e.target.value })} />
@@ -504,9 +533,10 @@ export default function LedEditor() {
               ))}
             </div>
             <span className="sub-label">Acabado</span>
+            <p className="muted small">La placa es de {boardMaterialById(design.material).name.toLowerCase()}; los acabados son un vinil impreso con apariencia de madera, piedra o metal (no es el material real).</p>
             <div className="finishes">
               {FINISHES.map((f) => (
-                <button key={f.id} className={design.finish === f.id ? 'active' : ''} onClick={() => update({ finish: f.id })} title={f.group ? `${f.group} · ${f.name}` : 'Color liso'}>
+                <button key={f.id} className={design.finish === f.id ? 'active' : ''} onClick={() => update({ finish: f.id })} title={f.id === 'liso' ? 'Color liso de la placa' : `Vinil impreso con apariencia de ${f.name.toLowerCase()} sobre la placa`}>
                   <FinishSwatch finish={f.id} fallback={boardById(design.board).hex} photo={textures?.[f.id]} />
                   <span>{f.name}</span>
                   {prices.led.finishes?.[f.id] > 0 && <em>+{money(prices.led.finishes[f.id])}/m²</em>}
@@ -584,10 +614,7 @@ export default function LedEditor() {
               ))}
             </div>
             <p className="muted small">{ANIMATIONS.find((a) => a.id === design.animation).note}</p>
-            <label className="check-row">
-              <input type="checkbox" checked={design.extras.includes('instalacion')} onChange={(e) => update({ extras: e.target.checked ? ['instalacion'] : [] })} />
-              <span>Instalación (+{money(prices.led.installation)})</span>
-            </label>
+            <p className="muted small">¿Quieres que lo instalemos? Lo eliges al solicitar la cotización (junto con recoger o envío), para que el cargo aparezca una sola vez.</p>
           </Section>
           )}
 
@@ -673,11 +700,23 @@ export default function LedEditor() {
           </div>
 
           <div className={`checkout ${showLines ? 'show-lines' : ''}`}>
+            {!priceOk && !priceLoading && (
+              <div className="price-warning" role="status">
+                <span>No pudimos confirmar el precio vigente: lo que ves es un estimado y te lo confirmamos en tu presupuesto.</span>
+                <button className="link-btn" onClick={retryPrices}>Reintentar</button>
+              </div>
+            )}
             <div className="checkout-lines">
-              {q.lines.map((l, i) => (
+              {commercialLines(q.lines).map((l, i) => (
                 <div key={i}><span>{l.label}</span><span>{money(l.amount)}</span></div>
               ))}
               {q.discount > 0 && <div className="discount"><span>Descuento {Math.round(q.discountRate * 100)}%</span><span>−{money(q.discount)}</span></div>}
+              <details className="tech-sheet">
+                <summary>Ficha técnica</summary>
+                {q.lines.map((l, i) => <div key={i}><span>{l.label}</span><span>{money(l.amount)}</span></div>)}
+                <div><span>Alimentación</span><span>{POWER.find((p) => p.id === design.power)?.name}</span></div>
+                <div><span>Consumo aprox.</span><span>{plan.watts} W</span></div>
+              </details>
             </div>
             <div className="checkout-bar">
               <div className="qty">
@@ -686,14 +725,14 @@ export default function LedEditor() {
                 <button onClick={() => setQuantity((n) => Math.min(500, n + 1))}>+</button>
               </div>
               <div className="grow price">
-                <strong>{money(q.total)}</strong>
+                <strong>{money(q.total)}{!priceOk && <em className="estimate-tag"> estimado</em>}</strong>
                 <span className="muted small">
                   <button className="link-btn lines-toggle" onClick={() => setShowLines((v) => !v)}>{showLines ? 'Ocultar' : 'Desglose'}</button>{' '}
                   {quantity > 1 ? `${money(q.unitPrice)} c/u` : (business.ivaIncluded ? 'IVA incluido' : `más IVA ${business.ivaRate} %`)}
                   {business.installments > 0 && ` · o ${business.installments} × ${money(Math.ceil(q.total / business.installments))}`}
                 </span>
               </div>
-              <button className="btn primary" onClick={() => setOrdering(true)} disabled={busy || !design.dots.length || tooMany}>Pedir mi letrero</button>
+              <button className="btn primary" onClick={() => setOrdering(true)} disabled={busy || !design.dots.length || tooMany}>Solicitar cotización</button>
             </div>
           </div>
         </aside>
@@ -702,6 +741,7 @@ export default function LedEditor() {
       <div className="below-studio">
         <TrustBar business={business} total={q.total} />
       </div>
+      <HowItWorks business={business} onHelp={(k) => setHelp(k)} />
       <ReviewsSection />
       <MadeByAp onPick={(d) => { setDesign(normalizeLedDesign(d)); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
       <SiteFooter business={business} />
@@ -715,6 +755,8 @@ export default function LedEditor() {
           onClose={() => setBatchOrder(null)}
         />
       )}
+
+      {help && <HelpDialog onClose={() => setHelp(false)} kind={typeof help === 'string' ? help : 'consulta'} context={design.lines.map((l) => l.text).filter(Boolean).join(' ') ? `Me interesa un letrero que diga "${design.lines.map((l) => l.text).filter(Boolean).join(' ')}".` : ''} />}
 
       {ordering && (
         <OrderModal
@@ -732,11 +774,13 @@ export default function LedEditor() {
 
 // Ideas para empezar: modelos listos por giro
 function Ideas({ onPick }) {
+  const [all, setAll] = useState(false)
+  const list = all ? LED_MODELS : LED_MODELS.slice(0, 6)
   return (
     <div className="ideas">
       <span className="label"><Icon name="sparkles" size={13} /> Empieza con una idea</span>
       <div className="styles-scroll">
-        {LED_MODELS.map((t) => {
+        {list.map((t) => {
           const first = t.d.lines.find((l) => l.text) || t.d.lines[0]
           const color = ledColorById(t.d.lines[0].color).hex
           return (
@@ -754,9 +798,18 @@ function Ideas({ onPick }) {
             </button>
           )
         })}
+        {!all && LED_MODELS.length > 6 && <button className="style-card text more-ideas" onClick={() => setAll(true)}>Ver todas<em>{LED_MODELS.length} ideas</em></button>}
       </div>
     </div>
   )
+}
+
+// Desglose en lenguaje de cliente: el letrero completo y luego cada extra que eligió
+function commercialLines(lines) {
+  const extra = /marco|halo|wifi|acabado|vinil|montaje|colgante|bandera|base|instalaci/i
+  const main = lines.filter((l) => !extra.test(l.label))
+  const rest = lines.filter((l) => extra.test(l.label))
+  return [{ label: 'Letrero LED (placa, LED, armado y fuente)', amount: main.reduce((a, l) => a + l.amount, 0) }, ...rest]
 }
 
 function Section({ n, title, hint, children }) {
@@ -822,7 +875,7 @@ function ColorMix({ value, onChange }) {
           <span className="led" style={{ '--led': c.hex }} />
         </button>
       ))}
-      <span className="muted small">{ledColorById(value[key]).name} · {ledColorById(value[key]).nm}</span>
+      <span className="muted small">{ledColorById(value[key]).name}</span>
     </div>
   )
   return (

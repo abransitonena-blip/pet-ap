@@ -102,8 +102,8 @@ export const ANIMATIONS = [
 ]
 
 export const POWER = [
-  { id: '127v', name: '127 V capacitiva', note: 'Tipo Radox · placa B' },
-  { id: '12v', name: '12 V eliminador', note: 'Más segura · resistencias' }
+  { id: '127v', name: 'Directo a la corriente', note: 'Se conecta a 127 V, como los letreros tipo Radox' },
+  { id: '12v', name: 'Con eliminador de 12 V', note: 'Bajo voltaje en el letrero; el eliminador va al contacto' }
 ]
 
 // Modelos de placa (forma) y de montaje
@@ -293,7 +293,7 @@ export function normalizeLedDesign(input) {
     ledMm: oneOf(Number(d.ledMm), LED_SIZES, 5),
     animation: oneOf(d.animation, ANIMATIONS.map((a) => a.id), 'fijo'),
     power: oneOf(d.power, POWER.map((p) => p.id), '127v'),
-    extras: Array.isArray(d.extras) ? d.extras.filter((e) => e === 'instalacion') : [],
+    extras: [], // la instalación se elige al pedir (forma de recibir)
     lines,
     dots
   }

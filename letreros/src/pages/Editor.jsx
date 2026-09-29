@@ -182,7 +182,7 @@ export default function Editor() {
               ))}
             </div>
             <div className="list extras">
-              {EXTRAS.map((ex) => {
+              {EXTRAS.filter((ex) => ex.id !== 'instalacion').map((ex) => {
                 const on = design.extras.includes(ex.id)
                 return (
                   <button

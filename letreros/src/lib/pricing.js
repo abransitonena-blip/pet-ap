@@ -87,12 +87,8 @@ function quoteLed(design, qty, prices) {
   const { areaM2, parts } = ledQuoteParts(design, prices)
   const perPiece = parts.reduce((a, p) => a + p.amount, 0)
   const lines = parts.map((p) => ({ label: p.label, amount: round2(p.amount * qty) }))
-  let perOrder = 0
-  if (design.extras?.includes('instalacion')) {
-    perOrder = prices.led?.installation ?? extraPrice('instalacion', prices)
-    lines.push({ label: 'Instalación', amount: perOrder })
-  }
-  return finishQuote(qty, areaM2, perPiece, perOrder, lines, prices)
+  // La instalación ya no es parte del diseño: se cobra según la forma de recibir (deliveryCharges)
+  return finishQuote(qty, areaM2, perPiece, 0, lines, prices)
 }
 
 // `prices`: tabla de precios editable desde el panel (por defecto, la de fábrica)
@@ -120,7 +116,7 @@ export function quote(design, prices = DEFAULT_PRICES) {
 
   for (const id of extras) {
     const ex = extraById(id)
-    if (!ex) continue
+    if (!ex || ex.id === 'instalacion') continue
     let amount
     const price = extraPrice(ex.id, prices)
     if (ex.per === 'm2') {

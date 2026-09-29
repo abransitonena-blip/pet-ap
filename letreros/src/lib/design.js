@@ -135,15 +135,16 @@ export function newLine(overrides = {}) {
 
 export function defaultDesign() {
   return {
+    // Empieza con lo básico (lona impresa, sin luz): el cliente sube de nivel si lo necesita
     widthCm: 120,
     heightCm: 60,
-    material: 'acrilico',
+    material: 'lona',
     extras: [],
     align: 'center',
     palette: 'noche',
     colors: { ...PALETTES[3].colors },
     border: { width: 6, radius: 30 },
-    led: { mode: 'neon' },
+    led: { mode: 'none' },
     icon: '',
     iconSize: 20,
     lines: [

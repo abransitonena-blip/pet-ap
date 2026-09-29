@@ -39,7 +39,7 @@ const login = async (username, password) => {
 }
 
 const ledOrder = {
-  customer: { name: 'Cliente Prueba', phone: '5512345678', delivery: 'envio' },
+  customer: { name: 'Cliente Prueba', phone: '5512345678', delivery: 'envio', cp: '06700', address: 'Álvaro Obregón 120, Roma Norte' },
   design: { kind: 'led', widthCm: 30, heightCm: 15, lines: [{ text: 'HOLA' }], dots: [[10, 10, 0, 0], [20, 10, 0, 1]] },
   quantity: 1
 }
@@ -72,6 +72,13 @@ test('flujo completo: pedido, presupuesto público, aceptar y permisos', async (
   assert.equal(orders.body[0].customer.phone, '', 'producción no ve teléfonos')
   assert.equal(orders.body[0].totals, null, 'producción no ve montos')
   const id = orders.body[0].id
+  // Aprobado pero sin anticipo: el taller no puede empezar a fabricar
+  const blocked = await call('PATCH', `/admin/orders/${id}`, { status: 'imprimiendo' }, taller)
+  assert.equal(blocked.status, 409)
+  assert.deepEqual(blocked.body.missing, ['anticipo'])
+  assert.equal((await call('PATCH', `/admin/orders/${id}`, { status: 'imprimiendo', override: true }, taller)).status, 409, 'el taller no autoriza excepciones')
+  const deposit = (await call('GET', '/admin/orders', null, owner)).body.find((o) => o.id === id).totals.deposit
+  await call('POST', `/admin/orders/${id}/payments`, { amount: deposit, method: 'transferencia', reference: 'SPEI-001' }, owner)
   assert.equal((await call('PATCH', `/admin/orders/${id}`, { status: 'imprimiendo' }, taller)).status, 200)
   assert.equal((await call('PATCH', `/admin/orders/${id}`, { adjust: {} }, taller)).status, 403)
   assert.equal((await call('PUT', '/admin/settings/prices', {}, taller)).status, 403)
@@ -123,7 +130,7 @@ test('opiniones verificadas y fotos reales', async () => {
   assert.equal(early.status, 400, 'no se puede opinar antes de terminar')
 
   const order = (await call('GET', '/admin/orders', null, owner)).body.find((o) => o.folio === folio)
-  await call('PATCH', `/admin/orders/${order.id}`, { status: 'entregado' }, owner)
+  await call('PATCH', `/admin/orders/${order.id}`, { status: 'entregado', override: true, overrideReason: 'Prueba' }, owner)
 
   const fake = 'data:image/png;base64,' + Buffer.from('<svg>no es png</svg>').toString('base64')
   assert.equal((await call('POST', `/admin/orders/${order.id}/photos`, { image: fake }, owner)).status, 400)
@@ -214,7 +221,7 @@ test('inventario: se descuenta una sola vez al terminar el letrero', async () =>
   assert.equal(put.body.items.hacker, undefined)
   const made = await call('POST', '/orders', { ...ledOrder, design: { ...ledOrder.design, lines: [{ text: 'HOLA', color: 'rojo' }], wifi: true } })
   const id = (await call('GET', '/admin/orders', null, owner)).body.find((o) => o.folio === made.body.folio).id
-  assert.equal((await call('PATCH', `/admin/orders/${id}`, { status: 'impreso' }, owner)).status, 200)
+  assert.equal((await call('PATCH', `/admin/orders/${id}`, { status: 'impreso', override: true }, owner)).status, 200)
   await call('PATCH', `/admin/orders/${id}`, { status: 'entregado' }, owner)
   const inv = (await call('GET', '/admin/inventory', null, owner)).body.items
   assert.equal(inv['led-rojo'].qty, 97, '2 LED + 5 % redondeado hacia arriba = 3, una sola vez')

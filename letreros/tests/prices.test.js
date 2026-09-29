@@ -27,7 +27,9 @@ test('descuento por volumen según los escalones', () => {
 
 test('cotización con precios de fábrica (valores de referencia)', () => {
   assert.equal(quote({ ...led120(), quantity: 1 }).total, 920)
-  assert.equal(quote({ ...defaultDesign(), quantity: 2 }).total, 5236)
+  assert.equal(quote({ ...defaultDesign(), material: 'acrilico', led: { mode: 'neon' }, quantity: 2 }).total, 5236)
+  // El impreso empieza con lo básico (lona sin luz), no con la opción más cara
+  assert.equal(quote({ ...defaultDesign(), quantity: 2 }).total, 300)
 })
 
 test('los precios del panel cambian la cotización', () => {

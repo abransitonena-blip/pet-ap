@@ -319,3 +319,89 @@ export const COMMERCIAL_CALENDAR = [
   { month: 11, name: 'El Buen Fin (mediados de noviembre)' },
   { month: 12, name: 'Navidad: regalos personalizados y fachadas de temporada' }
 ]
+
+// ---------- Atención y garantía (expedientes) ----------
+export const CASE_KINDS = [
+  { id: 'consulta', name: 'Consulta o ayuda para diseñar' },
+  { id: 'cotizacion', name: 'Duda de cotización o cobro' },
+  { id: 'entrega', name: 'Entrega o instalación' },
+  { id: 'incidencia', name: 'Problema con el letrero' },
+  { id: 'garantia', name: 'Garantía' },
+  { id: 'acceso', name: 'Recuperar acceso a la cuenta' }
+]
+export const CASE_PRIORITIES = [
+  { id: 'urgente', name: 'Urgente', minutes: 30, note: 'Impide usar el pedido o incidente durante la instalación' },
+  { id: 'alta', name: 'Alta', minutes: 120, note: 'Fecha comprometida incumplida o cobro por aclarar' },
+  { id: 'normal', name: 'Normal', minutes: 240, note: 'Duda de material, diseño o cotización' }
+]
+export const CASE_STATES = [
+  { id: 'abierto', name: 'Abierto' },
+  { id: 'en_proceso', name: 'En proceso' },
+  { id: 'esperando', name: 'Esperando al cliente' },
+  { id: 'resuelto', name: 'Resuelto' }
+]
+export const WARRANTY_DECISIONS = [
+  { id: 'pendiente', name: 'En revisión' },
+  { id: 'aprobada', name: 'Aprobada' },
+  { id: 'rechazada', name: 'No aplica' }
+]
+export const WARRANTY_REMEDIES = [
+  { id: '', name: '—' },
+  { id: 'reparacion', name: 'Reparación' },
+  { id: 'reposicion', name: 'Reposición' },
+  { id: 'devolucion', name: 'Devolución' }
+]
+export const caseKindName = (id) => CASE_KINDS.find((k) => k.id === id)?.name || 'Consulta'
+// Prioridad sugerida según el motivo (el equipo la puede cambiar)
+export const defaultPriority = (kind) => (kind === 'incidencia' ? 'urgente' : ['garantia', 'cotizacion', 'entrega'].includes(kind) ? 'alta' : 'normal')
+
+// Horario de atención (México, UTC−6 todo el año): lunes a sábado de 9 a 19 h
+const MX_OFFSET = -6
+const OPEN_H = 9
+const CLOSE_H = 19
+// Fecha límite de primera respuesta: suma minutos solo dentro del horario de atención
+export function slaDue(priority, from = new Date()) {
+  const minutes = CASE_PRIORITIES.find((p) => p.id === priority)?.minutes || 240
+  let t = new Date(from).getTime() + MX_OFFSET * 3600e3 // hora local como si fuera UTC
+  let left = minutes
+  for (let guard = 0; left > 0 && guard < 5000; guard++) {
+    const d = new Date(t)
+    const h = d.getUTCHours() + d.getUTCMinutes() / 60
+    if (d.getUTCDay() === 0 || h >= CLOSE_H) {
+      d.setUTCDate(d.getUTCDate() + 1)
+      d.setUTCHours(OPEN_H, 0, 0, 0)
+      t = d.getTime()
+      continue
+    }
+    if (h < OPEN_H) {
+      d.setUTCHours(OPEN_H, 0, 0, 0)
+      t = d.getTime()
+      continue
+    }
+    const untilClose = (CLOSE_H - h) * 60
+    const step = Math.min(left, untilClose)
+    t += step * 60e3
+    left -= step
+  }
+  return new Date(t - MX_OFFSET * 3600e3).toISOString()
+}
+
+export function normalizeCase(c = {}) {
+  const warranty = c.kind === 'garantia'
+  return {
+    title: text(c.title, 140),
+    kind: pick(CASE_KINDS, c.kind, 'consulta'),
+    priority: pick(CASE_PRIORITIES, c.priority, defaultPriority(c.kind)),
+    status: pick(CASE_STATES, c.status, 'abierto'),
+    owner: text(c.owner, 64),
+    orderId: text(c.orderId, 64),
+    folio: text(c.folio, 20).toUpperCase(),
+    contact: { name: text(c.contact?.name, 80), phone: text(c.contact?.phone, 20), email: text(c.contact?.email, 120) },
+    nextAction: text(c.nextAction, 200),
+    resolution: text(c.resolution, 1000),
+    warranty: warranty
+      ? { decision: pick(WARRANTY_DECISIONS, c.warranty?.decision, 'pendiente'), remedy: pick(WARRANTY_REMEDIES, c.warranty?.remedy, '') }
+      : null
+  }
+}
+export const caseOverdue = (c, now = Date.now()) => c.status !== 'resuelto' && !c.firstResponseAt && c.dueAt && new Date(c.dueAt).getTime() < now

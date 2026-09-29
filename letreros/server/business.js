@@ -2,6 +2,7 @@
 // finanzas (gastos) y marketing (calendario de contenido y cupones).
 import crypto from 'node:crypto'
 import {
+  CASE_PRIORITIES, caseKindName, normalizeCase, slaDue,
   mergeHr, normalizeCoupon, normalizeEmployee, normalizeExpense, normalizePost, normalizeTask, couponCheck, couponLabel
 } from '../src/lib/business.js'
 
@@ -12,8 +13,29 @@ export const mxNow = () => {
 }
 
 export function loadBusiness(db) {
-  for (const k of ['tasks', 'employees', 'attendance', 'expenses', 'coupons', 'posts']) db[k] = Array.isArray(db[k]) ? db[k] : []
+  for (const k of ['tasks', 'employees', 'attendance', 'expenses', 'coupons', 'posts', 'cases']) db[k] = Array.isArray(db[k]) ? db[k] : []
   db.settings.hr = mergeHr(db.settings.hr)
+}
+
+// Crea un expediente de atención con folio corto (C-0001), fecha límite de respuesta e historial
+export function newCase(db, fields, by) {
+  const now = new Date().toISOString()
+  db.caseSeq = (db.caseSeq || 0) + 1
+  const c = {
+    id: crypto.randomUUID(),
+    code: `C-${String(db.caseSeq).padStart(4, '0')}`,
+    ...normalizeCase(fields),
+    source: fields.source === 'cliente' ? 'cliente' : 'equipo',
+    createdAt: now,
+    updatedAt: now,
+    firstResponseAt: null,
+    resolvedAt: null,
+    events: [{ at: now, by, text: fields.message ? String(fields.message).slice(0, 1500) : 'Expediente abierto' }]
+  }
+  c.dueAt = slaDue(c.priority, now)
+  if (!c.title) c.title = caseKindName(c.kind)
+  db.cases.unshift(c)
+  return c
 }
 
 // Cupón válido para un total: { coupon, discountPct, discountAmt } o { error }
@@ -162,6 +184,49 @@ export function registerBusiness(api, { requireUser, need, can, mutate, h, owner
     res.json(rec)
   }))
 
+  // ---------- Atención y garantía ----------
+  const CASE_PERMS = ['atencion', 'pedidos']
+  api.get('/admin/cases', requireUser, need(...CASE_PERMS), (req, res) => res.json(req.db.cases))
+  api.post('/admin/cases', requireUser, need(...CASE_PERMS), h(async (req, res) => {
+    const c = await mutate((db) => {
+      const o = req.body?.orderId ? db.orders.find((x) => x.id === req.body.orderId) : null
+      return newCase(db, { ...req.body, folio: o?.folio || req.body?.folio, contact: o ? { name: o.customer.name, phone: o.customer.phone } : req.body?.contact }, req.user.name)
+    })
+    res.status(201).json(c)
+  }))
+  api.patch('/admin/cases/:id', requireUser, need(...CASE_PERMS), h(async (req, res) => {
+    const b = req.body || {}
+    const r = await mutate((db) => {
+      const c = db.cases.find((x) => x.id === req.params.id)
+      if (!c) return { save: false, missing: true }
+      const now = new Date().toISOString()
+      const next = normalizeCase({ ...c, ...b, warranty: b.warranty ? { ...(c.warranty || {}), ...b.warranty } : c.warranty })
+      // No se cierra solo porque alguien respondió: resolver exige describir la resolución
+      if (next.status === 'resuelto' && !next.resolution) return { save: false, error: 'Escribe cómo se resolvió antes de cerrar' }
+      if (next.owner && ![owner.id, ...db.users.map((u) => u.id)].includes(next.owner)) return { save: false, error: 'Esa persona no existe' }
+      const log = []
+      if (next.status !== c.status) log.push(`Estado: ${next.status}`)
+      if (next.priority !== c.priority) {
+        log.push(`Prioridad: ${next.priority}`)
+        if (!c.firstResponseAt) c.dueAt = slaDue(next.priority, c.createdAt)
+      }
+      if (next.owner !== c.owner) log.push(`Responsable: ${[owner, ...db.users].find((u) => u.id === next.owner)?.name || 'sin asignar'}`)
+      if (c.warranty && next.warranty && next.warranty.decision !== c.warranty.decision) log.push(`Garantía: ${next.warranty.decision}`)
+      const note = String(b.note || '').trim().slice(0, 1500)
+      if (note) log.push(note)
+      // Primera respuesta del equipo: una nota o sacar el caso de "abierto"
+      if (!c.firstResponseAt && (note || next.status !== 'abierto')) c.firstResponseAt = now
+      if (next.status === 'resuelto' && c.status !== 'resuelto') c.resolvedAt = now
+      if (next.status !== 'resuelto') c.resolvedAt = null
+      Object.assign(c, next, { updatedAt: now })
+      if (log.length) c.events.push({ at: now, by: req.user.name, text: log.join(' · ') })
+      return c
+    })
+    if (r.missing) return res.status(404).json({ error: 'Expediente no encontrado' })
+    if (r.error) return res.status(400).json({ error: r.error })
+    res.json(r)
+  }))
+
   // ---------- Finanzas ----------
   collection('expenses', 'expenses', normalizeExpense, {
     read: ['finanzas'],
@@ -189,6 +254,27 @@ export function registerBusiness(api, { requireUser, need, can, mutate, h, owner
       return db.coupons.some((x) => x.code === c.code) ? 'Ese código ya existe' : null
     }
   })
+}
+
+// Público: “Necesito ayuda” crea un expediente (con pedido si da folio y los 4 últimos dígitos de su WhatsApp)
+export function registerPublicHelp(api, { mutate, h, limit, countEvent, normalizePhone }) {
+  api.post('/public/help', limit, h(async (req, res) => {
+    const b = req.body || {}
+    const name = String(b.name || '').trim().slice(0, 80)
+    const phone = normalizePhone(b.phone)
+    const message = String(b.message || '').trim().slice(0, 1500)
+    if (!name) return res.status(400).json({ error: 'Escribe tu nombre', field: 'name' })
+    if (phone.error) return res.status(400).json({ error: phone.error, field: 'phone' })
+    if (message.length < 5) return res.status(400).json({ error: 'Cuéntanos en qué te ayudamos', field: 'message' })
+    const kind = ['consulta', 'cotizacion', 'entrega', 'incidencia', 'garantia'].includes(b.kind) ? b.kind : 'consulta'
+    const c = await mutate((db) => {
+      const folio = String(b.folio || '').trim().toUpperCase()
+      const o = folio ? db.orders.find((x) => x.folio === folio && String(x.customer?.phone || '').replace(/\D/g, '').endsWith(phone.phone.replace(/\D/g, '').slice(-4))) : null
+      countEvent(db, 'support_opened')
+      return newCase(db, { kind, source: 'cliente', message, orderId: o?.id || '', folio: o ? o.folio : '', contact: { name, phone: phone.phone } }, `Cliente · ${name}`)
+    })
+    res.status(201).json({ code: c.code, dueAt: c.dueAt, priority: CASE_PRIORITIES.find((p) => p.id === c.priority).name })
+  }))
 }
 
 // Versión pública (necesita la base cargada sin sesión)

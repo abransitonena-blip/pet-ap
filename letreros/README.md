@@ -192,6 +192,19 @@ letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, dato
 - **Control WiFi** opcional para el cliente (Sonoff Basic R2: horario y encendido desde el celular),
   con precio, costo y 6 proveedores en el directorio
 
+## 🧾 Auditoría (28-sep-2026)
+
+Los 25 hallazgos y las tareas CPQ / OPS / CX / ENG están en `docs/auditoria-implementacion.md`, con su estado.
+Resumen de lo implementado:
+- Una sola regla de envío e instalación.
+- Presupuestos versionados con aceptación por versión.
+- No se fabrica sin aprobación y anticipo; las excepciones quedan registradas.
+- Pagos con referencia única y reintentos sin duplicar (`Idempotency-Key`).
+- Expedientes de atención y garantía con fecha límite de respuesta.
+- Seguimiento protegido con los últimos 4 dígitos del WhatsApp.
+- Recuperación de contraseña asistida.
+- Ventanas accesibles y embudo de eventos anónimos.
+
 ## 🗄️ Base de datos, cuentas y marca
 
 - **PostgreSQL** (Neon, Supabase o cualquiera): se activa con `DATABASE_URL` o `POSTGRES_URL`.

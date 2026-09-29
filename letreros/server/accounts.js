@@ -71,7 +71,7 @@ const accountOrder = (o) => ({
 })
 
 export function registerAccounts(api, ctx) {
-  const { mutate, h, hashPassword, checkPassword, createToken, readToken, loadDb, authLimit } = ctx
+  const { mutate, h, hashPassword, checkPassword, createToken, readToken, loadDb, authLimit, requireUser, need, newCase } = ctx
 
   // Sesión de cliente: token firmado con uid "c:<id>"
   const customerFrom = async (req) => {
@@ -178,6 +178,54 @@ export function registerAccounts(api, ctx) {
       return x
     })
     res.json(publicAccount(c))
+  }))
+
+  // ---------- Recuperar acceso (asistido) ----------
+  // Sin servicio de correo configurado: la solicitud abre un expediente y el equipo manda un enlace de un solo uso
+  // (válido 1 hora) por WhatsApp o correo. La respuesta es la misma exista o no la cuenta.
+  const sha = (t) => crypto.createHash('sha256').update(String(t)).digest('hex')
+  api.post('/auth/forgot', authLimit, h(async (req, res) => {
+    const email = clean(req.body?.email, 120).toLowerCase()
+    if (!emailOk(email)) return res.status(400).json({ error: 'El correo no es válido' })
+    await mutate((db) => {
+      const c = db.customers.find((x) => x.email === email)
+      if (!c) return { save: false }
+      if (!c.pass && c.googleSub) return { save: false } // entra con Google
+      if (c.resetRequestedAt && Date.now() - new Date(c.resetRequestedAt).getTime() < 15 * 60e3) return { save: false }
+      c.resetRequestedAt = new Date().toISOString()
+      newCase(db, { kind: 'acceso', source: 'cliente', message: `Pide recuperar el acceso a su cuenta (${email}).`, contact: { name: c.name, phone: c.phone || '', email }, customerId: c.id }, `Cliente · ${c.name}`)
+      return {}
+    })
+    res.json({ ok: true, message: 'Si hay una cuenta con ese correo, te contactamos para restablecer tu contraseña. Si entras con Google, usa ese botón.' })
+  }))
+
+  api.post('/admin/customers/reset-link', requireUser, need('atencion', 'pedidos'), h(async (req, res) => {
+    const email = clean(req.body?.email, 120).toLowerCase()
+    const token = crypto.randomBytes(24).toString('base64url')
+    const r = await mutate((db) => {
+      const c = db.customers.find((x) => x.email === email)
+      if (!c) return { save: false, missing: true }
+      c.reset = { hash: sha(token), until: Date.now() + 3600e3, by: req.user.name }
+      return { c }
+    })
+    if (r.missing) return res.status(404).json({ error: 'No hay una cuenta con ese correo' })
+    res.json({ path: `#/cuenta/restablecer/${token}`, until: new Date(Date.now() + 3600e3).toISOString(), name: r.c.name, phone: r.c.phone || '' })
+  }))
+
+  api.post('/auth/reset', authLimit, h(async (req, res) => {
+    const password = String(req.body?.password || '')
+    if (password.length < 8) return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' })
+    const hash = sha(req.body?.token || '')
+    const r = await mutate((db) => {
+      const c = db.customers.find((x) => x.reset && x.reset.hash === hash)
+      if (!c || c.reset.until < Date.now()) return { save: false, invalid: true }
+      c.pass = hashPassword(password)
+      delete c.reset
+      delete c.resetRequestedAt
+      return { c }
+    })
+    if (r.invalid) return res.status(400).json({ error: 'El enlace ya no es válido. Pide uno nuevo.' })
+    res.json(session(r.c))
   }))
 
   return { customerFrom }

@@ -8,6 +8,7 @@ import Market from './Market'
 import Prospects from './Prospects'
 import Suppliers from './Suppliers'
 import Tasks from './Tasks'
+import Support from './Support'
 import GoogleButton from '../components/GoogleButton'
 import Finance from './Finance'
 import HR from './HR'
@@ -132,6 +133,7 @@ const materialName = (d) => (d.kind === 'led' ? boardMaterialById(d.material).na
 const SECTIONS = [
   { id: 'resumen', label: 'Resumen', perms: [] },
   { id: 'tareas', label: 'Tareas', perms: [] },
+  { id: 'atencion', label: 'Atención', perms: ['atencion', 'pedidos'] },
   { id: 'pedidos', label: 'Pedidos', perms: ['pedidos'] },
   { id: 'presupuestos', label: 'Presupuestos', perms: ['presupuestos'] },
   { id: 'produccion', label: 'Producción', perms: ['produccion', 'editar'] },
@@ -304,8 +306,19 @@ function Dashboard({ onLogout }) {
       alert(err.message)
     }
   }
-  const updateOrder = (id, patch) => handle(() => api.updateOrder(id, patch))
-  const addPayment = (id, p) => handle(() => api.addPayment(id, p))
+  const updateOrder = (id, patch) =>
+    handle(async () => {
+      try {
+        await api.updateOrder(id, patch)
+      } catch (err) {
+        if (err.code !== 'gate') throw err
+        if (!can('presupuestos', 'delegar', 'equipo')) throw new Error(`${err.message} Pide a quien autoriza presupuestos que lo revise.`)
+        const reason = prompt(`${err.message}\n\n¿Autorizar la excepción? Escribe el motivo (quedará en el historial):`)
+        if (reason === null) return
+        await api.updateOrder(id, { ...patch, override: true, overrideReason: reason })
+      }
+    })
+  const addPayment = (id, p) => handle(() => api.addPayment(id, p, p.idem))
   const addPhotos = (id, files) =>
     handle(async () => {
       for (const file of files) await api.addPhoto(id, await fileToJpeg(file))
@@ -375,6 +388,7 @@ function Dashboard({ onLogout }) {
           <>
             {active.id === 'resumen' && <Overview stats={stats} orders={orders} onOpen={open} showMoney={can('ventas')} onInventory={() => { setSupTab('inventario'); setSection('proveedores') }} />}
             {active.id === 'tareas' && <Tasks me={me} orders={orders} can={can} onOpenOrder={open} />}
+            {active.id === 'atencion' && <Support people={people} orders={orders} onOpenOrder={open} />}
             {active.id === 'finanzas' && <Finance orders={orders} settings={settings} />}
             {active.id === 'rrhh' && <HR settings={settings} onSettings={setSettings} canEdit={can('rrhh')} />}
             {active.id === 'marketing' && <Marketing orders={orders} settings={settings} canEdit={can('marketing')} />}
@@ -472,6 +486,7 @@ function Overview({ stats, orders, onOpen, showMoney, onInventory }) {
           </div>
         ))}
       </div>
+      {showMoney && <Funnel />}
       {orders.length > 0 && (
         <section className="card activity-card">
           <h2>Actividad</h2>
@@ -773,11 +788,17 @@ function Payments({ order, onAdd, onDelete, canEdit }) {
   const suggested = pay.paid < totals.deposit ? totals.deposit - pay.paid : pay.balance
   const [amount, setAmount] = useState(String(suggested || ''))
   const [method, setMethod] = useState('transferencia')
+  const [reference, setReference] = useState('')
+  const idem = useRef('')
   const pct = totals.total ? Math.min(100, (pay.paid / totals.total) * 100) : 0
   const depPct = totals.total ? (totals.deposit / totals.total) * 100 : 0
   const submit = (e) => {
     e.preventDefault()
-    if (Number(amount) > 0) onAdd({ amount: Number(amount), method })
+    if (!(Number(amount) > 0)) return
+    // Misma clave mientras no cambie el pago: un doble clic o reintento no lo registra dos veces
+    const sig = `${amount}|${method}|${reference}`
+    if (!idem.current.startsWith(sig)) idem.current = `${sig}|${Date.now()}`
+    onAdd({ amount: Number(amount), method, reference, idem: idem.current.replace(/[^\w-]/g, '-').slice(-90) })
   }
   return (
     <section className="payments">
@@ -797,7 +818,7 @@ function Payments({ order, onAdd, onDelete, canEdit }) {
           {payments.map((p) => (
             <li key={p.id}>
               <strong>{money(p.amount)}</strong>
-              <span className="muted small grow">{payMethodName(p.method)} · {fmtDate(p.at)}{p.by && ` · ${p.by}`}</span>
+              <span className="muted small grow">{payMethodName(p.method)}{p.reference && ` · ref. ${p.reference}`} · {fmtDate(p.at)}{p.by && ` · ${p.by}`}</span>
               {canEdit && <button className="link-btn danger small" onClick={() => confirm(`¿Quitar el pago de ${money(p.amount)}?`) && onDelete(p.id)}>Quitar</button>}
             </li>
           ))}
@@ -809,6 +830,7 @@ function Payments({ order, onAdd, onDelete, canEdit }) {
           <select className="input" value={method} onChange={(e) => setMethod(e.target.value)} aria-label="Forma de pago">
             {PAY_METHODS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
+          <input className="input" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Referencia / folio del pago" aria-label="Referencia del pago" />
           <button className="btn primary sm">Registrar pago</button>
         </form>
       )}
@@ -1044,6 +1066,10 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDel
             </section>
 
             <Assignee order={order} people={people} canAssign={can('delegar', 'equipo')} onUpdate={onUpdate} />
+            <p className={`version-line ${order.acceptedVersion === order.version ? 'ok' : 'pending'}`}>
+              Presupuesto versión <b>{order.version}</b> · {order.acceptedVersion === order.version ? `aprobada por el cliente${order.acceptances?.at(-1) ? ` el ${fmtDate(order.acceptances.at(-1).at)}` : ''}` : order.acceptedVersion ? `el cliente aprobó la versión ${order.acceptedVersion}; falta aprobar la ${order.version}` : 'sin aprobar'}
+              {order.customer.cp && <> · CP {order.customer.cp}</>}
+            </p>
 
             {d.kind === 'led' ? <LedSpecs order={order} /> : (
             <section className="spec-grid">
@@ -1081,6 +1107,7 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDel
                   {order.customer.date && <> · para el <b>{new Date(order.customer.date + 'T12:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}</b></>}
                 </p>
               )}
+              {order.customer.address && <p className="small">Domicilio: {order.customer.address}{order.customer.cp && `, CP ${order.customer.cp}`}</p>}
               {order.customer.notes && <p className="note">{order.customer.notes}</p>}
               {(order.customer.source || order.customer.ref || order.coupon) && (
                 <p className="small muted">
@@ -1207,6 +1234,44 @@ function Assignee({ order, people, canAssign, onUpdate }) {
       ) : (
         <p>{who ? <><span className="avatar xs">{who.name.slice(0, 1)}</span> {who.name}</> : <span className="muted">Sin asignar</span>}</p>
       )}
+    </section>
+  )
+}
+
+// Embudo de 30 días con eventos anónimos: diseñar → solicitar → aceptar → anticipo → entregar
+const FUNNEL = [
+  ['design_started', 'Empezaron a diseñar'],
+  ['quote_requested', 'Solicitaron cotización'],
+  ['quote_viewed', 'Vieron su presupuesto'],
+  ['quote_accepted', 'Aceptaron'],
+  ['deposit_confirmed', 'Anticipo confirmado'],
+  ['order_delivered', 'Entregados']
+]
+function Funnel() {
+  const [m, setM] = useState(null)
+  useEffect(() => {
+    api.metrics().then(setM).catch(() => setM({}))
+  }, [])
+  if (!m) return null
+  const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+  const sum = (k) => Object.entries(m).filter(([d]) => d >= since).reduce((a, [, v]) => a + (v[k] || 0), 0)
+  const rows = FUNNEL.map(([k, label]) => ({ k, label, n: sum(k), mobile: sum(`${k}:movil`) }))
+  const max = Math.max(1, ...rows.map((r) => r.n))
+  const support = sum('support_opened')
+  return (
+    <section className="card funnel-card">
+      <h2>Embudo · últimos 30 días</h2>
+      <ul className="funnel">
+        {rows.map((r, i) => (
+          <li key={r.k}>
+            <span className="funnel-label">{r.label}</span>
+            <span className="funnel-bar"><i style={{ width: `${(r.n / max) * 100}%` }} /></span>
+            <b>{r.n}</b>
+            <em className="muted small">{i > 0 && rows[i - 1].n ? `${Math.round((r.n / rows[i - 1].n) * 100)} % del paso anterior` : r.mobile ? `${r.mobile} en celular` : ''}</em>
+          </li>
+        ))}
+      </ul>
+      <p className="muted small">Casos de ayuda abiertos: {support}. Conteos anónimos (sin datos personales). Con poco tráfico, compáralos junto con pruebas con clientes antes de sacar conclusiones.</p>
     </section>
   )
 }

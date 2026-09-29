@@ -432,7 +432,10 @@ export function Business({ settings, onSaved }) {
         <label className="field"><span>WhatsApp</span><input className="input" value={b.whatsapp} onChange={set('whatsapp')} placeholder="55 1234 5678" /></label>
         <label className="field"><span>Correo</span><input className="input" value={b.email} onChange={set('email')} /></label>
         <label className="field"><span>Ciudad</span><input className="input" value={b.city} onChange={set('city')} /></label>
-        <label className="field wide"><span>Dirección</span><input className="input" value={b.address} onChange={set('address')} /></label>
+        <label className="field wide"><span>Dirección para recoger (se muestra al cliente)</span><input className="input" value={b.address} onChange={set('address')} /></label>
+        <label className="field wide"><span>Horario de atención y para recoger</span><input className="input" value={b.hours} onChange={set('hours')} placeholder="Lun a Sáb de 10 a 19 h" /></label>
+        <label className="field wide"><span>Zonas donde instalamos</span><input className="input" value={b.installZones} onChange={set('installZones')} placeholder="CDMX y área metropolitana" /></label>
+        {!(b.whatsapp || b.email) && <p className="warn-text small wide">Sin WhatsApp ni correo el cliente no sabe a quién escribir: llénalos antes de atraer más visitas.</p>}
       </section>
       <section className="card form-grid">
         <label className="field"><span>IVA %</span><input className="input" type="number" min="0" max="30" value={b.ivaRate} onChange={set('ivaRate')} /></label>
@@ -445,6 +448,8 @@ export function Business({ settings, onSaved }) {
         <label className="field"><span>Costo de envío</span><input className="input" type="number" min="0" value={b.shippingCost} onChange={set('shippingCost')} /></label>
         <label className="field"><span>Envío gratis desde (0 = nunca)</span><input className="input" type="number" min="0" value={b.freeShippingFrom} onChange={set('freeShippingFrom')} /></label>
         <label className="field wide"><span>Datos para pago (banco, CLABE, titular)</span><textarea className="input" rows="2" value={b.bank} onChange={set('bank')} /></label>
+        <label className="field wide"><span>Cuándo empieza el plazo de entrega (se muestra al cliente)</span><textarea className="input" rows="2" value={b.leadTimeNote} onChange={set('leadTimeNote')} /></label>
+        <label className="field wide"><span>Garantía: qué cubre, qué no y cómo se pide (publica solo lo que el taller cumple)</span><textarea className="input" rows="3" value={b.warrantyNote} onChange={set('warrantyNote')} placeholder="Cubre LED y fuente por defectos de fabricación. No cubre golpes ni… Para usarla, abre un caso con tu folio y una foto." /></label>
         <label className="field wide"><span>Términos y condiciones</span><textarea className="input" rows="4" value={b.terms} onChange={set('terms')} /></label>
       </section>
       <section className="card form-grid">

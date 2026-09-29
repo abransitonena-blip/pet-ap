@@ -6,7 +6,7 @@ import crypto from 'node:crypto'
 
 // Listas del negocio: una fila por elemento
 export const COLLECTIONS = [
-  'orders', 'users', 'customers', 'leads', 'suppliers', 'tasks', 'employees', 'attendance', 'expenses', 'coupons', 'posts'
+  'orders', 'users', 'customers', 'leads', 'suppliers', 'tasks', 'employees', 'attendance', 'expenses', 'coupons', 'posts', 'cases'
 ]
 const LOCK_ID = 727274 // candado de escritura (cualquier número fijo)
 

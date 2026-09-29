@@ -46,6 +46,11 @@ export const DEFAULT_BUSINESS = {
   email: '',
   address: '',
   city: '',
+  hours: '', // horario para recoger / atención (ej. Lun a Sáb 10 a 19 h)
+  // Cuándo empieza a contar el plazo: coincide con la regla del sistema (fabricar requiere aprobación y anticipo)
+  leadTimeNote: 'El plazo cuenta a partir de que apruebas tu diseño y confirmamos tu anticipo. El envío se suma aparte.',
+  warrantyNote: '', // cobertura y exclusiones reales de la garantía (las define el taller)
+  installZones: '', // zonas o municipios donde instalamos (texto libre)
   ivaRate: 16,
   ivaIncluded: true,
   depositPct: 50,
@@ -78,14 +83,15 @@ export const PERMISSIONS = [
   { id: 'delegar', name: 'Asignar tareas y pedidos a otros' },
   { id: 'rrhh', name: 'Recursos humanos y nómina' },
   { id: 'finanzas', name: 'Gastos y utilidades' },
-  { id: 'marketing', name: 'Marketing, contenido y cupones' }
+  { id: 'marketing', name: 'Marketing, contenido y cupones' },
+  { id: 'atencion', name: 'Atención a clientes y garantías' }
 ]
 export const PERM_IDS = PERMISSIONS.map((p) => p.id)
 
 // Puestos listos para delegar: cada uno trae los permisos de su área
 export const ROLES = [
   { id: 'gerente', name: 'Gerente general', area: 'direccion', perms: PERM_IDS.filter((p) => p !== 'equipo') },
-  { id: 'ventas', name: 'Ventas y atención', area: 'ventas', perms: ['pedidos', 'editar', 'presupuestos', 'ventas'] },
+  { id: 'ventas', name: 'Ventas y atención', area: 'ventas', perms: ['pedidos', 'editar', 'presupuestos', 'ventas', 'atencion'] },
   { id: 'produccion', name: 'Producción', area: 'produccion', perms: ['pedidos', 'editar', 'produccion'] },
   { id: 'jefe-produccion', name: 'Jefe de producción', area: 'produccion', perms: ['pedidos', 'editar', 'produccion', 'delegar'] },
   { id: 'diseno', name: 'Diseño', area: 'diseno', perms: ['pedidos', 'editar', 'produccion'] },
@@ -137,6 +143,10 @@ export function mergeBusiness(input) {
     email: text(b.email, 80, d.email),
     address: text(b.address, 160, d.address),
     city: text(b.city, 60, d.city),
+    hours: text(b.hours, 120, d.hours),
+    leadTimeNote: text(b.leadTimeNote, 400, d.leadTimeNote),
+    warrantyNote: text(b.warrantyNote, 600, d.warrantyNote),
+    installZones: text(b.installZones, 300, d.installZones),
     ivaRate: num(b.ivaRate, d.ivaRate, 30),
     ivaIncluded: typeof b.ivaIncluded === 'boolean' ? b.ivaIncluded : d.ivaIncluded,
     depositPct: num(b.depositPct, d.depositPct, 100),
@@ -162,10 +172,10 @@ const safeUrl = (v) => {
 
 // Datos del negocio que se pueden mostrar al público
 export const publicBusiness = (b) => {
-  const { name, whatsapp, email, address, city, ivaRate, ivaIncluded, depositPct, validityDays, deliveryDays } = b
+  const { name, whatsapp, email, address, city, hours, leadTimeNote, warrantyNote, installZones, ivaRate, ivaIncluded, depositPct, validityDays, deliveryDays } = b
   const { warrantyMonths, shippingCost, freeShippingFrom, installments, googleReviewUrl, instagram, facebook } = b
   return {
-    name, whatsapp, email, address, city, ivaRate, ivaIncluded, depositPct, validityDays, deliveryDays,
+    name, whatsapp, email, address, city, hours, leadTimeNote, warrantyNote, installZones, ivaRate, ivaIncluded, depositPct, validityDays, deliveryDays,
     warrantyMonths, shippingCost, freeShippingFrom, installments, googleReviewUrl, instagram, facebook
   }
 }
@@ -173,6 +183,23 @@ export const publicBusiness = (b) => {
 // Envío: gratis desde cierto monto; si no, costo fijo
 export const shippingFor = (delivery, total, business) =>
   delivery === 'envio' && business.shippingCost > 0 && !(business.freeShippingFrom > 0 && total >= business.freeShippingFrom) ? business.shippingCost : 0
+
+// Cargos por la forma de recibir: una sola elección gobierna envío o instalación (nunca los dos, nunca doble).
+// Lo usan el configurador, el formulario y el servidor, así el desglose es el mismo en todos lados.
+export function deliveryCharges(delivery, total, business, prices = DEFAULT_PRICES, kind = 'led') {
+  if (delivery === 'envio') {
+    const s = shippingFor('envio', total, business)
+    return s ? [{ label: 'Envío a domicilio', amount: s }] : []
+  }
+  if (delivery === 'instalacion') {
+    const p = kind === 'led' ? prices.led?.installation : prices.extras?.instalacion
+    return p ? [{ label: 'Instalación (se confirma con tu código postal)', amount: p }] : []
+  }
+  return []
+}
+
+// ¿Tiene el negocio lo mínimo para que el cliente sepa a quién contactar?
+export const hasContact = (b) => Boolean((b?.whatsapp || '').replace(/\D/g, '') || b?.email)
 
 // Descuento por volumen según la tabla de precios
 export function volumeDiscount(qty, prices = DEFAULT_PRICES) {
@@ -241,7 +268,9 @@ export function normalizePayment(p = {}) {
   const amount = Math.round(Number(p.amount) * 100) / 100
   if (!Number.isFinite(amount) || amount <= 0 || amount > 10000000) return { error: 'Monto inválido' }
   const method = PAY_METHODS.some((m) => m.id === p.method) ? p.method : 'efectivo'
-  return { payment: { amount, method, note: String(p.note || '').trim().slice(0, 120) } }
+  // Referencia del movimiento (folio de transferencia, ticket): evita registrar el mismo pago dos veces
+  const reference = String(p.reference || '').trim().replace(/\s+/g, ' ').slice(0, 60)
+  return { payment: { amount, method, reference, note: String(p.note || '').trim().slice(0, 120) } }
 }
 
 // Estado de cobro: pagado, saldo y si ya cubre el anticipo

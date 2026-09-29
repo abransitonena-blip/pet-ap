@@ -3,6 +3,7 @@ import LedIcon from '../components/LedIcon'
 import DesignPreview from '../components/DesignPreview'
 import { Brand } from '../components/ApLogo'
 import { api } from '../lib/api'
+import { track } from '../lib/events'
 import { money } from '../lib/pricing'
 import { ANIMATIONS, MOUNTS, POWER, SHAPES, boardMaterialById, finishById } from '../lib/ledSign'
 import { materialById } from '../lib/pricing'
@@ -43,7 +44,10 @@ export default function QuotePage({ folio, token }) {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    api.quoteDoc(folio, token).then(setDoc).catch((e) => setError(e.message))
+    api.quoteDoc(folio, token).then((d) => {
+      setDoc(d)
+      track('quote_viewed', { once: true })
+    }).catch((e) => setError(e.message))
   }, [folio, token])
 
   const respond = async (accept) => {
@@ -69,8 +73,10 @@ export default function QuotePage({ folio, token }) {
 
   const b = doc.business
   const t = doc.totals
-  const expired = new Date(doc.validUntil) < new Date() && doc.quoteState !== 'aceptada'
+  const expired = doc.quoteState === 'vencida' || (new Date(doc.validUntil) < new Date() && doc.quoteState !== 'aceptada')
   const open = !expired && ['pendiente', 'enviada'].includes(doc.quoteState)
+  // Hay una versión nueva que el cliente todavía no aprueba
+  const newVersion = doc.acceptedVersion > 0 && doc.acceptedVersion !== doc.version
   const volume = doc.quote.discount > 0
 
   return (
@@ -100,7 +106,7 @@ export default function QuotePage({ folio, token }) {
           <div className="qd-title">
             <span>Presupuesto</span>
             <strong>{doc.folio}</strong>
-            <em>{fmt(doc.createdAt)}</em>
+            <em>{fmt(doc.createdAt)} · versión {doc.version}</em>
           </div>
         </header>
 
@@ -111,7 +117,7 @@ export default function QuotePage({ folio, token }) {
           <div>
             <span>Estado</span>
             <strong className={`qstate ${doc.quoteState}`}>
-              {{ pendiente: 'Por revisar', enviada: 'Por revisar', aceptada: 'Aceptado', rechazada: 'Rechazado' }[doc.quoteState]}
+              {{ pendiente: 'Por revisar', enviada: 'Por revisar', aceptada: 'Aceptado', rechazada: 'Rechazado', vencida: 'Vencido' }[doc.quoteState]}
               {doc.quoteState === 'aceptada' && ` · ${statusById(doc.status).label}`}
             </strong>
           </div>
@@ -166,9 +172,12 @@ export default function QuotePage({ folio, token }) {
 
         {doc.adjust.note && <p className="qd-note">{doc.adjust.note}</p>}
 
+        {doc.next && <p className="next-step-note no-print"><b>Siguiente paso:</b> {doc.next}</p>}
+        {newVersion && open && <p className="qd-note">Actualizamos tu presupuesto (versión {doc.version}). Revisa los cambios y acéptalo de nuevo para seguir; la versión {doc.acceptedVersion} ya no aplica.</p>}
+        {expired && <p className="qd-note">Este presupuesto venció. {b.whatsapp ? <a href={wa(b.whatsapp, `Hola, mi presupuesto ${doc.folio} venció. ¿Me mandan uno actualizado?`)} target="_blank" rel="noreferrer">Pide uno actualizado</a> : 'Escríbenos y te mandamos uno actualizado.'}</p>}
         {open && (
           <div className="qd-accept no-print">
-            <p>¿Todo bien? Acepta el presupuesto y empezamos tu letrero.</p>
+            <p>¿Todo bien? Al aceptar apruebas el diseño y el importe de la versión {doc.version}; después confirmamos tu anticipo ({b.depositPct} %) y empezamos a fabricar.</p>
             <div className="row">
               <button className="btn primary" disabled={busy} onClick={() => respond(true)}>Aceptar presupuesto</button>
               <button className="link-btn" disabled={busy} onClick={() => respond(false)}>Rechazar</button>
@@ -177,7 +186,7 @@ export default function QuotePage({ folio, token }) {
         )}
         {doc.quoteState === 'aceptada' && (
           <div className="qd-ok">
-            <span className="led" style={{ '--led': '#22c55e' }} /> Presupuesto aceptado. Te contactaremos para el anticipo
+            <span className="led" style={{ '--led': '#22c55e' }} /> Aceptaste la versión {doc.acceptedVersion}{doc.acceptedAt ? ` el ${fmt(doc.acceptedAt)}` : ''}. Te contactaremos para el anticipo
             {b.whatsapp && <> · <a href={wa(b.whatsapp, `Acepté el presupuesto ${doc.folio}. ¿Cómo pago el anticipo?`)} target="_blank" rel="noreferrer">escríbenos</a></>}.
           </div>
         )}
@@ -189,6 +198,8 @@ export default function QuotePage({ folio, token }) {
             {b.installments > 0 && <span><LedIcon name="card" size={16} /> Hasta {b.installments} meses sin intereses con tarjeta ({money(Math.ceil(t.total / b.installments))} al mes)</span>}
             {b.freeShippingFrom > 0 && b.shippingCost > 0 && <span><LedIcon name="box" size={16} /> Envío gratis desde {money(b.freeShippingFrom)}</span>}
           </p>
+          {b.leadTimeNote && <p className="terms">{b.leadTimeNote}</p>}
+          {b.warrantyNote && <p className="terms"><strong>Garantía:</strong> {b.warrantyNote}</p>}
           <p className="terms">{b.terms}</p>
         </footer>
       </article>

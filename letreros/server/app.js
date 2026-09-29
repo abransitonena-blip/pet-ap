@@ -7,15 +7,15 @@ import { MATERIALS, EXTRAS, quote } from '../src/lib/pricing.js'
 import { STATUS_IDS, PRINTED_STATUSES } from '../src/lib/status.js'
 import { FINISHES, normalizeLedDesign } from '../src/lib/ledSign.js'
 import {
-  PERM_IDS, computeTotals, mergeBusiness, mergePrices, normalizeAdjust, normalizePayment, paymentSummary, publicBusiness, shippingFor, volumeDiscount
+  PERM_IDS, computeTotals, deliveryCharges, mergeBusiness, mergePrices, normalizeAdjust, normalizePayment, paymentSummary, publicBusiness, shippingFor, volumeDiscount
 } from '../src/lib/prices.js'
-import { normalizeCustomer } from '../src/lib/customer.js'
+import { normalizeCustomer, normalizePhone } from '../src/lib/customer.js'
 import { GIRO_IDS, LEAD_STATE_IDS } from '../src/lib/prospects.js'
 import { mergeCosts } from '../src/lib/costs.js'
 import { SUPPLIER_CATEGORIES } from '../src/lib/suppliers.js'
 import { consumption, inventoryItem, lowStock, normalizeInventory } from '../src/lib/inventory.js'
 import { store } from './store.js'
-import { applyCoupon, loadBusiness, registerBusiness, registerPublicCoupon } from './business.js'
+import { applyCoupon, loadBusiness, newCase, registerBusiness, registerPublicCoupon, registerPublicHelp } from './business.js'
 import { AREAS } from '../src/lib/business.js'
 import { GOOGLE_CLIENT_ID, registerAccounts, verifyGoogle } from './accounts.js'
 
@@ -27,7 +27,7 @@ const SESSION_HOURS = 12
 const QUOTE_STATES = ['pendiente', 'enviada', 'aceptada', 'rechazada']
 
 const MATERIAL_IDS = MATERIALS.map((m) => m.id)
-const EXTRA_IDS = EXTRAS.map((e) => e.id)
+const EXTRA_IDS = EXTRAS.map((e) => e.id).filter((id) => id !== 'instalacion')
 
 if (!process.env.ADMIN_PASSWORD) {
   console.warn('⚠️  ADMIN_PASSWORD no está definido; usando "admin123". Cámbialo en producción.')
@@ -70,8 +70,54 @@ async function loadDb(read = () => store.load()) {
     o.photos = Array.isArray(o.photos) ? o.photos : []
     o.review = o.review || null
     o.group = o.group || null
+    o.version = o.version || 1
+    o.versions = Array.isArray(o.versions) && o.versions.length ? o.versions : [snapshot(o, o.version, o.createdAt, 'Cliente (web)')]
+    if (o.acceptedVersion === undefined) o.acceptedVersion = o.quoteState === 'aceptada' ? o.version : 0
+    o.acceptances = Array.isArray(o.acceptances) ? o.acceptances : []
   }
   return db
+}
+
+// Cotización versionada: cada ajuste crea una versión nueva; el cliente acepta una versión concreta
+const snapshot = (o, v, at, by) => ({ v, at, by, total: o.totals?.total || 0, quote: o.quote, adjust: o.adjust, totals: o.totals, validUntil: o.validUntil })
+const PRODUCTION = ['imprimiendo', 'impreso', 'entregado']
+// ¿Qué falta para fabricar? versión vigente aprobada y anticipo confirmado
+function productionGate(o) {
+  const missing = []
+  if (o.acceptedVersion !== o.version) missing.push('aprobación de la versión vigente del presupuesto')
+  const pay = paymentSummary(o.totals, o.payments)
+  if ((o.totals?.deposit || 0) > 0 && pay.paid < o.totals.deposit) missing.push('anticipo')
+  return missing
+}
+const isExpired = (o) => o.quoteState !== 'aceptada' && o.validUntil && new Date(o.validUntil).getTime() < Date.now()
+
+// ---------- Medición: conteo diario de eventos del embudo, sin datos personales ----------
+export const EVENTS = ['design_started', 'quote_viewed', 'quote_requested', 'quote_accepted', 'deposit_confirmed', 'order_delivered', 'support_opened']
+function countEvent(db, name, device = '') {
+  if (!EVENTS.includes(name)) return
+  const day = new Date().toLocaleString('sv-SE', { timeZone: 'America/Mexico_City' }).slice(0, 10)
+  db.metrics = db.metrics && typeof db.metrics === 'object' ? db.metrics : {}
+  const d = (db.metrics[day] ||= {})
+  d[name] = (d[name] || 0) + 1
+  if (device === 'movil' || device === 'escritorio') d[`${name}:${device}`] = (d[`${name}:${device}`] || 0) + 1
+  // Conserva 400 días
+  const keys = Object.keys(db.metrics).sort()
+  for (const k of keys.slice(0, Math.max(0, keys.length - 400))) delete db.metrics[k]
+}
+
+// ---------- Idempotencia: repetir una solicitud no duplica pedidos ni pagos ----------
+const idemKey = (req) => String(req.headers['idempotency-key'] || '').replace(/[^\w-]/g, '').slice(0, 100)
+const bodyHash = (b) => crypto.createHash('sha256').update(JSON.stringify(b || {})).digest('hex')
+function idemLookup(db, key, hash) {
+  if (!key) return null
+  const now = Date.now()
+  db.idem = Object.fromEntries(Object.entries(db.idem || {}).filter(([, e]) => now - e.at < 24 * 3600 * 1000).slice(-500))
+  const e = db.idem[key]
+  if (!e) return null
+  return e.hash === hash ? { replay: e } : { conflict: true }
+}
+const idemStore = (db, key, hash, status, body) => {
+  if (key) db.idem[key] = { hash, at: Date.now(), status, body }
 }
 
 // Serializa las escrituras dentro de la misma instancia; con PostgreSQL además
@@ -234,10 +280,10 @@ function buildOrder(db, { clean, quantity, customer, ship = true, discountPct = 
   const q = quote({ ...clean, quantity }, db.settings.prices)
   const now = new Date().toISOString()
   db.seq = (db.seq || 0) + 1
-  // Envío a domicilio: gratis desde el monto configurado
-  const shipCost = ship ? shippingFor(customer.delivery, computeTotals(q, normalizeAdjust(), db.settings.business).total, db.settings.business) : 0
+  // Forma de recibir: envío (gratis desde el monto configurado) o instalación; recoger no tiene cargo
+  const charges = ship ? deliveryCharges(customer.delivery, computeTotals(q, normalizeAdjust(), db.settings.business).total, db.settings.business, db.settings.prices, clean.kind === 'led' ? 'led' : 'impreso') : []
   const adjust = normalizeAdjust({
-    items: shipCost ? [{ label: 'Envío a domicilio', amount: shipCost }] : [],
+    items: charges,
     discountPct: Math.max(discountPct, coupon?.pct || 0),
     discountAmt: couponAmt,
     note: [group ? `Pedido múltiple: ${group.size} letreros (${group.folios})` : '', coupon ? `Cupón ${coupon.code}` : ''].filter(Boolean).join(' · ')
@@ -265,8 +311,12 @@ function buildOrder(db, { clean, quantity, customer, ship = true, discountPct = 
     coupon: coupon?.code || '',
     assignee: '',
     customerId,
+    version: 1,
+    acceptedVersion: 0,
+    acceptances: [],
     history: [{ status: 'nuevo', at: now, by: 'Cliente (web)' }]
   }
+  o.versions = [snapshot(o, 1, now, 'Cliente (web)')]
   db.orders.unshift(o)
   return o
 }
@@ -277,14 +327,25 @@ api.post('/orders', orderLimit, h(async (req, res) => {
   if (checked.error) return res.status(400).json({ error: checked.error })
   const d = checkDesign(design)
   if (d.error) return res.status(400).json({ error: d.error })
-  const order = await mutate((db) => {
+  const key = idemKey(req)
+  const hash = bodyHash(req.body)
+  const r = await mutate((db) => {
+    const prev = idemLookup(db, key, hash)
+    if (prev?.conflict) return { save: false, conflict: true }
+    if (prev?.replay) return { save: false, replay: prev.replay }
     const cp = applyCoupon(db, code, quote({ ...d.clean, quantity }, db.settings.prices).total)
     if (cp.error) return { save: false, error: cp.error }
     if (cp.coupon) cp.coupon.uses = (cp.coupon.uses || 0) + 1
-    return buildOrder(db, { clean: d.clean, quantity, customer: checked.customer, coupon: cp.coupon, couponAmt: cp.discountAmt || 0, customerId: accountId(req, db) })
+    const order = buildOrder(db, { clean: d.clean, quantity, customer: checked.customer, coupon: cp.coupon, couponAmt: cp.discountAmt || 0, customerId: accountId(req, db) })
+    const body = { folio: order.folio, total: order.totals.total, status: order.status, token: order.publicToken }
+    idemStore(db, key, hash, 201, body)
+    countEvent(db, 'quote_requested')
+    return { body }
   })
-  if (order.error) return res.status(400).json({ error: `Cupón: ${order.error}` })
-  res.status(201).json({ folio: order.folio, total: order.totals.total, status: order.status, token: order.publicToken })
+  if (r.conflict) return res.status(409).json({ error: 'Esta solicitud ya se usó con otros datos. Vuelve a intentarlo.' })
+  if (r.replay) return res.status(r.replay.status).json(r.replay.body)
+  if (r.error) return res.status(400).json({ error: `Cupón: ${r.error}` })
+  res.status(201).json(r.body)
 }))
 
 // Pedido múltiple (sucursales, mesas, puertas): un folio por letrero, descuento por volumen del total
@@ -299,38 +360,56 @@ api.post('/orders/batch', orderLimit, h(async (req, res) => {
     if (d.error) return res.status(400).json({ error: `Letrero ${i + 1}: ${d.error}` })
     cleans.push(d.clean)
   }
+  const key = idemKey(req)
+  const hash = bodyHash(req.body)
   const orders = await mutate((db) => {
+    const prev = idemLookup(db, key, hash)
+    if (prev?.conflict) return { save: false, error: 'Esta solicitud ya se usó con otros datos' }
+    if (prev?.replay) return { save: false, replay: prev.replay }
     const rate = volumeDiscount(cleans.length, db.settings.prices)
     const first = String((db.seq || 0) + 1).padStart(4, '0')
     const last = String((db.seq || 0) + cleans.length).padStart(4, '0')
     const group = { id: crypto.randomUUID(), size: cleans.length, folios: `LT-${first} a LT-${last}` }
     // El envío se cobra una sola vez (en el primero) y solo si el total no llega al envío gratis
     const estimate = cleans.reduce((a, c) => a + quote({ ...c, quantity: 1 }, db.settings.prices).total, 0) * (1 - rate)
-    const ship = shippingFor(checked.customer.delivery, estimate, db.settings.business) > 0
+    const ship = deliveryCharges(checked.customer.delivery, estimate, db.settings.business, db.settings.prices).length > 0
     const cp = applyCoupon(db, req.body?.coupon, estimate)
     if (cp.error) return { save: false, error: cp.error }
     if (cp.coupon) cp.coupon.uses = (cp.coupon.uses || 0) + 1
-    return cleans.map((clean, i) =>
+    const list = cleans.map((clean, i) =>
       buildOrder(db, {
         clean, quantity: 1, customer: checked.customer, ship: ship && i === 0, discountPct: Math.round(rate * 100), group,
         coupon: cp.coupon, couponAmt: i === 0 ? cp.discountAmt || 0 : 0, customerId: accountId(req, db)
       })
     )
+    const body = {
+      orders: list.map((o) => ({ folio: o.folio, total: o.totals.total, token: o.publicToken, text: o.design.lines.map((l) => l.text).join(' ') })),
+      total: list.reduce((a, o) => a + o.totals.total, 0)
+    }
+    idemStore(db, key, hash, 201, body)
+    countEvent(db, 'quote_requested')
+    return { body }
   })
-  if (orders.error) return res.status(400).json({ error: `Cupón: ${orders.error}` })
-  res.status(201).json({
-    orders: orders.map((o) => ({ folio: o.folio, total: o.totals.total, token: o.publicToken, text: o.design.lines.map((l) => l.text).join(' ') })),
-    total: orders.reduce((a, o) => a + o.totals.total, 0)
-  })
+  if (orders.replay) return res.status(orders.replay.status).json(orders.replay.body)
+  if (orders.error) return res.status(400).json({ error: orders.error.startsWith('Esta') ? orders.error : `Cupón: ${orders.error}` })
+  res.status(201).json(orders.body)
 }))
 
 // Seguimiento público por folio (solo datos no sensibles)
-api.get('/track/:folio', h(async (req, res) => {
+const trackLimit = rateLimit({ windowMs: 10 * 60 * 1000, max: 20, message: 'Demasiadas búsquedas. Espera unos minutos.' })
+api.get('/track/:folio', trackLimit, h(async (req, res) => {
   const folio = String(req.params.folio).trim().toUpperCase()
+  const tel = String(req.query.tel || '').replace(/\D/g, '').slice(-4)
   const db = await loadDb()
   const order = db.orders.find((o) => o.folio === folio)
-  if (!order) return res.status(404).json({ error: 'No encontramos ese folio' })
+  // Mismo mensaje si no existe o si los dígitos no coinciden: el folio consecutivo no abre pedidos ajenos
+  const phone = String(order?.customer?.phone || '').replace(/\D/g, '')
+  if (!order || tel.length !== 4 || !phone.endsWith(tel)) {
+    return res.status(404).json({ error: 'No encontramos un pedido con ese folio y esos dígitos de WhatsApp' })
+  }
   res.json({
+    next: nextStep(order),
+    updatedAt: order.updatedAt,
     folio: order.folio,
     status: order.status,
     createdAt: order.createdAt,
@@ -340,6 +419,32 @@ api.get('/track/:folio', h(async (req, res) => {
     quantity: order.quote.quantity
   })
 }))
+
+// Eventos del embudo desde el navegador (solo el nombre y el tipo de dispositivo)
+const eventLimit = rateLimit({ windowMs: 60 * 1000, max: 30, message: 'Demasiados eventos' })
+api.post('/public/event', eventLimit, h(async (req, res) => {
+  const name = String(req.body?.name || '')
+  if (!['design_started', 'quote_viewed', 'support_opened'].includes(name)) return res.status(400).json({ error: 'Evento inválido' })
+  await mutate((db) => {
+    countEvent(db, name, String(req.body?.device || ''))
+    return {}
+  })
+  res.status(204).end()
+}))
+
+api.get('/admin/metrics', requireUser, need('ventas', 'marketing', 'finanzas'), (req, res) => res.json(req.db.metrics || {}))
+
+// Qué sigue en cada pedido (lo ven el cliente y el taller)
+function nextStep(o) {
+  if (o.status === 'cancelado') return 'Pedido cancelado'
+  if (o.quoteState !== 'aceptada' || o.acceptedVersion !== o.version) return isExpired(o) ? 'El presupuesto venció: pide uno actualizado' : 'Revisa y acepta tu presupuesto'
+  const pay = paymentSummary(o.totals, o.payments)
+  if ((o.totals?.deposit || 0) > 0 && pay.paid < o.totals.deposit && !PRODUCTION.includes(o.status)) return 'Confirmar tu anticipo para empezar a fabricar'
+  return {
+    nuevo: 'Revisamos tu diseño', en_diseno: 'Ajustamos tu diseño', aprobado: 'Programamos la fabricación',
+    imprimiendo: 'Estamos fabricando tu letrero', impreso: 'Tu letrero está listo', entregado: 'Entregado'
+  }[o.status] || 'En proceso'
+}
 
 // ---------- Fotos y opiniones reales ----------
 const IMAGE_TYPES = { 'image/jpeg': [0xff, 0xd8, 0xff], 'image/png': [0x89, 0x50, 0x4e, 0x47], 'image/webp': [0x52, 0x49, 0x46, 0x46] }
@@ -436,8 +541,12 @@ function quoteDocument(o, business) {
     createdAt: o.createdAt,
     validUntil: o.validUntil,
     status: o.status,
-    quoteState: o.quoteState,
-    customer: { name: o.customer.name, delivery: o.customer.delivery || 'recoger', date: o.customer.date || '' },
+    quoteState: isExpired(o) ? 'vencida' : o.quoteState,
+    version: o.version,
+    acceptedVersion: o.acceptedVersion,
+    acceptedAt: o.acceptances.at(-1)?.at || null,
+    next: nextStep(o),
+    customer: { name: o.customer.name, delivery: o.customer.delivery || 'recoger', date: o.customer.date || '', cp: o.customer.cp || '' },
     design: o.design,
     quote: o.quote,
     adjust: { items: o.adjust.items, note: o.adjust.note, discountPct: o.adjust.discountPct, discountAmt: o.adjust.discountAmt },
@@ -461,10 +570,16 @@ api.post('/quote/:folio/respond', h(async (req, res) => {
   const result = await mutate((db) => {
     const o = findByToken(db, req.params.folio, t)
     if (!o) return { save: false, missing: true }
-    if (o.quoteState === 'aceptada') return { save: false, doc: quoteDocument(o, db.settings.business) }
+    if (o.quoteState === 'aceptada' && o.acceptedVersion === o.version) return { save: false, doc: quoteDocument(o, db.settings.business) }
+    if (isExpired(o)) return { save: false, expired: true }
     const now = new Date().toISOString()
     o.quoteState = accept ? 'aceptada' : 'rechazada'
-    o.history.push({ status: o.status, at: now, by: 'Cliente', note: accept ? 'Aceptó el presupuesto' : 'Rechazó el presupuesto' })
+    if (accept) {
+      o.acceptedVersion = o.version
+      o.acceptances.push({ v: o.version, at: now, total: o.totals.total, by: 'Cliente (enlace privado)' })
+      countEvent(db, 'quote_accepted')
+    }
+    o.history.push({ status: o.status, at: now, by: 'Cliente', note: accept ? `Aceptó la versión ${o.version} del presupuesto` : 'Rechazó el presupuesto' })
     if (accept && ['nuevo', 'en_diseno'].includes(o.status)) {
       o.status = 'aprobado'
       o.history.push({ status: 'aprobado', at: now, by: 'Cliente' })
@@ -473,6 +588,7 @@ api.post('/quote/:folio/respond', h(async (req, res) => {
     return { doc: quoteDocument(o, db.settings.business) }
   })
   if (result.missing) return res.status(404).json({ error: 'Presupuesto no encontrado' })
+  if (result.expired) return res.status(400).json({ error: 'Este presupuesto venció. Escríbenos y te mandamos uno actualizado.' })
   res.json(result.doc)
 }))
 
@@ -574,7 +690,7 @@ api.get('/admin/stats', requireUser, (req, res) => {
 })
 
 api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
-  const { status, adminNotes, adjust, quoteState, showcase, reviewStatus, assignee } = req.body || {}
+  const { status, adminNotes, adjust, quoteState, showcase, reviewStatus, assignee, override, overrideReason } = req.body || {}
   const u = req.user
   if (assignee !== undefined && !can(u, 'delegar', 'equipo')) return res.status(403).json({ error: 'No tienes permiso para asignar pedidos' })
   if (reviewStatus !== undefined && !['pendiente', 'publicada', 'oculta'].includes(reviewStatus)) {
@@ -597,6 +713,13 @@ api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
     if (!o) return { save: false, missing: true }
     const now = new Date().toISOString()
     if (status !== undefined && status !== o.status) {
+      // Fabricar exige la versión vigente aprobada y el anticipo; la excepción queda registrada
+      if (PRODUCTION.includes(status) && !PRODUCTION.includes(o.status) && status !== 'cancelado') {
+        const missing = productionGate(o)
+        if (missing.length && !(override && can(u, 'presupuestos', 'delegar', 'equipo'))) return { save: false, gate: missing }
+        if (missing.length) o.history.push({ status: o.status, at: now, by: u.name, note: `Excepción autorizada: se fabrica sin ${missing.join(' ni ')}${overrideReason ? ` · ${String(overrideReason).slice(0, 200)}` : ''}` })
+      }
+      if (status === 'entregado') countEvent(db, 'order_delivered')
       o.status = status
       o.history.push({ status, at: now, by: u.name })
       if (status === 'impreso' && !o.printedAt) o.printedAt = now
@@ -624,7 +747,11 @@ api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
       o.adjust = normalizeAdjust(adjust)
       o.totals = computeTotals(o.quote, o.adjust, db.settings.business)
       o.validUntil = addDays(now, db.settings.business.validityDays)
-      o.history.push({ status: o.status, at: now, by: u.name, note: `Presupuesto ajustado: total ${o.totals.total}` })
+      // Versión nueva: si ya estaba aceptada, requiere aprobarse otra vez
+      o.version += 1
+      o.versions.push(snapshot(o, o.version, now, u.name))
+      if (o.quoteState === 'aceptada') o.quoteState = 'enviada'
+      o.history.push({ status: o.status, at: now, by: u.name, note: `Presupuesto versión ${o.version}: total ${o.totals.total}${o.acceptedVersion ? ' · requiere nueva aprobación' : ''}` })
     }
     if (quoteState !== undefined && quoteState !== o.quoteState) {
       o.quoteState = quoteState
@@ -635,6 +762,7 @@ api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
   })
   if (order.missing) return res.status(404).json({ error: 'Pedido no encontrado' })
   if (order.badAssignee) return res.status(400).json({ error: 'Esa persona no existe' })
+  if (order.gate) return res.status(409).json({ error: `Para fabricar falta: ${order.gate.join(' y ')}.`, code: 'gate', missing: order.gate })
   res.json(viewOrder(order, u))
 }))
 
@@ -677,17 +805,27 @@ api.post('/admin/orders/:id/payments', requireUser, need('ventas', 'presupuestos
   const checked = normalizePayment(req.body)
   if (checked.error) return res.status(400).json({ error: checked.error })
   const u = req.user
+  const key = idemKey(req)
+  const hash = bodyHash({ order: req.params.id, ...req.body })
   const order = await mutate((db) => {
     const o = db.orders.find((x) => x.id === req.params.id)
     if (!o) return { save: false, missing: true }
+    if (idemLookup(db, key, hash)) return { save: false, duplicate: true, o }
+    const ref = checked.payment.reference
+    if (ref && o.payments.some((p) => p.reference && p.reference.toLowerCase() === ref.toLowerCase())) return { save: false, dupRef: true }
     const now = new Date().toISOString()
+    const before = paymentSummary(o.totals, o.payments)
     o.payments.push({ id: crypto.randomUUID(), ...checked.payment, at: now, by: u.name })
+    idemStore(db, key, hash, 201, { ok: true })
+    if (before.paid < (o.totals.deposit || 0) && paymentSummary(o.totals, o.payments).paid >= (o.totals.deposit || 0)) countEvent(db, 'deposit_confirmed')
     const pay = paymentSummary(o.totals, o.payments)
     o.history.push({ status: o.status, at: now, by: u.name, note: `Pago de $${checked.payment.amount} (${checked.payment.method}) · saldo $${pay.balance}` })
     o.updatedAt = now
     return o
   })
   if (order.missing) return res.status(404).json({ error: 'Pedido no encontrado' })
+  if (order.dupRef) return res.status(409).json({ error: 'Ese movimiento (referencia) ya está registrado en este pedido' })
+  if (order.duplicate) return res.status(200).json(viewOrder(order.o, u))
   res.status(201).json(viewOrder(order, u))
 }))
 
@@ -992,9 +1130,10 @@ api.put('/admin/owner-google', requireUser, ownerOnly, h(async (req, res) => {
   res.json({ email })
 }))
 
-registerAccounts(api, { mutate, h, hashPassword, checkPassword, createToken, readToken, loadDb, authLimit: accountLimit })
+registerAccounts(api, { mutate, h, hashPassword, checkPassword, createToken, readToken, loadDb, authLimit: accountLimit, requireUser, need, newCase })
 registerBusiness(api, { requireUser, need, can, mutate, h, owner: OWNER })
 registerPublicCoupon(api, { loadDb, h })
+registerPublicHelp(api, { mutate, h, limit: orderLimit, countEvent, normalizePhone })
 
 export function createApp() {
   const app = express()
