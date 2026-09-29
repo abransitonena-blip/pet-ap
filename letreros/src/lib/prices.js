@@ -73,16 +73,27 @@ export const PERMISSIONS = [
   { id: 'precios', name: 'Editar precios' },
   { id: 'ajustes', name: 'Datos del negocio' },
   { id: 'eliminar', name: 'Eliminar pedidos' },
-  { id: 'equipo', name: 'Administrar equipo' }
+  { id: 'equipo', name: 'Administrar equipo' },
+  { id: 'delegar', name: 'Asignar tareas y pedidos a otros' },
+  { id: 'rrhh', name: 'Recursos humanos y nómina' },
+  { id: 'finanzas', name: 'Gastos y utilidades' },
+  { id: 'marketing', name: 'Marketing, contenido y cupones' }
 ]
 export const PERM_IDS = PERMISSIONS.map((p) => p.id)
 
+// Puestos listos para delegar: cada uno trae los permisos de su área
 export const ROLES = [
-  { id: 'gerente', name: 'Gerente', perms: PERM_IDS.filter((p) => p !== 'equipo') },
-  { id: 'ventas', name: 'Ventas', perms: ['pedidos', 'editar', 'presupuestos', 'ventas'] },
-  { id: 'produccion', name: 'Producción', perms: ['pedidos', 'editar', 'produccion'] },
-  { id: 'precios', name: 'Precios', perms: ['precios', 'ventas'] },
-  { id: 'personalizado', name: 'Personalizado', perms: [] }
+  { id: 'gerente', name: 'Gerente general', area: 'direccion', perms: PERM_IDS.filter((p) => p !== 'equipo') },
+  { id: 'ventas', name: 'Ventas y atención', area: 'ventas', perms: ['pedidos', 'editar', 'presupuestos', 'ventas'] },
+  { id: 'produccion', name: 'Producción', area: 'produccion', perms: ['pedidos', 'editar', 'produccion'] },
+  { id: 'jefe-produccion', name: 'Jefe de producción', area: 'produccion', perms: ['pedidos', 'editar', 'produccion', 'delegar'] },
+  { id: 'diseno', name: 'Diseño', area: 'diseno', perms: ['pedidos', 'editar', 'produccion'] },
+  { id: 'instalador', name: 'Instalación y envíos', area: 'instalacion', perms: ['pedidos', 'editar'] },
+  { id: 'marketing', name: 'Marketing', area: 'marketing', perms: ['marketing', 'editar'] },
+  { id: 'rrhh', name: 'Recursos humanos', area: 'rrhh', perms: ['rrhh', 'delegar'] },
+  { id: 'administracion', name: 'Administración y finanzas', area: 'finanzas', perms: ['finanzas', 'ventas', 'precios', 'pedidos'] },
+  { id: 'precios', name: 'Precios', area: 'finanzas', perms: ['precios', 'ventas'] },
+  { id: 'personalizado', name: 'Personalizado', area: 'direccion', perms: [] }
 ]
 
 // ---------- Validación ----------

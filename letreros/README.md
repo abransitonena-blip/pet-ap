@@ -175,6 +175,20 @@ letrero impreso, descuentos por volumen; IVA, anticipo, vigencia, WhatsApp, dato
   capacitores, fuentes, tira, separadores, WiFi, cajas). Al marcar un pedido como *Impreso* se descuenta
   solo su material (una vez). Calcula lo que falta para los pedidos por fabricar, avisa en el Resumen
   lo que está bajo el mínimo y arma el **pedido al proveedor por WhatsApp** en un clic (o lo copia)
+- **Áreas del negocio y delegación** (cada persona entra con su usuario y ve solo su área):
+  - **Tareas:** tablero Por hacer / En curso / Hecha por área, con responsable, fecha, prioridad y pedido
+    ligado; plantillas de tareas del taller; carga de trabajo por persona; “Mi día” con checador de entrada/salida
+  - **Pedidos con responsable:** asigna cada pedido a una persona (filtros “Míos” / “Sin responsable”)
+  - **Recursos humanos:** fichas del personal, puesto de referencia con sueldo de mercado, asistencia,
+    nómina estimada (periodo, comisiones, costo patronal, aguinaldo, vacaciones dignas, prima vacacional),
+    obligaciones de ley (IMSS, CFDI, NOM-035, NOM-019, PTU, jornada 48→40 h)
+  - **Finanzas:** gastos (fijos y variables), estado de resultados por mes, 6 meses, punto de equilibrio,
+    cuentas por cobrar con recordatorio por WhatsApp, comisiones de vendedores y CSV para el contador
+  - **Marketing:** origen de clientes (“¿Cómo nos conociste?” y links `?ref=campaña`), calendario de
+    contenido, cupones (`?cupon=CODIGO` se aplica solo), comisiones de marketplaces y medios de cobro,
+    referencias de publicidad y calendario comercial con fuentes
+  - **Puestos** con permisos por área: gerente, ventas, producción, jefe de producción, diseño,
+    instalación, marketing, RRHH, administración
 - **Control WiFi** opcional para el cliente (Sonoff Basic R2: horario y encendido desde el celular),
   con precio, costo y 6 proveedores en el directorio
 

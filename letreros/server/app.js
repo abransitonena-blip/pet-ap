@@ -15,6 +15,8 @@ import { mergeCosts } from '../src/lib/costs.js'
 import { SUPPLIER_CATEGORIES } from '../src/lib/suppliers.js'
 import { consumption, inventoryItem, lowStock, normalizeInventory } from '../src/lib/inventory.js'
 import { store } from './store.js'
+import { applyCoupon, loadBusiness, registerBusiness, registerPublicCoupon } from './business.js'
+import { AREAS } from '../src/lib/business.js'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
 // Estable entre instancias serverless aunque no se defina ADMIN_SECRET
@@ -49,8 +51,10 @@ async function loadDb() {
     prices: mergePrices(db.settings?.prices),
     business: mergeBusiness(db.settings?.business),
     costs: mergeCosts(db.settings?.costs),
-    pricesUpdated: db.settings?.pricesUpdated
+    pricesUpdated: db.settings?.pricesUpdated,
+    hr: db.settings?.hr
   }
+  loadBusiness(db)
   // Pedidos de versiones anteriores: diseño válido, token público y totales
   for (const o of db.orders) {
     o.design = cleanDesign(o.design)
@@ -120,8 +124,9 @@ function readToken(token) {
   }
 }
 
-const OWNER = { id: 'owner', name: 'Dueño', username: 'admin', role: 'dueño', perms: PERM_IDS }
-const publicUser = (u) => ({ id: u.id, name: u.name, username: u.username, role: u.role, perms: u.perms, active: u.active !== false })
+const OWNER = { id: 'owner', name: 'Dueño', username: 'admin', role: 'dueño', area: 'direccion', perms: PERM_IDS }
+const publicUser = (u) => ({ id: u.id, name: u.name, username: u.username, role: u.role, area: u.area || 'direccion', perms: u.perms, active: u.active !== false })
+const cleanArea = (a) => (AREAS.some((x) => x.id === a) ? a : 'direccion')
 
 // Carga la base y el usuario de la sesión (permisos al día: revocar surte efecto de inmediato)
 async function requireUser(req, res, next) {
@@ -140,14 +145,15 @@ async function requireUser(req, res, next) {
 }
 
 const can = (user, ...perms) => perms.some((p) => user.perms.includes(p))
+// need() sin permisos = cualquier usuario con sesión
 const need = (...perms) => (req, res, next) =>
-  can(req.user, ...perms) ? next() : res.status(403).json({ error: 'No tienes permiso para esta acción' })
+  !perms.length || can(req.user, ...perms) ? next() : res.status(403).json({ error: 'No tienes permiso para esta acción' })
 
 // Quita datos que el usuario no debe ver
 function viewOrder(o, user) {
   const out = { ...o }
   if (!can(user, 'pedidos')) out.customer = { name: o.customer.name, phone: '', email: '', notes: o.customer.notes }
-  if (!can(user, 'ventas', 'presupuestos')) {
+  if (!can(user, 'ventas', 'presupuestos', 'finanzas')) {
     out.quote = { ...o.quote, lines: [], total: 0, unitPrice: 0, subtotal: 0, discount: 0 }
     out.totals = null
     out.payments = []
@@ -204,7 +210,7 @@ function checkDesign(design) {
 }
 
 // Crea un pedido dentro de mutate(): folio, presupuesto, envío y ajustes
-function buildOrder(db, { clean, quantity, customer, ship = true, discountPct = 0, group = null }) {
+function buildOrder(db, { clean, quantity, customer, ship = true, discountPct = 0, group = null, coupon = null, couponAmt = 0 }) {
   const q = quote({ ...clean, quantity }, db.settings.prices)
   const now = new Date().toISOString()
   db.seq = (db.seq || 0) + 1
@@ -212,8 +218,9 @@ function buildOrder(db, { clean, quantity, customer, ship = true, discountPct = 
   const shipCost = ship ? shippingFor(customer.delivery, computeTotals(q, normalizeAdjust(), db.settings.business).total, db.settings.business) : 0
   const adjust = normalizeAdjust({
     items: shipCost ? [{ label: 'Envío a domicilio', amount: shipCost }] : [],
-    discountPct,
-    note: group ? `Pedido múltiple: ${group.size} letreros (${group.folios})` : ''
+    discountPct: Math.max(discountPct, coupon?.pct || 0),
+    discountAmt: couponAmt,
+    note: [group ? `Pedido múltiple: ${group.size} letreros (${group.folios})` : '', coupon ? `Cupón ${coupon.code}` : ''].filter(Boolean).join(' · ')
   })
   const o = {
     id: crypto.randomUUID(),
@@ -235,6 +242,8 @@ function buildOrder(db, { clean, quantity, customer, ship = true, discountPct = 
     photos: [],
     review: null,
     group: group?.id || null,
+    coupon: coupon?.code || '',
+    assignee: '',
     history: [{ status: 'nuevo', at: now, by: 'Cliente (web)' }]
   }
   db.orders.unshift(o)
@@ -242,12 +251,18 @@ function buildOrder(db, { clean, quantity, customer, ship = true, discountPct = 
 }
 
 api.post('/orders', orderLimit, h(async (req, res) => {
-  const { design, quantity } = req.body || {}
+  const { design, quantity, coupon: code } = req.body || {}
   const checked = normalizeCustomer(req.body?.customer)
   if (checked.error) return res.status(400).json({ error: checked.error })
   const d = checkDesign(design)
   if (d.error) return res.status(400).json({ error: d.error })
-  const order = await mutate((db) => buildOrder(db, { clean: d.clean, quantity, customer: checked.customer }))
+  const order = await mutate((db) => {
+    const cp = applyCoupon(db, code, quote({ ...d.clean, quantity }, db.settings.prices).total)
+    if (cp.error) return { save: false, error: cp.error }
+    if (cp.coupon) cp.coupon.uses = (cp.coupon.uses || 0) + 1
+    return buildOrder(db, { clean: d.clean, quantity, customer: checked.customer, coupon: cp.coupon, couponAmt: cp.discountAmt || 0 })
+  })
+  if (order.error) return res.status(400).json({ error: `Cupón: ${order.error}` })
   res.status(201).json({ folio: order.folio, total: order.totals.total, status: order.status, token: order.publicToken })
 }))
 
@@ -271,10 +286,17 @@ api.post('/orders/batch', orderLimit, h(async (req, res) => {
     // El envío se cobra una sola vez (en el primero) y solo si el total no llega al envío gratis
     const estimate = cleans.reduce((a, c) => a + quote({ ...c, quantity: 1 }, db.settings.prices).total, 0) * (1 - rate)
     const ship = shippingFor(checked.customer.delivery, estimate, db.settings.business) > 0
+    const cp = applyCoupon(db, req.body?.coupon, estimate)
+    if (cp.error) return { save: false, error: cp.error }
+    if (cp.coupon) cp.coupon.uses = (cp.coupon.uses || 0) + 1
     return cleans.map((clean, i) =>
-      buildOrder(db, { clean, quantity: 1, customer: checked.customer, ship: ship && i === 0, discountPct: Math.round(rate * 100), group })
+      buildOrder(db, {
+        clean, quantity: 1, customer: checked.customer, ship: ship && i === 0, discountPct: Math.round(rate * 100), group,
+        coupon: cp.coupon, couponAmt: i === 0 ? cp.discountAmt || 0 : 0
+      })
     )
   })
+  if (orders.error) return res.status(400).json({ error: `Cupón: ${orders.error}` })
   res.status(201).json({
     orders: orders.map((o) => ({ folio: o.folio, total: o.totals.total, token: o.publicToken, text: o.design.lines.map((l) => l.text).join(' ') })),
     total: orders.reduce((a, o) => a + o.totals.total, 0)
@@ -490,7 +512,7 @@ api.post('/admin/login', loginLimit, h(async (req, res) => {
 
 api.get('/admin/me', requireUser, (req, res) => res.json(publicUser(req.user)))
 
-api.get('/admin/orders', requireUser, need('pedidos', 'produccion', 'presupuestos'), (req, res) =>
+api.get('/admin/orders', requireUser, need('pedidos', 'produccion', 'presupuestos', 'finanzas'), (req, res) =>
   res.json(req.db.orders.map((o) => viewOrder(o, req.user)))
 )
 
@@ -525,13 +547,15 @@ api.get('/admin/stats', requireUser, (req, res) => {
     receivable: can(req.user, 'ventas') ? Math.round(receivable) : null,
     printedPieces,
     printedM2: Math.round(printedM2 * 100) / 100,
-    lowStock: req.db.inventory && can(req.user, 'produccion', 'precios') ? lowStock(req.db.inventory).map((it) => it.name) : []
+    lowStock: req.db.inventory && can(req.user, 'produccion', 'precios') ? lowStock(req.db.inventory).map((it) => it.name) : [],
+    myTasks: req.db.tasks.filter((t) => t.assignee === req.user.id && t.status !== 'hecha').length
   })
 })
 
 api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
-  const { status, adminNotes, adjust, quoteState, showcase, reviewStatus } = req.body || {}
+  const { status, adminNotes, adjust, quoteState, showcase, reviewStatus, assignee } = req.body || {}
   const u = req.user
+  if (assignee !== undefined && !can(u, 'delegar', 'equipo')) return res.status(403).json({ error: 'No tienes permiso para asignar pedidos' })
   if (reviewStatus !== undefined && !['pendiente', 'publicada', 'oculta'].includes(reviewStatus)) {
     return res.status(400).json({ error: 'Estado de opinión inválido' })
   }
@@ -564,6 +588,12 @@ api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
       }
     }
     if (showcase !== undefined) o.showcase = Boolean(showcase)
+    if (assignee !== undefined && assignee !== o.assignee) {
+      const who = assignee ? [OWNER, ...db.users].find((x) => x.id === assignee) : null
+      if (assignee && !who) return { save: false, badAssignee: true }
+      o.assignee = who ? who.id : ''
+      o.history.push({ status: o.status, at: now, by: u.name, note: who ? `Asignado a ${who.name}` : 'Sin responsable' })
+    }
     if (reviewStatus !== undefined && o.review && o.review.status !== reviewStatus) {
       o.review.status = reviewStatus
       o.history.push({ status: o.status, at: now, by: u.name, note: `Opinión ${reviewStatus}` })
@@ -583,6 +613,7 @@ api.patch('/admin/orders/:id', requireUser, h(async (req, res) => {
     return o
   })
   if (order.missing) return res.status(404).json({ error: 'Pedido no encontrado' })
+  if (order.badAssignee) return res.status(400).json({ error: 'Esa persona no existe' })
   res.json(viewOrder(order, u))
 }))
 
@@ -671,7 +702,7 @@ api.delete('/admin/orders/:id', requireUser, need('eliminar'), h(async (req, res
 // Los costos solo los ven quienes manejan precios o ventas
 api.get('/admin/settings', requireUser, (req, res) => {
   const { costs, ...rest } = req.db.settings
-  res.json(can(req.user, 'precios', 'ventas') ? { ...rest, costs } : rest)
+  res.json(can(req.user, 'precios', 'ventas', 'finanzas') ? { ...rest, costs } : rest)
 })
 
 api.put('/admin/settings/costs', requireUser, need('precios'), h(async (req, res) => {
@@ -851,7 +882,7 @@ const cleanUsername = (s) => String(s || '').trim().toLowerCase().replace(/[^a-z
 api.get('/admin/users', requireUser, need('equipo'), (req, res) => res.json(req.db.users.map(publicUser)))
 
 api.post('/admin/users', requireUser, need('equipo'), h(async (req, res) => {
-  const { name, username, password, role, perms } = req.body || {}
+  const { name, username, password, role, perms, area } = req.body || {}
   const uname = cleanUsername(username)
   if (!String(name || '').trim() || !uname) return res.status(400).json({ error: 'Nombre y usuario son obligatorios' })
   if (['admin', 'dueño', 'owner'].includes(uname)) return res.status(400).json({ error: 'Ese usuario está reservado' })
@@ -863,6 +894,7 @@ api.post('/admin/users', requireUser, need('equipo'), h(async (req, res) => {
       name: String(name).trim().slice(0, 60),
       username: uname,
       role: String(role || 'personalizado').slice(0, 30),
+      area: cleanArea(area),
       perms: (Array.isArray(perms) ? perms : []).filter((p) => PERM_IDS.includes(p)),
       pass: hashPassword(password),
       active: true,
@@ -876,7 +908,7 @@ api.post('/admin/users', requireUser, need('equipo'), h(async (req, res) => {
 }))
 
 api.patch('/admin/users/:id', requireUser, need('equipo'), h(async (req, res) => {
-  const { name, role, perms, active, password } = req.body || {}
+  const { name, role, perms, active, password, area } = req.body || {}
   if (password !== undefined && String(password).length < 6) {
     return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' })
   }
@@ -885,6 +917,7 @@ api.patch('/admin/users/:id', requireUser, need('equipo'), h(async (req, res) =>
     if (!u) return { save: false, missing: true }
     if (name !== undefined) u.name = String(name).trim().slice(0, 60) || u.name
     if (role !== undefined) u.role = String(role).slice(0, 30)
+    if (area !== undefined) u.area = cleanArea(area)
     if (perms !== undefined) u.perms = (Array.isArray(perms) ? perms : []).filter((p) => PERM_IDS.includes(p))
     if (active !== undefined) u.active = Boolean(active)
     if (password !== undefined) u.pass = hashPassword(password)
@@ -903,6 +936,9 @@ api.delete('/admin/users/:id', requireUser, need('equipo'), h(async (req, res) =
   if (result.missing) return res.status(404).json({ error: 'Usuario no encontrado' })
   res.status(204).end()
 }))
+
+registerBusiness(api, { requireUser, need, can, mutate, h, owner: OWNER })
+registerPublicCoupon(api, { loadDb, h })
 
 export function createApp() {
   const app = express()

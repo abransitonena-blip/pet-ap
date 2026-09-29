@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { money } from '../lib/pricing'
 import { usePublicSettings } from '../lib/settings'
 import { DELIVERY_OPTIONS } from '../lib/customer'
 import { shippingFor } from '../lib/prices'
+import { LEAD_SOURCES } from '../lib/business'
+import { readCampaign } from '../lib/campaign'
 
 const SAVED_KEY = 'ap_customer'
 
@@ -34,8 +36,13 @@ export default function OrderModal({ design, batch, quantity, total, preview, su
     email: saved.email || '',
     delivery: saved.delivery || 'recoger',
     date: '',
-    notes: ''
+    notes: '',
+    source: saved.source || ''
   })
+  const campaign = readCampaign()
+  const [code, setCode] = useState(campaign.coupon || '')
+  const [coupon, setCoupon] = useState(null) // { code, pct, amount, label }
+  const [couponMsg, setCouponMsg] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
@@ -43,6 +50,24 @@ export default function OrderModal({ design, batch, quantity, total, preview, su
   const shipNote = (id) =>
     id !== 'envio' ? null : shippingFor('envio', total, business) ? `+${money(business.shippingCost)}` : business.shippingCost ? 'Gratis' : null
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+
+  // Descuento estimado del cupón (el servidor lo confirma al crear el pedido)
+  const off = coupon ? Math.min(total, Math.round((total * coupon.pct) / 100) + coupon.amount) : 0
+  const checkCoupon = async () => {
+    setCouponMsg('')
+    setCoupon(null)
+    if (!code.trim()) return
+    try {
+      setCoupon(await api.coupon(code.trim(), total))
+    } catch (err) {
+      setCouponMsg(err.message)
+    }
+  }
+
+  // Cupón que llegó en el enlace (?cupon=): se aplica solo
+  useEffect(() => {
+    if (campaign.coupon) checkCoupon()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const phoneOk = !form.phone || digits(form.phone).length >= 10
   const canSend = form.name.trim() && (form.phone || form.email) && phoneOk && !sending
@@ -53,12 +78,14 @@ export default function OrderModal({ design, batch, quantity, total, preview, su
     setError('')
     setSending(true)
     try {
+      const customer = { ...form, ref: campaign.ref }
+      const cp = coupon?.code || undefined
       const res = batch
-        ? await api.createBatch({ customer: form, items: batch.map((d) => ({ design: d })) })
-        : await api.createOrder({ customer: form, design, quantity })
+        ? await api.createBatch({ customer, items: batch.map((d) => ({ design: d })), coupon: cp })
+        : await api.createOrder({ customer, design, quantity, coupon: cp })
       try {
-        const { name, phone, email, delivery } = form
-        localStorage.setItem(SAVED_KEY, JSON.stringify({ name, phone, email, delivery }))
+        const { name, phone, email, delivery, source } = form
+        localStorage.setItem(SAVED_KEY, JSON.stringify({ name, phone, email, delivery, source }))
       } catch {}
       setResult(res)
     } catch (err) {
@@ -139,7 +166,8 @@ export default function OrderModal({ design, batch, quantity, total, preview, su
             <div>
               {summary.map((s, i) => <span key={i} className={i ? 'muted' : ''}>{s}</span>)}
               <span className="muted">{batch ? `${batch.length} letreros distintos` : `${quantity} pieza${quantity > 1 ? 's' : ''}`}</span>
-              <strong className="modal-total">{money(total + ship)}</strong>
+              <strong className="modal-total">{money(total + ship - off)}</strong>
+              {off > 0 && <span className="small free">cupón {coupon.code}: −{money(off)}</span>}
               {ship > 0 && <span className="muted small">incluye envío {money(ship)}{business.freeShippingFrom > 0 && ` · gratis desde ${money(business.freeShippingFrom)}`}</span>}
             </div>
           </div>
@@ -167,6 +195,24 @@ export default function OrderModal({ design, batch, quantity, total, preview, su
           </div>
           <div className="row">
             <label className="field grow"><span>¿Para cuándo lo necesitas?</span><input className="input" type="date" min={today()} value={form.date} onChange={set('date')} /></label>
+          </div>
+          <div className="row wrap">
+            <label className="field grow">
+              <span>¿Cómo nos conociste?</span>
+              <select className="input" value={form.source} onChange={set('source')}>
+                <option value="">Elige una opción</option>
+                {LEAD_SOURCES.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </label>
+            <div className="field grow">
+              <span>Cupón de descuento</span>
+              <div className="row coupon-row">
+                <input className="input grow" value={code} onChange={(e) => { setCode(e.target.value.toUpperCase()); setCoupon(null) }} placeholder="Opcional" />
+                <button type="button" className="btn ghost sm" onClick={checkCoupon} disabled={!code.trim()}>Aplicar</button>
+              </div>
+              {coupon && <em className="small free">✓ {coupon.label}</em>}
+              {couponMsg && <em className="field-error">{couponMsg}</em>}
+            </div>
           </div>
           <label className="field"><span>Notas</span><textarea className="input" rows="2" value={form.notes} onChange={set('notes')} placeholder="Dirección, horario, dudas…" /></label>
           {error && <p className="error">{error}</p>}

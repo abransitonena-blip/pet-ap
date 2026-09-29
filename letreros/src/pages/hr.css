@@ -1,0 +1,27 @@
+/* Recursos humanos */
+.hr { display: flex; flex-direction: column; gap: 14px; }
+.hr-tabs { overflow-x: auto; max-width: 100%; }
+.hr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.hr-card { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); font-size: 13px; min-width: 0; }
+.hr-card.off { opacity: .5; }
+.hr-card.bday { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+.hr-card strong { font-size: 14px; }
+.hr-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.hr-pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--brand-soft); color: #b0126f; align-self: flex-start; }
+.hr-check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.hr-ref { font-size: 12.5px; background: var(--soft); border-radius: 10px; padding: 8px 12px; width: 100%; }
+.hr-time { width: 96px; padding: 5px 8px; font-size: 13px; }
+.hr-note { min-width: 120px; padding: 5px 8px; font-size: 13px; }
+.hr-num { width: 110px; padding: 5px 8px; font-size: 13px; }
+.market-table td.hr-r, .market-table th.hr-r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.market-table tr.hr-total td { font-weight: 600; border-bottom: none; }
+.hr-over { color: var(--danger); font-weight: 600; }
+.hr-duties { list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; }
+.hr-duties label { display: flex; gap: 8px; align-items: flex-start; }
+.hr-duties label.done span { text-decoration: line-through; color: var(--muted); }
+.hr-duties input { margin-top: 3px; accent-color: var(--brand); }
+.hr-settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0 12px; }
+@media (max-width: 700px) {
+  .hr-grid { grid-template-columns: 1fr; }
+  .hr-time { width: 84px; }
+}

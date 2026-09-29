@@ -30,7 +30,13 @@ const call = async (method, url, body, token) => {
   })
   return { status: res.status, body: res.status === 204 ? null : await res.json() }
 }
-const login = async (username, password) => (await call('POST', '/admin/login', { username, password })).body.token
+// Reutiliza la sesión: el límite de intentos cuenta también los accesos correctos
+const sessions = new Map()
+const login = async (username, password) => {
+  const k = `${username}:${password}`
+  if (!sessions.has(k)) sessions.set(k, (await call('POST', '/admin/login', { username, password })).body.token)
+  return sessions.get(k)
+}
 
 const ledOrder = {
   customer: { name: 'Cliente Prueba', phone: '5512345678', delivery: 'envio' },
@@ -216,6 +222,62 @@ test('inventario: se descuenta una sola vez al terminar el letrero', async () =>
   assert.equal(inv.wifi.qty, -1)
   const stats = (await call('GET', '/admin/stats', null, owner)).body
   assert.ok(stats.lowStock.includes('Módulo WiFi Sonoff'))
+})
+
+test('áreas: tareas delegadas, RRHH, checador, gastos y cupones', async () => {
+  const owner = await login('admin', 'clave-prueba')
+  await call('POST', '/admin/users', { name: 'Vendedora', username: 'vende1', password: 'vende123', perms: ['pedidos', 'ventas'], area: 'ventas' }, owner)
+  const v = await login('vende1', 'vende123')
+  const people = (await call('GET', '/admin/people', null, v)).body
+  const vid = people.find((p) => p.name === 'Vendedora').id
+  assert.equal(people.find((p) => p.id === vid).area, 'ventas')
+
+  // Delegar: el dueño asigna; la vendedora solo ve lo suyo y no puede asignar a otros
+  const t = await call('POST', '/admin/tasks', { title: 'Seguimiento a presupuestos', area: 'ventas', assignee: vid, due: '2026-10-01' }, owner)
+  assert.equal(t.status, 201)
+  await call('POST', '/admin/tasks', { title: 'Tarea del dueño' }, owner)
+  assert.equal((await call('GET', '/admin/tasks', null, v)).body.length, 1)
+  assert.equal((await call('POST', '/admin/tasks', { title: 'Para el dueño', assignee: 'owner' }, v)).status, 400)
+  assert.equal((await call('POST', '/admin/tasks', { title: 'Mía' }, v)).status, 201)
+  const done = await call('PATCH', `/admin/tasks/${t.body.id}`, { status: 'hecha' }, v)
+  assert.equal(done.body.status, 'hecha')
+  assert.ok(done.body.doneAt)
+  assert.equal((await call('GET', '/admin/stats', null, v)).body.myTasks, 1)
+
+  // RRHH: solo con permiso; la vendedora checa entrada y salida
+  assert.equal((await call('GET', '/admin/employees', null, v)).status, 403)
+  const emp = await call('POST', '/admin/employees', { name: 'Vendedora', salaryMonthly: 11000, userId: vid, commissionPct: 3 }, owner)
+  assert.equal(emp.status, 201)
+  assert.equal((await call('POST', '/admin/clock', null, v)).body.out, '')
+  assert.ok((await call('POST', '/admin/clock', null, v)).body.out)
+  assert.equal((await call('POST', '/admin/clock', null, v)).status, 400)
+  assert.equal((await call('GET', '/admin/myday', null, v)).body.employee.name, 'Vendedora')
+  assert.equal((await call('PUT', '/admin/settings/hr', { employerFactor: 1.4 }, owner)).body.employerFactor, 1.4)
+
+  // Finanzas
+  assert.equal((await call('POST', '/admin/expenses', { category: 'renta', amount: 0 }, owner)).status, 400)
+  assert.equal((await call('POST', '/admin/expenses', { category: 'renta', amount: 4500, recurring: true }, owner)).status, 201)
+  assert.equal((await call('GET', '/admin/expenses', null, v)).status, 403)
+
+  // Cupones: se validan en público, se aplican al pedido y cuentan usos
+  assert.equal((await call('POST', '/admin/coupons', { code: 'AMIGO10', pct: 10, maxUses: 1 }, owner)).status, 201)
+  assert.equal((await call('POST', '/admin/coupons', { code: 'amigo10', pct: 5 }, owner)).status, 400)
+  assert.equal((await call('GET', '/public/coupon/amigo10')).body.pct, 10)
+  const withCoupon = await call('POST', '/orders', { ...ledOrder, coupon: 'AMIGO10', customer: { ...ledOrder.customer, source: 'instagram', ref: 'reel-oct' } })
+  assert.equal(withCoupon.status, 201)
+  const plain = await call('POST', '/orders', ledOrder)
+  assert.ok(withCoupon.body.total < plain.body.total)
+  assert.equal((await call('POST', '/orders', { ...ledOrder, coupon: 'AMIGO10' })).status, 400, 'agotado')
+  const list = (await call('GET', '/admin/orders', null, owner)).body
+  const o = list.find((x) => x.folio === withCoupon.body.folio)
+  assert.equal(o.coupon, 'AMIGO10')
+  assert.equal(o.customer.source, 'instagram')
+  assert.equal(o.customer.ref, 'reel-oct')
+
+  // Responsable del pedido: solo quien delega
+  assert.equal((await call('PATCH', `/admin/orders/${o.id}`, { assignee: vid }, v)).status, 403)
+  assert.equal((await call('PATCH', `/admin/orders/${o.id}`, { assignee: vid }, owner)).body.assignee, vid)
+  assert.equal((await call('PATCH', `/admin/orders/${o.id}`, { assignee: 'nadie' }, owner)).status, 400)
 })
 
 test('límite de intentos de acceso', async () => {

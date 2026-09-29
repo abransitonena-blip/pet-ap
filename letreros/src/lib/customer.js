@@ -7,6 +7,8 @@ export const DELIVERY_OPTIONS = [
 ]
 export const deliveryName = (id) => DELIVERY_OPTIONS.find((d) => d.id === id)?.name || 'Recoger'
 
+import { LEAD_SOURCES } from './business.js'
+
 const text = (v, max) => String(v || '').trim().slice(0, max)
 
 // Limpia y valida los datos del cliente. Devuelve { customer } o { error }.
@@ -18,10 +20,13 @@ export function normalizeCustomer(input) {
   const notes = text(c.notes, 1000)
   const delivery = DELIVERY_OPTIONS.some((d) => d.id === c.delivery) ? c.delivery : 'recoger'
   const date = /^\d{4}-\d{2}-\d{2}$/.test(c.date || '') ? c.date : ''
+  // ¿Cómo nos conoció? (marketing) y campaña de origen (?ref= / utm_source en el enlace)
+  const source = LEAD_SOURCES.some((s) => s.id === c.source) ? c.source : ''
+  const ref = text(c.ref, 40).replace(/[^\w.-]/g, '')
 
   if (!name) return { error: 'El nombre es obligatorio' }
   if (!phone && !email) return { error: 'Deja un WhatsApp o correo de contacto' }
   if (phone && phone.replace(/\D/g, '').length < 10) return { error: 'El WhatsApp debe tener al menos 10 dígitos' }
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'El correo no es válido' }
-  return { customer: { name, phone, email, notes, delivery, date } }
+  return { customer: { name, phone, email, notes, delivery, date, source, ref } }
 }

@@ -7,6 +7,11 @@ import { Business, Clients, Prices, QuoteEditor, QuotePill, Quotes, Team, quoteL
 import Market from './Market'
 import Prospects from './Prospects'
 import Suppliers from './Suppliers'
+import Tasks from './Tasks'
+import Finance from './Finance'
+import HR from './HR'
+import Marketing from './Marketing'
+import { areaById, sourceName } from '../lib/business'
 import { costEstimate, margin } from '../lib/costs'
 import { marketListing } from '../lib/listing'
 import { shareUrl } from '../lib/share'
@@ -124,6 +129,7 @@ const materialName = (d) => (d.kind === 'led' ? boardMaterialById(d.material).na
 // Cada sección exige al menos uno de estos permisos
 const SECTIONS = [
   { id: 'resumen', label: 'Resumen', perms: [] },
+  { id: 'tareas', label: 'Tareas', perms: [] },
   { id: 'pedidos', label: 'Pedidos', perms: ['pedidos'] },
   { id: 'presupuestos', label: 'Presupuestos', perms: ['presupuestos'] },
   { id: 'produccion', label: 'Producción', perms: ['produccion', 'editar'] },
@@ -131,6 +137,9 @@ const SECTIONS = [
   { id: 'opiniones', label: 'Opiniones', perms: ['editar'] },
   { id: 'archivos', label: 'Archivos', perms: ['produccion'] },
   { id: 'clientes', label: 'Clientes', perms: ['pedidos'] },
+  { id: 'marketing', label: 'Marketing', perms: ['marketing', 'ventas'], group: 'Áreas' },
+  { id: 'finanzas', label: 'Finanzas', perms: ['finanzas'] },
+  { id: 'rrhh', label: 'Recursos humanos', perms: ['rrhh'] },
   { id: 'mercado', label: 'Mercado', perms: ['ventas', 'precios'], group: 'Estrategia' },
   { id: 'prospectos', label: 'Prospectos', perms: ['ventas'] },
   { id: 'proveedores', label: 'Proveedores', perms: ['precios', 'produccion'] },
@@ -196,6 +205,7 @@ function Dashboard({ onLogout }) {
   const [selected, setSelected] = useState(null) // { id, tab }
   const [me, setMe] = useState(null)
   const [settings, setSettings] = useState(null)
+  const [people, setPeople] = useState([])
   const can = useCallback((...perms) => !!me && perms.some((p) => me.perms.includes(p)), [me])
   const [toast, setToast] = useState(null)
   const [alerts, setAlerts] = useState(readAlerts)
@@ -250,7 +260,8 @@ function Dashboard({ onLogout }) {
     try {
       const user = await api.me()
       const canOrders = ORDER_PERMS.some((p) => user.perms.includes(p))
-      const [o, s, st] = await Promise.all([canOrders ? api.orders() : [], api.stats(), api.settings()])
+      const [o, s, st, pp] = await Promise.all([canOrders ? api.orders() : [], api.stats(), api.settings(), api.people()])
+      setPeople(pp)
       setMe(user)
       if (canOrders) notifyNew(o)
       setOrders(o)
@@ -300,7 +311,8 @@ function Dashboard({ onLogout }) {
     pedidos: orders.filter((o) => o.status === 'nuevo').length,
     presupuestos: orders.filter((o) => o.quoteState === 'pendiente').length,
     produccion: orders.filter((o) => ['aprobado', 'imprimiendo'].includes(o.status)).length,
-    opiniones: orders.filter((o) => o.review?.status === 'pendiente').length
+    opiniones: orders.filter((o) => o.review?.status === 'pendiente').length,
+    tareas: stats?.myTasks || 0
   }
   const sections = SECTIONS.filter((s) => !s.perms.length || can(...s.perms))
   const active = sections.find((s) => s.id === section) || sections[0]
@@ -349,7 +361,11 @@ function Dashboard({ onLogout }) {
         ) : (
           <>
             {active.id === 'resumen' && <Overview stats={stats} orders={orders} onOpen={open} showMoney={can('ventas')} onInventory={() => { setSupTab('inventario'); setSection('proveedores') }} />}
-            {active.id === 'pedidos' && <OrdersList orders={orders} onOpen={open} onUpdate={updateOrder} can={can} />}
+            {active.id === 'tareas' && <Tasks me={me} orders={orders} can={can} onOpenOrder={open} />}
+            {active.id === 'finanzas' && <Finance orders={orders} settings={settings} />}
+            {active.id === 'rrhh' && <HR settings={settings} onSettings={setSettings} canEdit={can('rrhh')} />}
+            {active.id === 'marketing' && <Marketing orders={orders} settings={settings} canEdit={can('marketing')} />}
+            {active.id === 'pedidos' && <OrdersList orders={orders} onOpen={open} onUpdate={updateOrder} can={can} me={me} people={people} />}
             {active.id === 'presupuestos' && <Quotes orders={orders} onOpen={open} onUpdate={updateOrder} />}
             {active.id === 'produccion' && <Production orders={orders} onOpen={open} onUpdate={updateOrder} />}
             {active.id === 'impresos' && <PrintedGallery orders={orders} onOpen={open} />}
@@ -381,6 +397,7 @@ function Dashboard({ onLogout }) {
           onAddPhotos={(files) => addPhotos(current.id, files)}
           onDeletePhoto={(pid) => deletePhoto(current.id, pid)}
           can={can}
+          people={people}
           business={settings?.business}
           costs={settings?.costs}
         />
@@ -485,8 +502,9 @@ function Overview({ stats, orders, onOpen, showMoney, onInventory }) {
   )
 }
 
-function OrdersList({ orders, onOpen, onUpdate, can }) {
+function OrdersList({ orders, onOpen, onUpdate, can, me, people = [] }) {
   const [filter, setFilter] = useState('todos')
+  const [owner, setOwner] = useState('todos')
   const [kind, setKind] = useState('todos')
   const [search, setSearch] = useState('')
 
@@ -494,6 +512,8 @@ function OrdersList({ orders, onOpen, onUpdate, can }) {
     const term = search.trim().toLowerCase()
     return orders.filter((o) => {
       if (filter !== 'todos' && o.status !== filter) return false
+      if (owner === 'mios' && o.assignee !== me?.id) return false
+      if (owner === 'libres' && o.assignee) return false
       if (kind !== 'todos' && (o.design.kind === 'led' ? 'led' : 'impreso') !== kind) return false
       if (!term) return true
       return [o.folio, o.customer.name, o.customer.phone, o.customer.email, ...o.design.lines.map((l) => l.text)]
@@ -501,7 +521,7 @@ function OrdersList({ orders, onOpen, onUpdate, can }) {
         .toLowerCase()
         .includes(term)
     })
-  }, [orders, filter, kind, search])
+  }, [orders, filter, kind, search, owner, me])
 
   return (
     <>
@@ -511,6 +531,11 @@ function OrdersList({ orders, onOpen, onUpdate, can }) {
           <div className="switch small">
             {[['todos', 'Todos'], ['led', 'LED'], ['impreso', 'Impreso']].map(([id, label]) => (
               <button key={id} className={kind === id ? 'active' : ''} onClick={() => setKind(id)}>{label}</button>
+            ))}
+          </div>
+          <div className="switch small">
+            {[['todos', 'Todos'], ['mios', 'Míos'], ['libres', 'Sin responsable']].map(([id, label]) => (
+              <button key={id} className={owner === id ? 'active' : ''} onClick={() => setOwner(id)}>{label}</button>
             ))}
           </div>
           <button className="btn ghost sm push" onClick={() => exportCsv(filtered)}>Exportar CSV</button>
@@ -1005,6 +1030,8 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDel
               </div>
             </section>
 
+            <Assignee order={order} people={people} canAssign={can('delegar', 'equipo')} onUpdate={onUpdate} />
+
             {d.kind === 'led' ? <LedSpecs order={order} /> : (
             <section className="spec-grid">
                 <div><span>Medida</span><strong>{d.widthCm} × {d.heightCm} cm</strong></div>
@@ -1042,6 +1069,13 @@ function OrderDrawer({ order, tab, setTab, onClose, onUpdate, onUpdateAny, onDel
                 </p>
               )}
               {order.customer.notes && <p className="note">{order.customer.notes}</p>}
+              {(order.customer.source || order.customer.ref || order.coupon) && (
+                <p className="small muted">
+                  {order.customer.source && <>Nos conoció por <b>{sourceName(order.customer.source)}</b></>}
+                  {order.customer.ref && <> · campaña <b>{order.customer.ref}</b></>}
+                  {order.coupon && <> · cupón <b>{order.coupon}</b></>}
+                </p>
+              )}
             </section>
 
             {d.kind === 'led' && order.totals && costs && can('ventas', 'precios') && <CostBox order={order} costs={costs} />}
@@ -1143,5 +1177,23 @@ function LedSpecs({ order }) {
         </ul>
       </section>
     </>
+  )
+}
+
+// Responsable del pedido: quien lo atiende de principio a fin (y cobra comisión si es vendedor)
+function Assignee({ order, people, canAssign, onUpdate }) {
+  const who = people.find((p) => p.id === order.assignee)
+  return (
+    <section className="assignee">
+      <h3>Responsable</h3>
+      {canAssign ? (
+        <select className="input" value={order.assignee || ''} onChange={(e) => onUpdate({ assignee: e.target.value })}>
+          <option value="">Sin asignar</option>
+          {people.map((p) => <option key={p.id} value={p.id}>{p.name} · {areaById(p.area).name}</option>)}
+        </select>
+      ) : (
+        <p>{who ? <><span className="avatar xs">{who.name.slice(0, 1)}</span> {who.name}</> : <span className="muted">Sin asignar</span>}</p>
+      )}
+    </section>
   )
 }

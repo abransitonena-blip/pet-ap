@@ -4,6 +4,7 @@ import { api } from '../lib/api'
 import { money, MATERIALS, EXTRAS } from '../lib/pricing'
 import { BOARD_MATERIALS, FINISHES, LED_COLORS, MOUNTS, SHAPES } from '../lib/ledSign'
 import { DEFAULT_PRICES, PERMISSIONS, ROLES, computeTotals } from '../lib/prices'
+import { AREAS, areaById } from '../lib/business'
 
 const fmtDate = (iso) => new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
 export const quoteLink = (o) => `${window.location.origin}${window.location.pathname}#/presupuesto/${o.folio}/${o.publicToken}`
@@ -481,7 +482,7 @@ export function Team({ me }) {
     <div className="settings-page">
       <div className="save-bar">
         <span className="muted small">Cada persona entra con su usuario y solo ve lo que le permitas. Tú entras como <b>admin</b>.</span>
-        <button className="btn primary sm" onClick={() => setForm({ name: '', username: '', password: '', role: 'ventas', perms: ROLES.find((r) => r.id === 'ventas').perms })}>+ Agregar persona</button>
+        <button className="btn primary sm" onClick={() => setForm({ name: '', username: '', password: '', role: 'ventas', area: 'ventas', perms: ROLES.find((r) => r.id === 'ventas').perms })}>+ Agregar persona</button>
       </div>
       {error && <p className="error">{error}</p>}
 
@@ -494,13 +495,19 @@ export function Team({ me }) {
             <label className="field"><span>{form.id ? 'Nueva contraseña (opcional)' : 'Contraseña'}</span><input className="input" type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="mínimo 6 caracteres" /></label>
           </div>
           <div className="field">
-            <span>Rol</span>
+            <span>Puesto (trae los permisos de su área)</span>
             <div className="chips">
               {ROLES.map((r) => (
-                <button key={r.id} className={form.role === r.id ? 'active' : ''} onClick={() => setForm({ ...form, role: r.id, perms: r.id === 'personalizado' ? form.perms : r.perms })}>{r.name}</button>
+                <button key={r.id} className={form.role === r.id ? 'active' : ''} onClick={() => setForm({ ...form, role: r.id, area: r.area, perms: r.id === 'personalizado' ? form.perms : r.perms })}>{r.name}</button>
               ))}
             </div>
           </div>
+          <label className="field">
+            <span>Área</span>
+            <select className="input" value={form.area || 'direccion'} onChange={(e) => setForm({ ...form, area: e.target.value })}>
+              {AREAS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </label>
           <div className="perm-grid">
             {PERMISSIONS.map((p) => (
               <label key={p.id} className="check-row">
@@ -520,7 +527,7 @@ export function Team({ me }) {
               onClick={() =>
                 act(async () => {
                   if (form.id) {
-                    const patch = { name: form.name, role: form.role, perms: form.perms }
+                    const patch = { name: form.name, role: form.role, area: form.area, perms: form.perms }
                     if (form.password) patch.password = form.password
                     await api.updateUser(form.id, patch)
                   } else {
@@ -547,7 +554,7 @@ export function Team({ me }) {
             <span className="avatar">{u.name.slice(0, 1).toUpperCase()}</span>
             <div className="grow">
               <strong>{u.name}</strong>
-              <span className="muted small">usuario {u.username} · {ROLES.find((r) => r.id === u.role)?.name || 'Personalizado'}{u.active ? '' : ' · desactivado'}</span>
+              <span className="muted small"><span className="dot" style={{ background: areaById(u.area).color }} /> {areaById(u.area).name} · usuario {u.username} · {ROLES.find((r) => r.id === u.role)?.name || 'Personalizado'}{u.active ? '' : ' · desactivado'}</span>
               <div className="perm-chips">
                 {u.perms.map((p) => <span key={p} className="kind">{PERMISSIONS.find((x) => x.id === p)?.name}</span>)}
               </div>
