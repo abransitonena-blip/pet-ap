@@ -39,6 +39,14 @@ npm run server
 # http://localhost:5000
 ```
 
+## 🎬 Video a Audio y Guiones
+
+Pestaña **Video a Audio**: sube un video, extrae el audio (MP3, WAV, M4A, AAC, OGG, Opus, FLAC), descárgalo, transcríbelo y genera un guion.
+
+- Requiere `ffmpeg` instalado en el servidor.
+- Transcripción: `OPENAI_API_KEY` (Whisper). Guiones: `ANTHROPIC_API_KEY`. Sin llaves, la conversión y descarga funcionan igual.
+- `MAX_UPLOAD_MB` (500 por defecto). Los archivos se borran tras 1 hora.
+
 ## 📦 Deploy Gratuito
 
 ### Frontend - Vercel
