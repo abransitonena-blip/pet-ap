@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Map from './components/Map'
 import Header from './components/Header'
 import WalkerCard from './components/WalkerCard'
+import AudioStudio from './components/AudioStudio'
 import './App.css'
 
 function App() {
@@ -36,6 +37,7 @@ function App() {
       <Header setView={setView} view={view} />
       <main className="main-content">
         {view === 'map' && <Map walkers={walkers} />}
+        {view === 'audio' && <AudioStudio />}
         {view === 'walkers' && (
           <div className="walkers-grid">
             {loading ? (

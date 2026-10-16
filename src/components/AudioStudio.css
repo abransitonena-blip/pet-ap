@@ -1,0 +1,113 @@
+.studio {
+  max-width: 800px;
+  margin: 20px auto;
+  color: #333;
+}
+
+.studio > h2 {
+  color: white;
+  margin-bottom: 16px;
+}
+
+.studio-card {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.studio-card h3 {
+  margin-bottom: 12px;
+  color: #667eea;
+}
+
+.studio .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-top: 14px;
+}
+
+.studio label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.studio .grow {
+  flex: 1;
+  min-width: 160px;
+}
+
+.studio select,
+.studio input:not([type='file']),
+.studio textarea {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.studio textarea {
+  width: 100%;
+  margin: 12px 0;
+  resize: vertical;
+}
+
+.studio button,
+.studio a.primary {
+  padding: 9px 16px;
+  border: 1px solid #667eea;
+  border-radius: 8px;
+  background: white;
+  color: #667eea;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.studio button.primary,
+.studio a.primary {
+  background: #667eea;
+  color: white;
+}
+
+.studio button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.downloads {
+  list-style: none;
+}
+
+.downloads li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.muted {
+  color: #777;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.status {
+  background: white;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-weight: 600;
+}
+
+.status.error {
+  color: #c0392b;
+}

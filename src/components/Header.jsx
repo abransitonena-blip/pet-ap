@@ -21,6 +21,12 @@ function Header({ setView, view }) {
           >
             👥 Paseadores
           </button>
+          <button
+            className={`nav-btn ${view === 'audio' ? 'active' : ''}`}
+            onClick={() => setView('audio')}
+          >
+            🎬 Video a Audio
+          </button>
         </nav>
       </div>
     </header>
