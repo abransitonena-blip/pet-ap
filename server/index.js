@@ -1,13 +1,11 @@
 import express from 'express'
 import cors from 'cors'
-import audioRoutes from './audio.js'
 
 const app = express()
 const PORT = process.env.PORT || 5000
 
 app.use(cors())
-app.use(express.json({ limit: '2mb' }))
-app.use(audioRoutes)
+app.use(express.json())
 
 // Mock data
 const walkers = [
